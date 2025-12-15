@@ -1,0 +1,32 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+bin/
+obj/
+Debug/
+Release/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# EF migrations snapshots temporales
+*Migrations/*.Designer.cs
+
+# temp
+*.vsidx
+*.vsp
+*.ncb
+*.aps
+
+# Otros
+*.cache
+*.tmp
+*.dbmdl
