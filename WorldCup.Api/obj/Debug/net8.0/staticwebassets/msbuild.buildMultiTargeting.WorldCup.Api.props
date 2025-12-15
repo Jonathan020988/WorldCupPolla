@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\WorldCup.Api.props" />
-</Project>
