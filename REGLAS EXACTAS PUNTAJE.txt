@@ -1,0 +1,210 @@
+🏆 SISTEMA DE POLLA – REGLAS OFICIALES (RESUMEN FINAL)
+1️⃣ Estructura general de la Polla
+
+Cualquier usuario puede crear su propia polla.
+
+Cada polla es independiente (no hay ranking global).
+
+El creador es el administrador.
+
+Los usuarios se unen solo por enlace o código de invitación.
+
+El administrador:
+
+✅ Puede editar nombre y descripción (A)
+
+✅ Puede eliminar usuarios (B)
+
+✅ Puede bloquear usuarios (C)
+
+❌ NO puede transferir la propiedad (D)
+
+✅ Puede cerrar la polla (E)
+
+2️⃣ Predicciones por partido
+
+Cada usuario predice:
+
+Goles local
+
+Goles visitante
+
+Las predicciones:
+
+❌ NO se pueden modificar desde 1 hora antes del partido, ni durante ni después.
+
+Los resultados oficiales:
+
+❌ Nunca se pueden editar una vez guardados.
+
+3️⃣ PUNTUACIÓN BASE (FASE DE GRUPOS)
+Regla	Descripción	Puntos
+Exacto	Marcador exacto	10
+Correcto	Acierta ganador o empate	4
+Goles	Acierta goles exactos de un equipo	2
+Diferencia	Acierta diferencia de goles	1
+Reglas importantes:
+
+✅ Exacto domina todo → si es exacto, solo suma 10.
+
+❌ Goles y diferencia NO se suman juntos (son excluyentes).
+
+Máximo sin exacto = 6 puntos.
+
+Nunca existe un caso de 7 puntos (confirmado y demostrado).
+
+4️⃣ FASES ELIMINATORIAS (OCTAVOS → FINAL)
+
+Se aplican las mismas reglas, pero TODOS los puntos se duplican:
+
+Regla	Puntos
+Exacto	20
+Correcto	8
+Goles	4
+Diferencia	2
+5️⃣ Empates en fases eliminatorias
+
+Si el usuario predice empate, debe elegir:
+
+Tiempo extra
+
+Penales (y quién gana)
+
+Puntos adicionales:
+
+Acierta que hay tiempo extra → +5
+
+Acierta que hay penales → +5
+
+Acierta quién avanza → +10 (siempre)
+
+Ejemplo:
+
+Empate → tiempo extra → gana Brasil
+
+Si ocurrió así:
+
++5 (extras)
+
++10 (clasifica)
+
+puntos del marcador si aplica
+
+6️⃣ Clasificación FASE DE GRUPOS
+
+Formato Mundial 2026:
+
+12 grupos de 4
+
+Pasan:
+
+1° y 2° de cada grupo
+
+8 mejores terceros
+
+Puntos por clasificación de grupo
+✔ Orden exacto:
+
+1° → 15
+
+2° → 10
+
+3° → 5
+
+✔ Equipos correctos, orden incorrecto:
+
+1° → 10
+
+2° → 5
+
+3° → 3
+
+Estos puntos son independientes de los marcadores.
+
+7️⃣ Clasificación en fases KO
+
+Por acertar qué equipo avanza:
+
++10 puntos extra por partido
+
+Aplica en:
+
+Octavos
+
+Cuartos
+
+Semifinal
+
+Final
+
+Tercer puesto
+
+8️⃣ PODIO (Campeón, Subcampeón, Tercero)
+Cuándo se habilita:
+
+✅ Después de terminar la fase de grupos
+
+✅ Cuando ya están los 16 clasificados
+
+❌ Se cierra al iniciar el primer partido de octavos
+
+✔ Editable hasta el cierre (opción B)
+
+Puntos (definitivos):
+
+Campeón → 20
+
+Subcampeón → 10
+
+Tercer lugar → 5
+
+Solo participan por este bonus quienes hicieron la predicción a tiempo.
+
+9️⃣ Reglas de desempate en el ranking
+
+Si dos usuarios empatan en puntos:
+
+1️⃣ Más marcadores exactos
+2️⃣ Más resultados correctos
+3️⃣ Más aciertos de goles
+4️⃣ Más aciertos de diferencia
+5️⃣ Más puntos por clasificación de grupos
+6️⃣ Más puntos por clasificación KO
+7️⃣ Más puntos de podio
+8️⃣ Si persiste → sorteo automático
+
+🔔 10️⃣ Correos diarios
+
+El sistema revisa una vez al día:
+
+Si el usuario tiene predicciones vacías
+
+Solo si tiene pendientes:
+
+📧 Se envía 1 correo diario al email registrado
+
+Si no tiene pendientes:
+
+❌ No se envía nada
+
+👥 11️⃣ Unión a la polla
+
+Solo por código o enlace
+
+El administrador aprueba o rechaza
+
+Al unirse:
+
+El usuario puede escribir una observación libre
+
+Ejemplo: “Amigo del trabajo”, “Recomendado por Juan”, etc.
+
+Esta observación queda visible en la tabla de miembros.
+
+✅ ESTADO FINAL
+
+✔ Reglas completas
+✔ Puntuación balanceada
+✔ Sin contradicciones
+✔ Sistema justo y profesional
+✔ Listo para diseño de base de datos y backend

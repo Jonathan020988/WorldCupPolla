@@ -1,0 +1,1 @@
+UPDATE "Equipos" SET "Nombre"='EquipoReal', "CodigoFifa"='XXX', "BanderaUrl"='url' WHERE "CodigoFifa"='PEND-X';
