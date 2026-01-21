@@ -1,0 +1,57 @@
+﻿@page "/partidos"
+@inject HttpClient Http
+
+<h3>Partidos</h3>
+
+@if (partidos == null)
+{
+    <p>Cargando partidos...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fase</th>
+                <th>Local</th>
+                <th>Visitante</th>
+                <th>Resultado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in partidos)
+            {
+                <tr>
+                    <td>@p.Fase</td>
+                    <td>@p.Local</td>
+                    <td>@p.Visitante</td>
+                    <td>
+                        @(p.GolesLocal.HasValue
+                            ? $"{p.GolesLocal}-{p.GolesVisitante}"
+                            : "No jugado")
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<PartidoDto>? partidos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        partidos = await Http.GetFromJsonAsync<List<PartidoDto>>(
+            "https://localhost:7092/api/partidos");
+    }
+
+    class PartidoDto
+    {
+        public int Id { get; set; }
+        public string Fase { get; set; } = "";
+        public string Local { get; set; } = "";
+        public string Visitante { get; set; } = "";
+        public int? GolesLocal { get; set; }
+        public int? GolesVisitante { get; set; }
+    }
+}

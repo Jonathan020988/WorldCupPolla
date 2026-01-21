@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using ClosedXML.Excel;
+using System.IO;
+
 
 namespace WorldCup.Api.Controllers
 {
@@ -23,20 +26,46 @@ namespace WorldCup.Api.Controllers
         [HttpPost("guardar-multiples")]
         public async Task<IActionResult> GuardarMultiples(GuardarPrediccionGrupoDTO dto)
         {
+
             int usuarioId = UserIdActual(); // Simulado por ahora
 
             foreach (var item in dto.Predicciones)
             {
-                // 1️⃣ Validar partido
-                var partido = await _context.Partidos.FindAsync(item.PartidoId);
+                // 1️⃣ Obtener PARTIDO COMPLETO
+                var partido = await _context.Partidos
+                    .FirstOrDefaultAsync(p => p.Id == item.PartidoId);
+
                 if (partido == null)
                     return BadRequest("Partido no válido");
 
-                // 2️⃣ Bloqueo: no permitir si ya inició o fue finalizado
-                if (partido.Finalizado || DateTime.UtcNow >= partido.Fecha)
-                    return Conflict("El partido ya está bloqueado");
+                // 2️⃣ BLOQUEO: 20 minutos antes del inicio
+                if (DateTime.UtcNow >= partido.Fecha.AddMinutes(-20))
+                    return Conflict("Las predicciones se cerraron 20 minutos antes del partido");
 
-                // 3️⃣ Buscar si ya existe predicción
+                // 3️⃣ Seguridad extra
+                if (partido.Finalizado)
+                    return Conflict("El partido ya fue finalizado");
+
+                // 🔴 VALIDACIÓN EXTRA SOLO PARA ELIMINATORIAS
+                if (partido.Fase != "Grupos")
+                {
+                    // Si hay empate → debe indicar clasificado
+                    if (item.GolesLocal == item.GolesVisitante)
+                    {
+                        if (item.PrediceClasificadoId == null)
+                            return BadRequest("Debe indicar el clasificado en eliminatorias");
+                    }
+
+                    // El clasificado debe pertenecer al partido
+                    if (item.PrediceClasificadoId != null &&
+                        item.PrediceClasificadoId != partido.LocalId &&
+                        item.PrediceClasificadoId != partido.VisitanteId)
+                    {
+                        return BadRequest("El clasificado no pertenece al partido");
+                    }
+                }
+
+                // 4️⃣ Buscar predicción existente
                 var prediccion = await _context.Predicciones
                     .FirstOrDefaultAsync(p =>
                         p.PollaId == dto.PollaId &&
@@ -44,7 +73,7 @@ namespace WorldCup.Api.Controllers
                         p.PartidoId == item.PartidoId
                     );
 
-                // 4️⃣ Crear si no existe
+                // 5️⃣ Crear si no existe
                 if (prediccion == null)
                 {
                     prediccion = new Prediccion
@@ -59,12 +88,11 @@ namespace WorldCup.Api.Controllers
                 }
                 else
                 {
-                    // 5️⃣ Validar bloqueo manual
                     if (prediccion.Bloqueada)
                         return Conflict("La predicción ya está bloqueada");
                 }
 
-                // 6️⃣ Guardar datos de la predicción
+                // 6️⃣ Guardar datos
                 prediccion.GolesLocal = item.GolesLocal;
                 prediccion.GolesVisitante = item.GolesVisitante;
                 prediccion.PrediceTiempoExtra = item.PrediceTiempoExtra;
@@ -75,6 +103,8 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync();
             return Ok("✅ Predicciones guardadas correctamente");
         }
+
+
 
         // =========================================================
         // GET: api/Predicciones
@@ -137,8 +167,8 @@ namespace WorldCup.Api.Controllers
 
         [HttpGet("tabla-simulada/{pollaId}/{grupo}")]
         public async Task<IActionResult> GetTablaSimulada(
-    int pollaId,
-    string grupo)
+            int pollaId,
+            string grupo)
         {
             int usuarioId = UserIdActual();
 
@@ -227,47 +257,6 @@ namespace WorldCup.Api.Controllers
                 .ToList();
 
             return Ok(ordenada);
-        }
-
-
-        [HttpPost("guardar-clasificacion")]
-        public async Task<IActionResult> GuardarClasificacionGrupo(
-            GuardarPrediccionGrupoDTO dto)
-        {
-            int usuarioId = UserIdActual();
-
-            var existente = await _context.PrediccionesGrupo
-                .FirstOrDefaultAsync(p =>
-                    p.PollaId == dto.PollaId &&
-                    p.UsuarioId == usuarioId &&
-                    p.Grupo == dto.Grupo.ToUpper());
-
-            if (existente != null && existente.Bloqueada)
-                return Conflict("La clasificación ya está bloqueada");
-
-            if (existente == null)
-            {
-                _context.PrediccionesGrupo.Add(new PrediccionGrupo
-                {
-                    PollaId = dto.PollaId,
-                    UsuarioId = usuarioId,
-                    Grupo = dto.Grupo.ToUpper(),
-                    PrimeroId = dto.PrimeroId,
-                    SegundoId = dto.SegundoId,
-                    TerceroId = dto.TerceroId,
-                    Bloqueada = false
-                });
-            }
-            else
-            {
-                existente.PrimeroId = dto.PrimeroId;
-                existente.SegundoId = dto.SegundoId;
-                existente.TerceroId = dto.TerceroId;
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok("Clasificación guardada correctamente");
         }
 
         // GET: api/Predicciones/tabla/{pollaId}/{grupo}
@@ -410,6 +399,480 @@ namespace WorldCup.Api.Controllers
             }
 
             return Ok(resultado);
+        }
+
+        [HttpPost("guardar-clasificacion")]
+        public async Task<IActionResult> GuardarClasificacionGrupo(
+             GuardarPrediccionGrupoDTO dto)
+
+
+        {
+            int usuarioId = UserIdActual();
+
+            // 🔒 BLOQUEO: si ya empezó el primer partido del grupo
+            var grupoNorm = dto.Grupo.ToUpper();
+
+            bool grupoYaInicio = await _context.Partidos
+                .Include(p => p.Local)
+                .AnyAsync(p =>
+                    p.Fase == "Grupos" &&
+                    p.Local.Grupo != null &&
+                    p.Local.Grupo.ToUpper() == grupoNorm &&
+                    p.Fecha <= DateTime.UtcNow
+                );
+
+
+            if (grupoYaInicio)
+            {
+                return Conflict("La clasificación del grupo se cerró al iniciar el primer partido");
+            }
+
+
+            string grupo = dto.Grupo.ToUpper();
+
+            // 1️⃣ Validar grupo (debe tener 4 equipos)
+            var equiposGrupo = await _context.Equipos
+                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupo)
+                .Select(e => e.Id)
+                .ToListAsync();
+
+            if (equiposGrupo.Count != 4)
+                return BadRequest("Grupo inválido");
+
+            // 2️⃣ Validar equipos
+            if (!equiposGrupo.Contains(dto.PrimeroId) ||
+                !equiposGrupo.Contains(dto.SegundoId) ||
+                dto.PrimeroId == dto.SegundoId)
+                return BadRequest("Clasificación inválida");
+
+            // 3️⃣ Ver si ya existe
+            var existente = await _context.PrediccionesGrupo
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == dto.PollaId &&
+                    p.UsuarioId == usuarioId &&
+                    p.Grupo == grupo);
+
+            if (existente != null && existente.Bloqueada)
+                return Conflict("La clasificación ya está bloqueada");
+
+            if (existente == null)
+            {
+                _context.PrediccionesGrupo.Add(new PrediccionGrupo
+                {
+                    PollaId = dto.PollaId,
+                    UsuarioId = usuarioId,
+                    Grupo = grupo,
+                    PrimeroId = dto.PrimeroId,
+                    SegundoId = dto.SegundoId,
+                    TerceroId = dto.TerceroId,
+                    Bloqueada = false
+                });
+            }
+            else
+            {
+                existente.PrimeroId = dto.PrimeroId;
+                existente.SegundoId = dto.SegundoId;
+                existente.TerceroId = dto.TerceroId;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok("✅ Clasificación de grupo guardada correctamente");
+        }
+
+        // GET: api/Predicciones/ranking/{pollaId}
+        [HttpGet("ranking/{pollaId}")]
+        public async Task<IActionResult> GetRankingPolla(int pollaId)
+        {
+            var ranking = await _context.Predicciones
+                .Where(p => p.PollaId == pollaId)
+                .GroupBy(p => new { p.UsuarioId })
+                .Select(g => new RankingPollaDTO
+                {
+                    UsuarioId = g.Key.UsuarioId,
+                    Usuario = "Usuario " + g.Key.UsuarioId, // 🔹 luego se reemplaza con tabla Usuarios
+                    Puntos = g.Sum(x => x.PuntosTotales)
+                })
+                .OrderByDescending(r => r.Puntos)
+                .ToListAsync();
+
+            return Ok(ranking);
+        }
+
+        [HttpGet("mi-posicion/{pollaId}")]
+        public async Task<IActionResult> GetMiPosicion(int pollaId)
+        {
+            int usuarioId = UserIdActual(); // luego JWT
+
+            // 1️⃣ Ranking general
+            var ranking = await _context.Predicciones
+                .Where(p => p.PollaId == pollaId)
+                .GroupBy(p => new { p.UsuarioId })
+                .Select(g => new
+                {
+                    UsuarioId = g.Key.UsuarioId,
+                    Puntos = g.Sum(x => x.PuntosTotales)
+                })
+                .OrderByDescending(x => x.Puntos)
+                .ToListAsync();
+
+            if (!ranking.Any())
+                return NotFound("No hay participantes");
+
+            // 2️⃣ Posición del usuario
+            var index = ranking.FindIndex(r => r.UsuarioId == usuarioId);
+            if (index == -1)
+                return NotFound("El usuario no participa en esta polla");
+
+            var miRanking = ranking[index];
+
+            var response = new MiPosicionDTO
+            {
+                UsuarioId = usuarioId,
+                Usuario = $"Usuario {usuarioId}", // luego tabla usuarios
+                Puntos = miRanking.Puntos,
+                Posicion = index + 1,
+                TotalUsuarios = ranking.Count
+            };
+
+            return Ok(response);
+        }
+
+        [HttpGet("tabla-partido/{partidoId}")]
+        public async Task<IActionResult> GetTablaPartido(int partidoId)
+        {
+            // 1️⃣ Partido real
+            var partido = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null)
+                return NotFound("Partido no encontrado");
+
+            if (!partido.Finalizado)
+                return Conflict("El partido aún no ha finalizado");
+
+            // 2️⃣ Predicciones del partido
+            var predicciones = await _context.Predicciones
+                .Where(p => p.PartidoId == partidoId)
+                .ToListAsync();
+
+            // 3️⃣ Construir tabla
+            var tabla = predicciones
+                .Select(p => new TablaPartidoDTO
+                {
+                    UsuarioId = p.UsuarioId,
+                    Usuario = $"Usuario {p.UsuarioId}", // luego tabla usuarios
+
+                    GolesLocalPred = p.GolesLocal,
+                    GolesVisitantePred = p.GolesVisitante,
+
+                    GolesLocalReal = partido.GolesLocal ?? 0,
+                    GolesVisitanteReal = partido.GolesVisitante ?? 0,
+
+                    Puntos = p.PuntosTotales
+                })
+                .OrderByDescending(t => t.Puntos)
+                .ThenBy(t => t.Usuario)
+                .ToList();
+
+            return Ok(new
+            {
+                Partido = $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}",
+                ResultadoReal = $"{partido.GolesLocal}-{partido.GolesVisitante}",
+                Tabla = tabla
+            });
+        }
+        
+
+        [HttpGet("resumen-final/{pollaId}/{grupo}")]
+        public async Task<IActionResult> GetResumenFinalGrupo(int pollaId, string grupo)
+        {
+            var grupoNorm = grupo.ToUpper();
+
+            // 1️⃣ Partidos del grupo
+            var partidos = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    p.Local.Grupo != null &&
+                    p.Local.Grupo.ToUpper() == grupoNorm
+                )
+                .OrderBy(p => p.Fecha)
+                .ToListAsync();
+
+            if (!partidos.Any())
+                return Ok(new
+                {
+                    grupo = grupoNorm,
+                    pollaId,
+                    partidos = new List<object>()
+                });
+
+            var partidosDto = new List<object>();
+
+            foreach (var partido in partidos)
+            {
+                var predicciones = await _context.Predicciones
+                    .Include(p => p.Usuario)
+                    .Where(p =>
+                        p.PollaId == pollaId &&
+                        p.PartidoId == partido.Id
+                    )
+                    .Select(p => new
+                    {
+                        usuarioId = p.UsuarioId,
+                        usuario = p.Usuario.Nombre,
+                        prediccion = p.GolesLocal != null && p.GolesVisitante != null
+                            ? $"{p.GolesLocal} - {p.GolesVisitante}"
+                            : "Sin predicción",
+                        puntos = p.PuntosTotales
+                    })
+                    .OrderByDescending(p => p.puntos)
+                    .ThenBy(p => p.usuario)
+                    .ToListAsync();
+
+                partidosDto.Add(new
+                {
+                    partidoId = partido.Id,
+                    local = partido.Local.Nombre,
+                    visitante = partido.Visitante.Nombre,
+                    marcadorReal = new
+                    {
+                        local = partido.GolesLocal,
+                        visitante = partido.GolesVisitante
+                    },
+                    predicciones
+                });
+            }
+
+            return Ok(new
+            {
+                grupo = grupoNorm,
+                pollaId,
+                partidos = partidosDto
+            });
+        }
+
+        // =========================================================
+        // RESUMEN FINAL DE TODA LA POLLA
+        // =========================================================
+        [HttpGet("resumen-final-polla/{pollaId}")]
+        public async Task<IActionResult> GetResumenFinalPolla(int pollaId)
+        {
+
+            // 1️⃣ Todos los partidos de fase de grupos
+            var partidos = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                 .Where(p => p.Fase == "Grupos")
+                 .OrderBy(p => p.Local.Grupo)
+                 .ThenBy(p => p.Fecha)
+                 .ToListAsync();
+
+
+            if (!partidos.Any())
+            {
+                return Ok(new
+                {
+                    pollaId,
+                    grupos = new List<object>()
+                });
+            }
+
+            // 2️⃣ Agrupar por grupo
+            var gruposDto = partidos
+            .GroupBy(p => p.Local.Grupo)
+            .Select(g => new ResumenGrupoDTO
+            {
+                Grupo = g.Key!,
+                Partidos = g.Select(partido => new ResumenPartidoFinalDTO
+                {
+                    Local = partido.Local.Nombre,
+                    Visitante = partido.Visitante.Nombre,
+                    MarcadorReal = new MarcadorDTO
+                    {
+                        Local = partido.GolesLocal,
+                        Visitante = partido.GolesVisitante
+                    },
+                    Predicciones = _context.Predicciones
+                        .Include(p => p.Usuario)
+                        .Where(p =>
+                            p.PollaId == pollaId &&
+                            p.PartidoId == partido.Id
+                        )
+                        .Select(p => new PrediccionUsuarioFinalDTO
+                        {
+                            Usuario = p.Usuario.Nombre,
+                            Prediccion = p.GolesLocal != null && p.GolesVisitante != null
+                                ? $"{p.GolesLocal} - {p.GolesVisitante}"
+                                : "Sin predicción",
+                            Puntos = p.PuntosTotales
+                        })
+                        .OrderByDescending(p => p.Puntos)
+                        .ThenBy(p => p.Usuario)
+                        .ToList()
+                }).ToList()
+            })
+            .OrderBy(g => g.Grupo)
+            .ToList();
+
+                
+
+            return Ok(new ResumenFinalPollaDTO
+            {
+                PollaId = pollaId,
+                Grupos = gruposDto
+            });
+
+        }
+
+        [HttpGet("exportar-excel/{pollaId}")]
+        public async Task<IActionResult> ExportarResumenExcel(int pollaId)
+        {
+            // 🔹 Reutilizamos el resumen final
+            var resumenResult = await GetResumenFinalPolla(pollaId) as OkObjectResult;
+            if (resumenResult?.Value == null)
+                return BadRequest("No hay datos para exportar");
+
+            var data = (ResumenFinalPollaDTO)resumenResult.Value;
+
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Resumen Polla");
+
+            int row = 1;
+
+            // Encabezados
+            ws.Cell(row, 1).Value = "Grupo";
+            ws.Cell(row, 2).Value = "Partido";
+            ws.Cell(row, 3).Value = "Usuario";
+            ws.Cell(row, 4).Value = "Predicción";
+            ws.Cell(row, 5).Value = "Resultado Real";
+            ws.Cell(row, 6).Value = "Puntos";
+
+            ws.Row(row).Style.Font.Bold = true;
+            row++;
+            foreach (var grupo in data.Grupos)
+            {
+                foreach (var partido in grupo.Partidos)
+                {
+                    foreach (var pred in partido.Predicciones)
+                    {
+                        ws.Cell(row, 1).Value = grupo.Grupo;
+                        ws.Cell(row, 2).Value = $"{partido.Local} vs {partido.Visitante}";
+                        ws.Cell(row, 3).Value = pred.Usuario;
+                        ws.Cell(row, 4).Value = pred.Prediccion;
+                        ws.Cell(row, 5).Value =
+                            partido.MarcadorReal.Local != null
+                                ? $"{partido.MarcadorReal.Local} - {partido.MarcadorReal.Visitante}"
+                                : "No jugado";
+                        ws.Cell(row, 6).Value = pred.Puntos;
+
+                        row++;
+                    }
+                }
+            }
+
+
+            ws.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Resumen_Polla_{pollaId}.xlsx"
+            );
+        }
+
+        [HttpGet("historial/{pollaId}")]
+        public async Task<IActionResult> GetHistorialPuntos(int pollaId)
+        {
+            int usuarioId = UserIdActual(); // luego JWT
+
+            // 1️⃣ Predicciones del usuario ordenadas por fecha del partido
+            var predicciones = await _context.Predicciones
+                .Include(p => p.Partido)
+                    .ThenInclude(p => p.Local)
+                .Include(p => p.Partido)
+                    .ThenInclude(p => p.Visitante)
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId &&
+                    p.Partido.Finalizado
+                )
+                .OrderBy(p => p.Partido.Fecha)
+                .ToListAsync();
+
+            if (!predicciones.Any())
+                return Ok(new List<HistorialPuntosDTO>());
+
+            // 2️⃣ Construir historial con acumulado
+            var historial = new List<HistorialPuntosDTO>();
+            int acumulado = 0;
+
+            foreach (var p in predicciones)
+            {
+                acumulado += p.PuntosTotales;
+
+                historial.Add(new HistorialPuntosDTO
+                {
+                    PartidoId = p.PartidoId,
+                    Fecha = p.Partido.Fecha,
+                    Fase = p.Partido.Fase,
+                    Partido = $"{p.Partido.Local.Nombre} vs {p.Partido.Visitante.Nombre}",
+                    PuntosPartido = p.PuntosTotales,
+                    PuntosAcumulados = acumulado
+                });
+            }
+
+            return Ok(historial);
+        }
+
+        [HttpGet("grafica/{pollaId}")]
+        public async Task<IActionResult> GetGraficaPuntos(int pollaId)
+        {
+            int usuarioId = UserIdActual(); // luego JWT
+
+            var predicciones = await _context.Predicciones
+                .Include(p => p.Partido)
+                    .ThenInclude(p => p.Local)
+                .Include(p => p.Partido)
+                    .ThenInclude(p => p.Visitante)
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId &&
+                    p.Partido.Finalizado
+                )
+                .OrderBy(p => p.Partido.Fecha)
+                .ToListAsync();
+
+            int acumulado = 0;
+
+            var historial = predicciones.Select(p =>
+            {
+                acumulado += p.PuntosTotales;
+
+                return new
+                {
+                    fecha = p.Partido.Fecha,
+                    partido = $"{p.Partido.Local.Nombre} vs {p.Partido.Visitante.Nombre}",
+                    puntosPartido = p.PuntosTotales,
+                    puntosAcumulados = acumulado
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                usuarioId,
+                usuario = $"Usuario {usuarioId}", // luego tabla Usuarios
+                historial
+            });
         }
 
     }

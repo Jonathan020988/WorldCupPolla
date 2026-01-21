@@ -1,0 +1,51 @@
+﻿@page "/partidos"
+@inject WorldCup.App.Shared.Services.PartidosService PartidosService
+
+<h1>Partidos</h1>
+<p>Esta es la página de partidos</p>
+@if (partidos == null)
+{
+    <p>Cargando partidos...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fase</th>
+                <th>Local</th>
+                <th>Visitante</th>
+                <th>Marcador</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in partidos)
+            {
+                <tr>
+                    <td>@p.Fase</td>
+                    <td>@p.Local</td>
+                    <td>@p.Visitante</td>
+                    <td>
+                        @if (p.Finalizado)
+                        {
+                            <span>@p.GolesLocal - @p.GolesVisitante</span>
+                        }
+                        else
+                        {
+                            <em>Pendiente</em>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<WorldCup.App.Shared.Models.PartidoDto>? partidos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        partidos = await PartidosService.GetPartidosAsync();
+    }
+}

@@ -218,5 +218,42 @@ JOIN "Equipos" e ON p."LocalId" = e."Id"
 GROUP BY e."Grupo"
 ORDER BY e."Grupo";
 
+CREATE TABLE "PrediccionesGrupo" (
+    "Id" SERIAL PRIMARY KEY,
+    "PollaId" INTEGER NOT NULL,
+    "UsuarioId" INTEGER NOT NULL,
+    "Grupo" VARCHAR(5) NOT NULL,
+    "PrimeroId" INTEGER NOT NULL,
+    "SegundoId" INTEGER NOT NULL,
+    "TerceroId" INTEGER,
+    "Bloqueada" BOOLEAN NOT NULL DEFAULT FALSE
+);
 
+
+
+------PARTIOS FINALIZADOS-----
+SELECT "Id", "Fecha", "Finalizado"
+FROM "Partidos"
+WHERE "Finalizado" = true;
+
+-------finalizar partido------
+UPDATE "Partidos"
+SET 
+  "GolesLocal" = 2,
+  "GolesVisitante" = 1,
+  "Finalizado" = true
+WHERE "Id" = 190;
+
+---estado del partido
+SELECT "Id", "Finalizado"
+FROM "Partidos"
+WHERE "Id" = 190;
+
+----predicciones partidos----
+SELECT *
+FROM "Predicciones"
+WHERE "PartidoId" = 190;
+
+Resumen FINAL de la polla =
+Grupos + Dieciseisavos + Octavos + Cuartos + Semis + Final + Tercer puesto
 

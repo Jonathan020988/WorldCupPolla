@@ -40,6 +40,9 @@ namespace WorldCup.Api.Models
         public int PuntosClasificacion { get; set; }
         public int PuntosPodio { get; set; }
 
+        public string? Grupo { get; set; }
+        public int? PrediceSegundoId { get; set; }
+
         // Control
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
         public bool Bloqueada { get; set; }

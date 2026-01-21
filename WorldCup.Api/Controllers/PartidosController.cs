@@ -95,8 +95,8 @@ namespace WorldCup.Api.Controllers
         // PUT: api/Partidos/5 (actualizar marcador)
         [HttpPut("{id}/marcador")]
         public async Task<IActionResult> ActualizarMarcador(
-     int id,
-     ActualizarMarcadorDTO dto)
+            int id,
+            ActualizarMarcadorDTO dto)
         {
             var partido = await _context.Partidos.FindAsync(id);
 
@@ -106,32 +106,38 @@ namespace WorldCup.Api.Controllers
             if (partido.Finalizado)
                 return Conflict("Este partido ya fue finalizado");
 
-            // 1️⃣ Guardar marcador real
+            // 1️⃣ Guardar marcador
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
             partido.Finalizado = true;
 
             await _context.SaveChangesAsync();
 
-            // 2️⃣ Calcular puntos (solo fase de grupos)
+            // 2️⃣ Calcular puntos de predicción
             if (partido.Fase == "Grupos")
             {
                 await CalcularPuntosGrupoParaPartido(partido);
+
+                // El grupo se obtiene desde el equipo local
+                var grupo = await _context.Equipos
+                    .Where(e => e.Id == partido.LocalId)
+                    .Select(e => e.Grupo)
+                    .FirstAsync();
+
+                await CalcularPuntosClasificacionGrupo(grupo);
             }
 
-            // 3️⃣ BLOQUEAR TODAS LAS PREDICCIONES DEL PARTIDO
+
+            // 3️⃣ Bloquear predicciones
             var predicciones = await _context.Predicciones
                 .Where(p => p.PartidoId == partido.Id)
                 .ToListAsync();
 
             foreach (var p in predicciones)
-            {
                 p.Bloqueada = true;
-            }
 
             await _context.SaveChangesAsync();
 
-            // 4️⃣ Respuesta final
             return Ok(new
             {
                 partido.Id,
@@ -293,6 +299,25 @@ namespace WorldCup.Api.Controllers
 
             return Ok($"Grupo {grupo} reseteado correctamente");
         }
+
+        [HttpPost("reset-eliminatorias")]
+        public async Task<IActionResult> ResetEliminatorias()
+        {
+                    var fases = new[]
+                    {
+                "Dieciseisavos", "Octavos", "Cuartos",
+                "Semifinales", "Final", "TercerPuesto"
+                    };
+
+                    var partidos = await _context.Partidos
+                        .Where(p => fases.Contains(p.Fase))
+                        .ToListAsync();
+
+                    _context.Partidos.RemoveRange(partidos);
+                    await _context.SaveChangesAsync();
+
+                    return Ok("♻ Eliminatorias reseteadas");
+                }
 
         [HttpGet("clasificados/{grupo}")]
         public async Task<IActionResult> GetClasificados(string grupo)
@@ -671,16 +696,19 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
             }
-              
-            partido.Finalizado = true;
-
-            await _context.SaveChangesAsync(); // ✅ AHORA SÍ SE GUARDA TODO
+                         
 
             // calcula punto despues de grupos
             CalcularPuntosEliminatoria(partido);
-            await _context.SaveChangesAsync();
+            partido.Finalizado = true;
+            await _context.SaveChangesAsync(); // ✅ AHORA SÍ SE GUARDA TODO
 
 
+            // 🏆 SOLO si es la FINAL → calcular podio
+            if (partido.Fase == "Final")
+            {
+                await CalcularPuntosPodio();
+            }
             return Ok(new
             {
                 partido.Id,
@@ -729,12 +757,18 @@ namespace WorldCup.Api.Controllers
         [HttpPost("generar-dieciseisavos")]
         public async Task<IActionResult> GenerarDieciseisavos()
         {
-            // Evitar duplicados
+
+            // 1️⃣ Evitar duplicados
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Dieciseisavos"))
                 return Conflict("Los dieciseisavos ya fueron generados");
-            
-            if (!await FaseListaParaGenerar("Dieciseisavos", 16))
-                return Conflict("No todos los dieciseisavos tienen resultado válido");
+
+            // 1️⃣ Validar que TODOS los partidos de GRUPOS estén finalizados
+            bool gruposPendientes = await _context.Partidos.AnyAsync(p =>
+                p.Fase == "Grupos" && !p.Finalizado);
+            // Evitar duplicados
+            if (gruposPendientes)
+                return Conflict("No todos los partidos de grupos están finalizados");
+                     
 
 
             var cruces = await ConstruirDieciseisavos();
@@ -1042,50 +1076,388 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.PartidoId == partido.Id)
                 .ToList();
 
+            int ganadorReal = ObtenerGanadorId(partido);
+
             foreach (var pred in predicciones)
             {
                 if (!pred.GolesLocal.HasValue || !pred.GolesVisitante.HasValue)
                     continue;
 
-                // 1️⃣ Puntos de marcador (REUTILIZA grupos)
-                int puntosBase = CalcularPuntosGrupo(
-                    partido.GolesLocal!.Value,
-                    partido.GolesVisitante!.Value,
-                    pred.GolesLocal.Value,
-                    pred.GolesVisitante.Value
-                );
+                int puntosMarcador = 0;
 
-                int puntosMarcador = puntosBase * 2;
+                bool exacto =
+                    pred.GolesLocal == partido.GolesLocal &&
+                    pred.GolesVisitante == partido.GolesVisitante;
 
-                // 2️⃣ Determinar ganador real
-                int ganadorReal = ObtenerGanadorId(partido);
-
-                // 3️⃣ Puntos por clasificar
-                int puntosClasificacion = 0;
-                if (pred.PrediceClasificadoId == ganadorReal)
+                if (exacto)
                 {
-                    puntosClasificacion = 10;
+                    puntosMarcador = 20;
+                }
+                else
+                {
+                    bool resultadoCorrecto =
+                        (pred.GolesLocal > pred.GolesVisitante && partido.GolesLocal > partido.GolesVisitante) ||
+                        (pred.GolesLocal < pred.GolesVisitante && partido.GolesLocal < partido.GolesVisitante) ||
+                        (pred.GolesLocal == pred.GolesVisitante && partido.GolesLocal == partido.GolesVisitante);
+
+                    if (resultadoCorrecto)
+                        puntosMarcador += 8;
+
+                    bool golExacto =
+                        pred.GolesLocal == partido.GolesLocal ||
+                        pred.GolesVisitante == partido.GolesVisitante;
+
+                    if (golExacto)
+                        puntosMarcador += 4;
+                    else if (
+                        (pred.GolesLocal - pred.GolesVisitante) ==
+                        (partido.GolesLocal - partido.GolesVisitante))
+                        puntosMarcador += 2;
                 }
 
-                // 4️⃣ Bonus por empate
-                int bonusEmpate = 0;
+                int puntosClasificacion = 0;
 
+                // 👉 Clasificado SIEMPRE vale +10
+                if (pred.PrediceClasificadoId == ganadorReal)
+                    puntosClasificacion += 10;
+
+                // 👉 Bonus solo si hubo empate
                 if (partido.GolesLocal == partido.GolesVisitante)
                 {
                     if (pred.PrediceTiempoExtra)
-                        bonusEmpate += 5;
+                        puntosClasificacion += 5;
 
                     if (pred.PredicePenales)
-                        bonusEmpate += 5;
+                        puntosClasificacion += 5;
                 }
 
-                // 5️⃣ Guardar puntos
                 pred.PuntosMarcador = puntosMarcador;
-                pred.PuntosClasificacion = puntosClasificacion + bonusEmpate;
-                pred.PuntosTotales = puntosMarcador + pred.PuntosClasificacion;
+                pred.PuntosClasificacion = puntosClasificacion;
+                pred.PuntosTotales = puntosMarcador + puntosClasificacion;
+                pred.Bloqueada = true;
             }
         }
 
+
+
+        private async Task<List<TablaPosicionDTO>> ObtenerTablaGrupo(string grupo)
+        {
+            var grupoNormalizado = grupo.ToUpper();
+
+            var equipos = await _context.Equipos
+                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupoNormalizado)
+                .ToListAsync();
+
+            if (!equipos.Any())
+                return new List<TablaPosicionDTO>();
+
+            var equiposIds = equipos.Select(e => e.Id).ToList();
+
+
+            var partidos = await _context.Partidos
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    p.Finalizado &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId)
+                )
+                .ToListAsync();
+
+            var tabla = equipos.Select(e => new TablaPosicionDTO
+            {
+                EquipoId = e.Id,
+                Equipo = e.Nombre,
+                PJ = 0,
+                PG = 0,
+                PE = 0,
+                PP = 0,
+                GF = 0,
+                GC = 0,
+                Puntos = 0
+            }).ToList();
+
+            foreach (var p in partidos)
+            {
+                var local = tabla.First(t => t.EquipoId == p.LocalId);
+                var visitante = tabla.First(t => t.EquipoId == p.VisitanteId);
+
+                int gl = p.GolesLocal ?? 0;
+                int gv = p.GolesVisitante ?? 0;
+
+                local.PJ++;
+                visitante.PJ++;
+
+                local.GF += gl;
+                local.GC += gv;
+                visitante.GF += gv;
+                visitante.GC += gl;
+
+                if (gl > gv)
+                {
+                    local.PG++;
+                    local.Puntos += 3;
+                    visitante.PP++;
+                }
+                else if (gl < gv)
+                {
+                    visitante.PG++;
+                    visitante.Puntos += 3;
+                    local.PP++;
+                }
+                else
+                {
+                    local.PE++;
+                    visitante.PE++;
+                    local.Puntos += 1;
+                    visitante.Puntos += 1;
+                }
+            }
+
+            return tabla
+                .OrderByDescending(t => t.Puntos)
+                .ThenByDescending(t => t.DG)
+                .ThenByDescending(t => t.GF)
+                .ThenBy(t => t.Equipo)
+                .ToList();
+        }
+
+        private async Task CalcularPuntosClasificacionGrupo(string grupo)
+        {
+            var grupoNorm = grupo.ToUpper();
+
+            // 1️⃣ Obtener equipos del grupo
+            var equiposIds = await _context.Equipos
+                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupoNorm)
+                .Select(e => e.Id)
+                .ToListAsync();
+
+            if (equiposIds.Count != 4)
+                return;
+
+            // 2️⃣ Verificar que los 6 partidos del grupo estén finalizados
+            bool grupoTerminado = !await _context.Partidos
+                .AnyAsync(p =>
+                    p.Fase == "Grupos" &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId) &&
+                    !p.Finalizado);
+
+            if (!grupoTerminado)
+                return;
+
+            // 3️⃣ Obtener tabla real
+            var tablaReal = await ObtenerTablaGrupo(grupoNorm);
+            if (tablaReal.Count < 4)
+                return;
+
+            int primeroReal = tablaReal[0].EquipoId;
+            int segundoReal = tablaReal[1].EquipoId;
+            int terceroReal = tablaReal[2].EquipoId;
+
+            // 4️⃣ Predicciones de clasificación
+            var prediccionesGrupo = await _context.PrediccionesGrupo
+                .Where(p => p.Grupo == grupoNorm && !p.Bloqueada)
+                .ToListAsync();
+
+            foreach (var pred in prediccionesGrupo)
+            {
+                int puntos = 0;
+
+                // ORDEN EXACTO
+                if (pred.PrimeroId == primeroReal) puntos += 15;
+                if (pred.SegundoId == segundoReal) puntos += 10;
+                if (pred.TerceroId == terceroReal) puntos += 5;
+
+                // EQUIPOS CORRECTOS, ORDEN INCORRECTO
+                var realesTop2 = new[] { primeroReal, segundoReal };
+                var predTop2 = new[] { pred.PrimeroId, pred.SegundoId };
+
+                if (realesTop2.All(r => predTop2.Contains(r)) &&
+                    pred.PrimeroId != primeroReal)
+                {
+                    puntos += 10; // bonus por clasificados correctos sin orden
+                }
+
+                if (pred.TerceroId == terceroReal && pred.TerceroId != pred.PrimeroId && pred.TerceroId != pred.SegundoId)
+                    puntos += 3;
+
+                // 👉 APLICAR SOLO UNA VEZ AL USUARIO
+                var usuarioPredicciones = await _context.Predicciones
+                    .Where(p =>
+                        p.UsuarioId == pred.UsuarioId &&
+                        p.PollaId == pred.PollaId)
+                    .ToListAsync();
+
+                foreach (var p in usuarioPredicciones)
+                {
+                    p.PuntosClasificacion += puntos;
+                    p.PuntosTotales += puntos;
+                }
+
+                pred.Bloqueada = true;
+            }
+
+
+            await _context.SaveChangesAsync();
+        }
+
+       
+
+        // metdodos temporales para pruebas
+
+        [HttpPost("autofinalizar-grupos")]
+        public async Task<IActionResult> AutoFinalizarGrupos()
+        {
+            var partidos = await _context.Partidos
+                .Where(p => p.Fase == "Grupos" && !p.Finalizado)
+                .ToListAsync();
+
+            foreach (var partido in partidos)
+            {
+                // Marcador dummy válido
+                partido.GolesLocal = Random.Shared.Next(0, 4);
+                partido.GolesVisitante = Random.Shared.Next(0, 4);
+                partido.Finalizado = true;
+
+                // Calcular puntos de predicciones
+                await CalcularPuntosGrupoParaPartido(partido);
+
+                // Calcular clasificación si el grupo termina
+                var grupo = await _context.Equipos
+                    .Where(e => e.Id == partido.LocalId)
+                    .Select(e => e.Grupo)
+                    .FirstAsync();
+
+                await CalcularPuntosClasificacionGrupo(grupo);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok($"✅ {partidos.Count} partidos de grupos finalizados automáticamente");
+        }
+
+        [HttpPost("autofinalizar-fase/{fase}")]
+        public async Task<IActionResult> AutoFinalizarFase(string fase)
+        {
+            var partidos = await _context.Partidos
+                .Where(p => p.Fase == fase && !p.Finalizado)
+                .ToListAsync();
+
+            if (!partidos.Any())
+                return Ok($"No hay partidos pendientes en {fase}");
+
+            var rnd = new Random();
+
+            foreach (var p in partidos)
+            {
+                int gl = rnd.Next(0, 4);
+                int gv = rnd.Next(0, 4);
+
+                p.GolesLocal = gl;
+                p.GolesVisitante = gv;
+
+                // Empate → penales obligatorios
+                if (gl == gv)
+                {
+                    int pl, pv;
+                    do
+                    {
+                        pl = rnd.Next(3, 7);
+                        pv = rnd.Next(3, 7);
+                    } while (pl == pv);
+
+                    p.PenalesLocal = pl;
+                    p.PenalesVisitante = pv;
+                }
+                else
+                {
+                    p.PenalesLocal = null;
+                    p.PenalesVisitante = null;
+                }
+
+                p.Finalizado = true;
+
+                // 👉 CALCULAR PUNTOS ELIMINATORIA
+                CalcularPuntosEliminatoria(p);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok($"✅ {partidos.Count} partidos de {fase} finalizados automáticamente");
+        }
+
+        private async Task<(int campeon, int subcampeon, int tercero)> ObtenerPodioReal()
+        {
+            // FINAL
+            var final = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
+
+            if (final == null)
+                throw new Exception("La final no está finalizada");
+
+            int campeon = ObtenerGanadorId(final);
+            int subcampeon = ObtenerPerdedorId(final);
+
+            // TERCER PUESTO
+            var tercerPuesto = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+
+            if (tercerPuesto == null)
+                throw new Exception("El partido por el tercer puesto no está finalizado");
+
+            int tercero = ObtenerGanadorId(tercerPuesto);
+
+            return (campeon, subcampeon, tercero);
+        }
+
+       
+
+        private async Task CalcularPuntosPodio()
+        {
+            // FINAL
+            var final = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
+
+            // TERCER PUESTO
+            var tercerPuesto = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+
+            if (final == null || tercerPuesto == null)
+                return;
+
+            int campeon = ObtenerGanadorId(final);
+            int subcampeon = ObtenerPerdedorId(final);
+            int tercero = ObtenerGanadorId(tercerPuesto);
+
+            var prediccionesPodio = await _context.PrediccionesPodio
+                .Where(p => !p.Bloqueada)
+                .ToListAsync();
+
+            foreach (var pred in prediccionesPodio)
+            {
+                int puntos = 0;
+
+                if (pred.CampeonId == campeon) puntos += 20;
+                if (pred.SubcampeonId == subcampeon) puntos += 10;
+                if (pred.TerceroId == tercero) puntos += 5;
+
+                var predUsuario = await _context.Predicciones
+                    .Where(p =>
+                        p.UsuarioId == pred.UsuarioId &&
+                        p.PollaId == pred.PollaId)
+                    .ToListAsync();
+
+                foreach (var p in predUsuario)
+                {
+                    p.PuntosPodio += puntos;
+                    p.PuntosTotales += puntos;
+                }
+
+                pred.Bloqueada = true;
+            }
+
+            await _context.SaveChangesAsync();
+        }
 
 
     }

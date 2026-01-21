@@ -20,6 +20,9 @@ namespace WorldCup.Api.Data
 
         public DbSet<PrediccionGrupo> PrediccionesGrupo { get; set; }
 
+        public DbSet<PrediccionPodio> PrediccionesPodio { get; set; }
+
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
