@@ -1,90 +1,163 @@
-﻿@using WorldCup.App.Shared.Models
-@page "/partidos"
+﻿@page "/partidos"
+@rendermode InteractiveServer
+@using WorldCup.App.Shared.Models
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
 
-<h1>⚽ Partidos del Mundial</h1>
-<p class="text-muted">Resultados y estado de todos los partidos</p>
+<style>
+    body {
+        background-color: #0b3d2e;
+    }
 
-<div class="row mb-3">
-    <div class="col-12 col-md-4">
-        <label class="form-label fw-bold">Filtrar por fase</label>
+    .page-bg {
+        background: linear-gradient(180deg, #0b3d2e 0%, #145a32 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+    }
 
-        <select class="form-select" @bind="FaseSeleccionada">
-            <option value="Todas">Todas</option>
+    .page-header {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,.15);
+        margin-bottom: 1.5rem;
+    }
 
-            @foreach (var fase in fasesDisponibles)
+    .fase-tabs {
+        background: white;
+        border-radius: 16px;
+        padding: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        justify-content: center;
+        box-shadow: 0 8px 20px rgba(0,0,0,.12);
+        margin-bottom: 2rem;
+    }
+
+    .fase-btn {
+        border-radius: 20px;
+        padding: .45rem 1rem;
+        font-weight: 500;
+    }
+
+    .match-card {
+        background: white;
+        border-radius: 14px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 6px 18px rgba(0,0,0,.12);
+        border-left: 6px solid #198754;
+    }
+
+    .score {
+        font-size: 1.25rem;
+        font-weight: bold;
+    }
+</style>
+
+<div class="page-bg">
+    <div class="container">
+
+        <!-- HEADER -->
+        <div class="page-header">
+            <h1 class="fw-bold mb-1">⚽ Partidos del Mundial</h1>
+            <p class="text-muted mb-0">
+                Resultados y estado de todos los partidos
+            </p>
+        </div>
+
+        <!-- FILTRO DE FASES -->
+        <div class="fase-tabs">
+            @foreach (var fase in fasesOrdenadas)
             {
-                <option value="@fase">@fase</option>
+                <button class="@GetFaseButtonClass(fase)"
+                        @onclick="() => FiltrarPorFase(GetFaseValue(fase))">
+                    @fase
+                </button>
+
+
+
             }
-        </select>
+        </div>
+
+        <!-- PARTIDOS -->
+        @if (!partidosFiltrados.Any())
+        {
+            <div class="page-header">
+                <p class="text-muted mb-0">No hay partidos para esta fase.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var p in partidosFiltrados)
+            {
+                <div class="match-card">
+                    <span class="badge bg-success mb-2">@p.Fase</span>
+
+                    <div class="row align-items-center text-center">
+                        <div class="col-5 fw-bold text-end">@p.Local</div>
+                        <div class="col-2 score">
+                            @p.GolesLocal - @p.GolesVisitante
+                        </div>
+                        <div class="col-5 fw-bold text-start">@p.Visitante</div>
+                    </div>
+                </div>
+            }
+        }
     </div>
 </div>
 
-@if (!partidosFiltrados.Any())
-{
-    <p class="text-muted">No hay partidos para esta fase.</p>
-}
-else
-{
-    @foreach (var grupo in partidosFiltrados.GroupBy(p => p.Fase))
-    {
-        <h5 class="mt-4 mb-2">
-            <span class="badge bg-primary">@grupo.Key</span>
-        </h5>
-
-        @foreach (var p in grupo)
-        {
-            <div class="card mb-2 @(p.Finalizado ? "border-success bg-light" : "")">
-                <div class="card-body p-2">
-                    <div class="row text-center align-items-center">
-                        <div class="col-5 text-end fw-bold">@p.Local</div>
-                        <div class="col-2 fw-bold">@p.GolesLocal - @p.GolesVisitante</div>
-                        <div class="col-5 text-start fw-bold">@p.Visitante</div>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-}
-
 @code {
+
     private List<PartidoDto> partidos = new();
     private List<PartidoDto> partidosFiltrados = new();
-    private List<string> fasesDisponibles = new();
 
-    private string faseSeleccionada = "Todas";
+    private string? faseSeleccionada;
 
-    private string FaseSeleccionada
+    private readonly List<string> fasesOrdenadas = new()
     {
-        get => faseSeleccionada;
-        set
-        {
-            if (faseSeleccionada != value)
-            {
-                faseSeleccionada = value;
-                AplicarFiltro();
-                StateHasChanged(); // 🔥 CLAVE
-            }
-        }
-    }
+        "Todas",
+        "Grupos",
+        "Dieciseisavos",
+        "Octavos",
+        "Cuartos",
+        "Semifinales",
+        "TercerPuesto",
+        "Final"
+    };
 
     protected override async Task OnInitializedAsync()
     {
         partidos = await PartidosService.GetPartidosAsync();
-
-        fasesDisponibles = partidos
-            .Select(p => p.Fase)
-            .Distinct()
-            .OrderBy(f => f)
-            .ToList();
-
-        AplicarFiltro();
+        partidosFiltrados = partidos;
     }
 
-    private void AplicarFiltro()
+    private void FiltrarPorFase(string? fase)
     {
-        partidosFiltrados = faseSeleccionada == "Todas"
+        faseSeleccionada = fase;
+
+        partidosFiltrados = string.IsNullOrEmpty(fase)
             ? partidos
-            : partidos.Where(p => p.Fase == faseSeleccionada).ToList();
+            : partidos.Where(p => p.Fase == fase).ToList();
     }
+
+    private string GetFaseButtonClass(string fase)
+    {
+        var isActive =
+            (fase == "Todas" && faseSeleccionada == null) ||
+            (faseSeleccionada == fase);
+
+        return isActive
+            ? "btn btn-success fase-btn"
+            : "btn btn-outline-success fase-btn";
+    }
+
+    private string? GetFaseValue(string fase)
+    {
+        return fase == "Todas" ? null : fase;
+    }
+
+
 }
+
