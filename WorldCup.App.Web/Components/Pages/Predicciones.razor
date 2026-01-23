@@ -1,0 +1,124 @@
+﻿@page "/predicciones"
+@rendermode InteractiveServer
+
+@using WorldCup.App.Shared.Models
+@using WorldCup.App.Shared.DTOs
+@inject WorldCup.App.Shared.Services.PartidosService PartidosService
+@inject WorldCup.App.Shared.Services.PrediccionesService PrediccionesService
+
+<h1>🎯 Mis Predicciones</h1>
+<p class="text-muted">Puedes modificar tus predicciones hasta 20 minutos antes del partido</p>
+
+@if (partidos == null)
+{
+        <p>Cargando partidos...</p>
+}
+else
+{
+    @foreach (var p in partidos)
+    {
+        var bloqueado = EstaBloqueado(p);
+
+                <div class="card mb-3">
+                    <div class="card-body">
+
+                        <div class="row align-items-center text-center">
+                            <div class="col-4 fw-bold text-end">@p.Local</div>
+
+                            <div class="col-2">
+                                <input type="number"
+                                       class="form-control text-center"
+                                       min="0"
+                                       disabled="@bloqueado"
+                                       @bind="predicciones[p.Id].GolesLocal" />
+                            </div>
+
+                            <div class="col-2">
+                                <input type="number"
+                                       class="form-control text-center"
+                                       min="0"
+                                       disabled="@bloqueado"
+                                       @bind="predicciones[p.Id].GolesVisitante" />
+                            </div>
+
+                            <div class="col-4 fw-bold text-start">@p.Visitante</div>
+                        </div>
+
+                        <div class="mt-2 text-center">
+                            <small class="text-muted">
+                        @p.Fecha.ToLocalTime().ToString("dd/MM HH:mm")
+                                · @p.Fase
+                        @if (bloqueado)
+                        {
+                                        <span class="badge bg-danger ms-2">Bloqueado</span>
+                        }
+                            </small>
+                        </div>
+                    </div>
+                </div>
+    }
+
+        <button class="btn btn-success w-100"
+                @onclick="GuardarPredicciones">
+            💾 Guardar predicciones
+        </button>
+}
+
+@code {
+
+    private List<PartidoDto>? partidos;
+
+    private Dictionary<int, GuardarPrediccionItemDto> predicciones
+        = new();
+
+    private const int PollaId = 1; // 🔴 luego vendrá del contexto
+
+    protected override async Task OnInitializedAsync()
+    {
+        partidos = await PartidosService.GetPartidosAsync();
+
+        foreach (var p in partidos)
+        {
+            predicciones[p.Id] = new GuardarPrediccionItemDto
+                {
+                    PartidoId = p.Id
+                };
+        }
+    }
+
+    private bool EstaBloqueado(PartidoDto partido)
+    {
+        // Si no hay fecha válida, NO bloquear (backend se encarga)
+        if (partido.Fecha <= DateTime.MinValue)
+            return false;
+
+        return DateTime.UtcNow >= partido.Fecha.AddMinutes(-20)
+               || partido.Finalizado;
+    }
+
+
+    private async Task GuardarPredicciones()
+    {
+        var dto = new GuardarPrediccionGrupoDto
+            {
+                PollaId = PollaId,
+                Predicciones = predicciones.Values.ToList()
+            };
+
+        try
+        {
+            await PrediccionesService.GuardarMultiplesAsync(dto);
+            await MostrarMensaje("Predicciones guardadas correctamente");
+        }
+        catch (Exception ex)
+        {
+            await MostrarMensaje(ex.Message, true);
+        }
+    }
+
+    private Task MostrarMensaje(string mensaje, bool error = false)
+    {
+        Console.WriteLine(mensaje);
+        return Task.CompletedTask;
+    }
+}
