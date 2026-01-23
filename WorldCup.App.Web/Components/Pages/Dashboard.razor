@@ -1,0 +1,81 @@
+﻿@page "/dashboard"
+
+<div class="container py-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">🏆 Mis Pollas</h2>
+            <small class="text-muted">Gestiona tus pollas y participa</small>
+        </div>
+
+        <a class="btn btn-success" href="/crear-polla">
+            ➕ Crear nueva polla
+        </a>
+    </div>
+
+    <!-- LISTADO DE POLLAS (MOCK) -->
+    <div class="row g-3">
+
+        <!-- POLLA CARD -->
+        <div class="col-md-4">
+            <div class="card shadow-sm polla-card">
+                <div class="card-body">
+
+                    <h5 class="card-title mb-1">
+                        ⚽ Polla Mundial 2026
+                    </h5>
+
+                    <small class="text-muted">
+                        👥 8 participantes
+                    </small>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="badge bg-primary">Activa</span>
+
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="/predicciones">
+                            Entrar ▶️
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- POLLA CARD -->
+        <div class="col-md-4">
+            <div class="card shadow-sm polla-card">
+                <div class="card-body">
+
+                    <h5 class="card-title mb-1">
+                        🏟️ Amigos del barrio
+                    </h5>
+
+                    <small class="text-muted">
+                        👥 5 participantes
+                    </small>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="badge bg-secondary">Finalizada</span>
+
+                        <a class="btn btn-sm btn-outline-secondary"
+                           href="#">
+                            Ver resultados
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+    .polla-card {
+        border-left: 4px solid #198754;
+        border-radius: 10px;
+    }
+</style>

@@ -1,7 +1,108 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<div class="home-hero">
+    <div class="overlay"></div>
 
-<h1>Bienvenidos a la polla para el mundial!</h1>
+    <div class="container text-center hero-content">
+        <h1 class="display-4 fw-bold text-white">
+            ⚽ WorldCup Polla 2026
+        </h1>
 
-Welcome to your new app.
+        <p class="lead text-light mt-3">
+            Crea tu polla del mundial, invita a tus amigos
+            y compite por ver quién sabe más de fútbol.
+        </p>
+
+        <div class="d-flex justify-content-center gap-3 mt-4">
+            <a class="btn btn-success btn-lg px-4" href="/registro">
+                📝 Crear cuenta
+            </a>
+            <a class="btn btn-outline-light btn-lg px-4" href="/login">
+                🔐 Iniciar sesión
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5">
+
+    <div class="row text-center g-4">
+
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm feature-card">
+                <div class="card-body">
+                    <h2>🏆</h2>
+                    <h6 class="fw-bold mt-2">Crea tu polla</h6>
+                    <p class="text-muted small">
+                        Organiza tu propia competencia privada o pública.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm feature-card">
+                <div class="card-body">
+                    <h2>👥</h2>
+                    <h6 class="fw-bold mt-2">Invita amigos</h6>
+                    <p class="text-muted small">
+                        Comparte el link y deja que se unan.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm feature-card">
+                <div class="card-body">
+                    <h2>🎯</h2>
+                    <h6 class="fw-bold mt-2">Haz predicciones</h6>
+                    <p class="text-muted small">
+                        Pronostica marcadores antes de cada partido.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm feature-card">
+                <div class="card-body">
+                    <h2>📊</h2>
+                    <h6 class="fw-bold mt-2">Sigue el ranking</h6>
+                    <p class="text-muted small">
+                        Revisa puntos, posiciones y estadísticas.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    .home-hero {
+        position: relative;
+        height: 70vh;
+        background-image: url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2');
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: center;
+    }
+
+    .overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient( rgba(0,0,0,0.6), rgba(0,0,0,0.6) );
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .feature-card {
+        border-top: 4px solid #198754;
+        border-radius: 10px;
+    }
+</style>
