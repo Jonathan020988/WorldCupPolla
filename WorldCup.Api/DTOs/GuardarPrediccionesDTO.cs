@@ -13,6 +13,8 @@ namespace WorldCup.Api.DTOs
         public int TerceroId { get; set; }
 
         public List<PrediccionItemDTO> Predicciones { get; set; } = new();
+
+
     }
 
     public class PrediccionItemDTO

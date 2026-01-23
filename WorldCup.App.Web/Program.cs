@@ -15,7 +15,12 @@ builder.Services.AddHttpClient<PartidosService>(client =>
     client.BaseAddress = new Uri("https://localhost:7092/");
 });
 
-builder.Services.AddScoped<PrediccionesService>();
+builder.Services.AddHttpClient<PrediccionesService>(client =>
+{
+    client.BaseAddress = new Uri("https://localhost:7092/");
+});
+
+//builder.Services.AddScoped<PrediccionesService>();
 
 var app = builder.Build();
 

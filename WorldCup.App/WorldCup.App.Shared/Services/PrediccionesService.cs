@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using System.Net.Http.Json;
 using WorldCup.App.Shared.DTOs;
+using WorldCup.App.Shared.Models;
 
 namespace WorldCup.App.Shared.Services;
 
@@ -31,4 +32,12 @@ public class PrediccionesService
             throw new Exception(error);
         }
     }
+
+    public async Task<List<PrediccionExistenteDto>> GetPrediccionesAsync()
+    {
+        return await _http.GetFromJsonAsync<List<PrediccionExistenteDto>>(
+            "api/Predicciones"
+        ) ?? new();
+    }
+
 }

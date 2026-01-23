@@ -252,8 +252,86 @@ WHERE "Id" = 190;
 ----predicciones partidos----
 SELECT *
 FROM "Predicciones"
-WHERE "PartidoId" = 190;
+WHERE "PartidoId" = 118;
 
 Resumen FINAL de la polla =
 Grupos + Dieciseisavos + Octavos + Cuartos + Semis + Final + Tercer puesto
+
+INSERT INTO "Pollas" ("Nombre", "FechaCreacion")
+VALUES ('Polla Mundial 2026', NOW());
+-------------------predicciones---------------------
+-----corregir fecha de partidos---
+UPDATE "Partidos"
+SET "Fecha" = NOW() + INTERVAL '2 days'
+WHERE "Id" = 118;
+
+---------Todos los partidos de grupos:---------
+UPDATE "Partidos"
+SET "Fecha" = NOW() + INTERVAL '5 days'
+WHERE "Fase" = 'Grupos';
+
+------Fecha exacta (manual):---------
+UPDATE "Partidos"
+SET "Fecha" = '2026-01-20 20:00:00'
+WHERE "Id" = 118;
+
+--------DESBLOQUEAR una predicción específica-------
+UPDATE "Predicciones"
+SET "Bloqueada" = false
+WHERE "Id" = 9;
+
+----O por partido:------
+UPDATE "Predicciones"
+SET "Bloqueada" = false
+WHERE "PartidoId" = 118;
+
+-------O por usuario:------------
+UPDATE "Predicciones"
+SET "Bloqueada" = false
+WHERE "UsuarioId" = 1;
+
+-----------------MARCAR / DESMARCAR un partido como finalizado---------
+
+UPDATE "Partidos"
+SET "Finalizado" = false
+WHERE "Id" = 118;
+
+-------------O todos:---------
+UPDATE "Partidos"
+SET "Finalizado" = false;
+
+------------RESET TOTAL (DESARROLLO PURO)
+
+---------Si quieres volver a cero sin borrar datos:
+
+
+UPDATE "Predicciones"
+SET
+    "Bloqueada" = false,
+    "PuntosTotales" = 0,
+    "PuntosMarcador" = 0,
+    "PuntosClasificacion" = 0,
+    "PuntosPodio" = 0;
+
+---------Y partidos:-----
+
+UPDATE "Partidos"
+SET
+    "Finalizado" = false,
+    "GolesLocal" = NULL,
+    "GolesVisitante" = NULL,
+    "Fecha" = NOW() + INTERVAL '7 days';
+
+--------ELIMINAR PREDICCIONES (SI ALGO QUEDÓ RARO)
+
+-------Por partido:
+
+DELETE FROM "Predicciones"
+WHERE "PartidoId" = 118;
+
+----------Por usuario:
+
+DELETE FROM "Predicciones"
+WHERE "UsuarioId" = 1;
+
 

@@ -1,17 +1,19 @@
 ﻿@page "/predicciones"
 @rendermode InteractiveServer
 
-@using WorldCup.App.Shared.Models
 @using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Models
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
 @inject WorldCup.App.Shared.Services.PrediccionesService PrediccionesService
 
-<h1>🎯 Mis Predicciones</h1>
-<p class="text-muted">Puedes modificar tus predicciones hasta 20 minutos antes del partido</p>
+<h1 class="mb-1">🎯 Mis Predicciones</h1>
+<p class="text-muted mb-3">
+    ⏱️ Puedes modificar tus predicciones hasta <b>20 minutos</b> antes del partido
+</p>
 
 @if (partidos == null)
 {
-        <p>Cargando partidos...</p>
+    <p>Cargando partidos...</p>
 }
 else
 {
@@ -19,76 +21,124 @@ else
     {
         var bloqueado = EstaBloqueado(p);
 
-                <div class="card mb-3">
-                    <div class="card-body">
+        <div class="card mb-2 partido-card">
 
-                        <div class="row align-items-center text-center">
-                            <div class="col-4 fw-bold text-end">@p.Local</div>
+            <div class="card-body py-2 px-3">
 
-                            <div class="col-2">
-                                <input type="number"
-                                       class="form-control text-center"
-                                       min="0"
-                                       disabled="@bloqueado"
-                                       @bind="predicciones[p.Id].GolesLocal" />
-                            </div>
+                <!-- FILA PARTIDO -->
+                <div class="row align-items-center text-center">
 
-                            <div class="col-2">
-                                <input type="number"
-                                       class="form-control text-center"
-                                       min="0"
-                                       disabled="@bloqueado"
-                                       @bind="predicciones[p.Id].GolesVisitante" />
-                            </div>
+                    <!-- LOCAL -->
+                    <div class="col-4 text-end fw-semibold text-truncate">
+                        ⚽ @p.Local
+                    </div>
 
-                            <div class="col-4 fw-bold text-start">@p.Visitante</div>
-                        </div>
+                    <!-- MARCADOR -->
+                    <div class="col-3 d-flex justify-content-center align-items-center gap-1">
 
-                        <div class="mt-2 text-center">
-                            <small class="text-muted">
-                        @p.Fecha.ToLocalTime().ToString("dd/MM HH:mm")
-                                · @p.Fase
-                        @if (bloqueado)
-                        {
-                                        <span class="badge bg-danger ms-2">Bloqueado</span>
-                        }
-                            </small>
-                        </div>
+                        <input type="number"
+                               class="form-control form-control-sm marcador-input"
+                               min="0"
+                               disabled="@bloqueado"
+                               @bind="predicciones[p.Id].GolesLocal"
+                               @bind:event="oninput" />
+
+                        <span class="fw-bold text-muted">:</span>
+
+                        <input type="number"
+                               class="form-control form-control-sm marcador-input"
+                               min="0"
+                               disabled="@bloqueado"
+                               @bind="predicciones[p.Id].GolesVisitante"
+                               @bind:event="oninput" />
+                    </div>
+
+                    <!-- VISITANTE -->
+                    <div class="col-4 text-start fw-semibold text-truncate">
+                        @p.Visitante ⚽
+                    </div>
+
+                    <!-- GUARDAR -->
+                    <div class="col-1 text-end">
+                        <button class="btn btn-sm btn-outline-primary"
+                                disabled="@bloqueado"
+                                title="Guardar predicción"
+                                @onclick="() => GuardarPartido(p)">
+                            💾
+                        </button>
                     </div>
                 </div>
+
+                <!-- INFO -->
+                <div class="mt-1 text-center small text-muted">
+                    🗓️ @p.Fecha.ToLocalTime().ToString("dd/MM HH:mm")
+                    · 🏆 @p.Fase
+
+                    @if (bloqueado)
+                    {
+                        <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
+                    }
+                </div>
+
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .partido-card {
+        border-left: 4px solid #0d6efd;
+        border-radius: 8px;
     }
 
-        <button class="btn btn-success w-100"
-                @onclick="GuardarPredicciones">
-            💾 Guardar predicciones
-        </button>
-}
+    .marcador-input {
+        width: 42px;
+        text-align: center;
+        padding: 2px 4px;
+        font-weight: 600;
+    }
+</style>
 
 @code {
 
     private List<PartidoDto>? partidos;
+    private Dictionary<int, GuardarPrediccionItemDto> predicciones = new();
 
-    private Dictionary<int, GuardarPrediccionItemDto> predicciones
-        = new();
-
-    private const int PollaId = 1; // 🔴 luego vendrá del contexto
+    private const int PollaId = 2;
 
     protected override async Task OnInitializedAsync()
     {
         partidos = await PartidosService.GetPartidosAsync();
 
+        var existentes = await PrediccionesService.GetPrediccionesAsync();
+
+        var existentesDict = existentes
+            .GroupBy(x => x.PartidoId)
+            .ToDictionary(x => x.Key, x => x.First());
+
         foreach (var p in partidos)
         {
-            predicciones[p.Id] = new GuardarPrediccionItemDto
-                {
-                    PartidoId = p.Id
-                };
+            if (existentesDict.TryGetValue(p.Id, out var e))
+            {
+                predicciones[p.Id] = new GuardarPrediccionItemDto
+                    {
+                        PartidoId = p.Id,
+                        GolesLocal = e.GolesLocal,
+                        GolesVisitante = e.GolesVisitante
+                    };
+            }
+            else
+            {
+                predicciones[p.Id] = new GuardarPrediccionItemDto
+                    {
+                        PartidoId = p.Id
+                    };
+            }
         }
     }
 
     private bool EstaBloqueado(PartidoDto partido)
     {
-        // Si no hay fecha válida, NO bloquear (backend se encarga)
         if (partido.Fecha <= DateTime.MinValue)
             return false;
 
@@ -96,29 +146,39 @@ else
                || partido.Finalizado;
     }
 
-
-    private async Task GuardarPredicciones()
+    private async Task GuardarPartido(PartidoDto partido)
     {
+        if (!predicciones.ContainsKey(partido.Id))
+            return;
+
         var dto = new GuardarPrediccionGrupoDto
             {
                 PollaId = PollaId,
-                Predicciones = predicciones.Values.ToList()
+
+                // Backend exige Grupo siempre
+                Grupo = partido.Fase == "Grupos"
+                    ? partido.Grupo ?? "A"
+                    : "ELIMINATORIA",
+
+                Predicciones = new List<GuardarPrediccionItemDto>
+            {
+                predicciones[partido.Id]
+            }
             };
 
         try
         {
             await PrediccionesService.GuardarMultiplesAsync(dto);
-            await MostrarMensaje("Predicciones guardadas correctamente");
+            Console.WriteLine($"✅ Predicción guardada partido {partido.Id}");
         }
         catch (Exception ex)
         {
-            await MostrarMensaje(ex.Message, true);
+            Console.WriteLine($"❌ Error al guardar: {ex.Message}");
         }
     }
+}
 
-    private Task MostrarMensaje(string mensaje, bool error = false)
-    {
-        Console.WriteLine(mensaje);
-        return Task.CompletedTask;
-    }
+
+
+
 }
