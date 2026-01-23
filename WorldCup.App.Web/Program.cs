@@ -3,6 +3,8 @@ using WorldCup.App.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+
 // Blazor Server
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -12,6 +14,8 @@ builder.Services.AddHttpClient<PartidosService>(client =>
 {
     client.BaseAddress = new Uri("https://localhost:7092/");
 });
+
+builder.Services.AddScoped<PrediccionesService>();
 
 var app = builder.Build();
 
