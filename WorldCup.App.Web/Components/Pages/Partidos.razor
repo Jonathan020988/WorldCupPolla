@@ -1,51 +1,90 @@
-﻿@page "/partidos"
+﻿@using WorldCup.App.Shared.Models
+@page "/partidos"
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
 
-<h1>Partidos</h1>
-<p>Esta es la página de partidos</p>
-@if (partidos == null)
+<h1>⚽ Partidos del Mundial</h1>
+<p class="text-muted">Resultados y estado de todos los partidos</p>
+
+<div class="row mb-3">
+    <div class="col-12 col-md-4">
+        <label class="form-label fw-bold">Filtrar por fase</label>
+
+        <select class="form-select" @bind="FaseSeleccionada">
+            <option value="Todas">Todas</option>
+
+            @foreach (var fase in fasesDisponibles)
+            {
+                <option value="@fase">@fase</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (!partidosFiltrados.Any())
 {
-    <p>Cargando partidos...</p>
+    <p class="text-muted">No hay partidos para esta fase.</p>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Fase</th>
-                <th>Local</th>
-                <th>Visitante</th>
-                <th>Marcador</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var p in partidos)
-            {
-                <tr>
-                    <td>@p.Fase</td>
-                    <td>@p.Local</td>
-                    <td>@p.Visitante</td>
-                    <td>
-                        @if (p.Finalizado)
-                        {
-                            <span>@p.GolesLocal - @p.GolesVisitante</span>
-                        }
-                        else
-                        {
-                            <em>Pendiente</em>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @foreach (var grupo in partidosFiltrados.GroupBy(p => p.Fase))
+    {
+        <h5 class="mt-4 mb-2">
+            <span class="badge bg-primary">@grupo.Key</span>
+        </h5>
+
+        @foreach (var p in grupo)
+        {
+            <div class="card mb-2 @(p.Finalizado ? "border-success bg-light" : "")">
+                <div class="card-body p-2">
+                    <div class="row text-center align-items-center">
+                        <div class="col-5 text-end fw-bold">@p.Local</div>
+                        <div class="col-2 fw-bold">@p.GolesLocal - @p.GolesVisitante</div>
+                        <div class="col-5 text-start fw-bold">@p.Visitante</div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
 }
 
 @code {
-    private List<WorldCup.App.Shared.Models.PartidoDto>? partidos;
+    private List<PartidoDto> partidos = new();
+    private List<PartidoDto> partidosFiltrados = new();
+    private List<string> fasesDisponibles = new();
+
+    private string faseSeleccionada = "Todas";
+
+    private string FaseSeleccionada
+    {
+        get => faseSeleccionada;
+        set
+        {
+            if (faseSeleccionada != value)
+            {
+                faseSeleccionada = value;
+                AplicarFiltro();
+                StateHasChanged(); // 🔥 CLAVE
+            }
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         partidos = await PartidosService.GetPartidosAsync();
+
+        fasesDisponibles = partidos
+            .Select(p => p.Fase)
+            .Distinct()
+            .OrderBy(f => f)
+            .ToList();
+
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        partidosFiltrados = faseSeleccionada == "Todas"
+            ? partidos
+            : partidos.Where(p => p.Fase == faseSeleccionada).ToList();
     }
 }
