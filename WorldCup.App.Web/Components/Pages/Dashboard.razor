@@ -1,77 +1,65 @@
 ﻿@page "/dashboard"
 
-<div class="container py-4">
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+@inject PollasService PollasService
+@inject NavigationManager Navigation
 
-    <!-- HEADER -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0">🏆 Mis Pollas</h2>
-            <small class="text-muted">Gestiona tus pollas y participa</small>
-        </div>
+<h3 class="mb-4">🏆 Mis Pollas</h3>
 
-        <a class="btn btn-success" href="/crear-polla">
-            ➕ Crear nueva polla
+@if (!pollas.Any())
+{
+    <div class="alert alert-info">
+        No tienes pollas aún.
+        <br />
+        <a class="btn btn-success btn-sm mt-2" href="/crear-polla">
+            + Crear nueva polla
         </a>
     </div>
-
-    <!-- LISTADO DE POLLAS (MOCK) -->
+}
+else
+{
     <div class="row g-3">
+        @foreach (var p in pollas)
+        {
+            <div class="col-md-4">
+                <div class="card shadow-sm polla-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">⚽ @p.Nombre</h5>
 
-        <!-- POLLA CARD -->
-        <div class="col-md-4">
-            <div class="card shadow-sm polla-card">
-                <div class="card-body">
+                        <small class="text-muted">
+                            📅 @p.FechaCreacion.ToString("dd/MM/yyyy")
+                        </small>
 
-                    <h5 class="card-title mb-1">
-                        ⚽ Polla Mundial 2026
-                    </h5>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <span class="badge bg-success">Activa</span>
 
-                    <small class="text-muted">
-                        👥 8 participantes
-                    </small>
-
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <span class="badge bg-primary">Activa</span>
-
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="/predicciones">
-                            Entrar ▶️
-                        </a>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => EntrarPolla(p.Id)">
+                                Entrar ▶
+                            </button>
+                        </div>
                     </div>
-
                 </div>
             </div>
-        </div>
-
-        <!-- POLLA CARD -->
-        <div class="col-md-4">
-            <div class="card shadow-sm polla-card">
-                <div class="card-body">
-
-                    <h5 class="card-title mb-1">
-                        🏟️ Amigos del barrio
-                    </h5>
-
-                    <small class="text-muted">
-                        👥 5 participantes
-                    </small>
-
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <span class="badge bg-secondary">Finalizada</span>
-
-                        <a class="btn btn-sm btn-outline-secondary"
-                           href="#">
-                            Ver resultados
-                        </a>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
+        }
     </div>
+}
 
-</div>
+@code {
+    private List<PollaDto> pollas = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        int usuarioId = 1; // luego saldrá del login
+        pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
+    }
+
+    private void EntrarPolla(int pollaId)
+    {
+        Navigation.NavigateTo($"/polla/{pollaId}");
+    }
+}
 
 <style>
     .polla-card {

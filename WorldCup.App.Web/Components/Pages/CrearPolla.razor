@@ -1,45 +1,82 @@
 ﻿@page "/crear-polla"
+@rendermode InteractiveServer
 
-<div class="container py-4" style="max-width:600px">
+@inject NavigationManager Navigation
 
-    <div class="card shadow-sm">
-        <div class="card-body p-4">
+<h1 class="mb-1">➕ Crear nueva polla</h1>
+<p class="text-muted mb-4">
+    Crea una polla del mundial e invita a tus amigos a competir
+</p>
 
-            <h3 class="mb-1">🏆 Crear nueva polla</h3>
-            <p class="text-muted small">
-                Configura tu polla y empieza a invitar jugadores
-            </p>
+<div class="card shadow-sm" style="max-width:600px">
+    <div class="card-body">
 
-            <div class="mb-3">
-                <label class="form-label fw-bold">Nombre de la polla</label>
-                <input class="form-control"
-                       placeholder="Ej: Polla Mundial Amigos" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label fw-bold">Tipo de polla</label>
-
-                <select class="form-select">
-                    <option value="Privada">🔒 Privada (solo invitados)</option>
-                    <option value="Publica">🌍 Pública</option>
-                </select>
-            </div>
-
-            <div class="alert alert-info small">
-                ℹ️ Las pollas privadas generan un código de invitación
-            </div>
-
-            <div class="d-flex justify-content-between mt-4">
-                <a href="/dashboard" class="btn btn-outline-secondary">
-                    ⬅ Volver
-                </a>
-
-                <button class="btn btn-success">
-                    ✅ Crear polla
-                </button>
-            </div>
-
+        <div class="mb-3">
+            <label class="form-label fw-bold">🏆 Nombre de la polla</label>
+            <input class="form-control"
+                   placeholder="Ej: Polla Mundial 2026 - Amigos"
+                   @bind="nombre" />
         </div>
-    </div>
 
+        <div class="mb-3">
+            <label class="form-label fw-bold">📝 Descripción (opcional)</label>
+            <textarea class="form-control"
+                      rows="3"
+                      placeholder="Ej: Polla entre amigos del barrio"
+                      @bind="descripcion"></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="form-label fw-bold">👥 Máximo de participantes</label>
+            <input type="number"
+                   class="form-control"
+                   min="2"
+                   placeholder="Ej: 20"
+                   @bind="maxParticipantes" />
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <button class="btn btn-outline-secondary"
+                    @onclick="Cancelar">
+                ❌ Cancelar
+            </button>
+
+            <button class="btn btn-success"
+                    disabled="@(!FormularioValido)"
+                    @onclick="Crear">
+                ✅ Crear polla
+            </button>
+        </div>
+
+    </div>
 </div>
+
+@code {
+
+    // 🔹 Campos del formulario
+    private string nombre = "";
+    private string descripcion = "";
+    private int? maxParticipantes;
+
+    // 🔹 Validación simple front
+    private bool FormularioValido =>
+        !string.IsNullOrWhiteSpace(nombre);
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private void Crear()
+    {
+        // ⚠️ Por ahora SOLO simulamos
+        Console.WriteLine("Polla creada:");
+        Console.WriteLine($"Nombre: {nombre}");
+        Console.WriteLine($"Descripción: {descripcion}");
+        Console.WriteLine($"Máx participantes: {maxParticipantes}");
+
+        // 🔜 Luego aquí llamamos al backend
+        // Por ahora redirigimos al dashboard
+        Navigation.NavigateTo("/dashboard");
+    }
+}

@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
@@ -7,8 +6,8 @@ using WorldCup.Api.Models;
 
 namespace WorldCup.Api.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class PollaController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -18,7 +17,10 @@ namespace WorldCup.Api.Controllers
             _context = context;
         }
 
+        // =========================================================
         // GET: api/Polla
+        // Obtener todas las pollas
+        // =========================================================
         [HttpGet]
         public async Task<ActionResult<IEnumerable<PollaDTO>>> GetPollas()
         {
@@ -38,14 +40,18 @@ namespace WorldCup.Api.Controllers
             return Ok(pollas);
         }
 
-        // GET: api/Polla/5
-        [HttpGet("{id}")]
+        // =========================================================
+        // GET: api/Polla/{id}
+        // Obtener una polla por id
+        // =========================================================
+        [HttpGet("{id:int}")]
         public async Task<ActionResult<PollaDTO>> GetPolla(int id)
         {
             var polla = await _context.Pollas.FindAsync(id);
-            if (polla == null) return NotFound();
+            if (polla == null)
+                return NotFound();
 
-            return new PollaDTO
+            return Ok(new PollaDTO
             {
                 Id = polla.Id,
                 Nombre = polla.Nombre,
@@ -54,12 +60,15 @@ namespace WorldCup.Api.Controllers
                 FechaCreacion = polla.FechaCreacion,
                 MaximoMiembros = polla.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria
-            };
+            });
         }
 
+        // =========================================================
         // POST: api/Polla
+        // Crear nueva polla
+        // =========================================================
         [HttpPost]
-        public async Task<ActionResult> CrearPolla(CrearPollaDTO dto)
+        public async Task<IActionResult> CrearPolla([FromBody] CrearPollaDTO dto)
         {
             var polla = new Polla
             {
@@ -67,21 +76,26 @@ namespace WorldCup.Api.Controllers
                 Descripcion = dto.Descripcion,
                 CreadorId = dto.CreadorId,
                 MaximoMiembros = dto.MaximoMiembros,
-                PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria
+                PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
+                FechaCreacion = DateTime.UtcNow
             };
 
             _context.Pollas.Add(polla);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetPolla), new { id = polla.Id }, dto);
+            return CreatedAtAction(nameof(GetPolla), new { id = polla.Id }, polla.Id);
         }
 
-        // PUT: api/Polla/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> ActualizarPolla(int id, CrearPollaDTO dto)
+        // =========================================================
+        // PUT: api/Polla/{id}
+        // Actualizar polla
+        // =========================================================
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> ActualizarPolla(int id, [FromBody] CrearPollaDTO dto)
         {
             var polla = await _context.Pollas.FindAsync(id);
-            if (polla == null) return NotFound();
+            if (polla == null)
+                return NotFound();
 
             polla.Nombre = dto.Nombre;
             polla.Descripcion = dto.Descripcion;
@@ -92,12 +106,15 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
-        // DELETE: api/Polla/5
-        [HttpDelete("{id}")]
+        // =========================================================
+        // DELETE: api/Polla/{id}
+        // =========================================================
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeletePolla(int id)
         {
             var polla = await _context.Pollas.FindAsync(id);
-            if (polla == null) return NotFound();
+            if (polla == null)
+                return NotFound();
 
             _context.Pollas.Remove(polla);
             await _context.SaveChangesAsync();
@@ -105,7 +122,10 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
-        [HttpGet("{pollaId}/ranking")]
+        // =========================================================
+        // GET: api/Polla/{pollaId}/ranking
+        // =========================================================
+        [HttpGet("{pollaId:int}/ranking")]
         public async Task<IActionResult> GetRanking(int pollaId)
         {
             var ranking = await _context.Predicciones
@@ -128,7 +148,32 @@ namespace WorldCup.Api.Controllers
             return Ok(ranking);
         }
 
+        [HttpGet("usuario/{usuarioId}")]
+        public async Task<IActionResult> GetPollasPorUsuario(int usuarioId)
+        {
+            var pollas = await _context.Pollas
+                .Where(p =>
+                    p.CreadorId == usuarioId ||
+                    _context.PollaMiembros.Any(pm =>
+                        pm.PollaId == p.Id &&
+                        pm.UsuarioId == usuarioId
+                    )
+                )
+                .Select(p => new PollaDTO
+                {
+                    Id = p.Id,
+                    Nombre = p.Nombre,
+                    Descripcion = p.Descripcion,
+                    CreadorId = p.CreadorId,
+                    FechaCreacion = p.FechaCreacion,
+                    MaximoMiembros = p.MaximoMiembros,
+                    PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria
+                })
+                .ToListAsync();
+
+            return Ok(pollas);
+        }
+
 
     }
 }
-

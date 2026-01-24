@@ -1,0 +1,105 @@
+﻿@page "/polla/{PollaId:int}"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+
+<h1 class="mb-1">🏆 Polla Mundial 2026</h1>
+<p class="text-muted mb-4">
+    Detalle de la polla y posiciones actuales
+</p>
+
+<div class="row g-3">
+
+    <!-- 📊 Ranking -->
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <h5 class="mb-3">📊 Ranking</h5>
+
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Usuario</th>
+                            <th class="text-end">Puntos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in ranking)
+                        {
+                            <tr>
+                                <td>@r.Posicion</td>
+                                <td>@r.Usuario</td>
+                                <td class="text-end fw-bold">@r.Puntos</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <button class="btn btn-primary btn-sm mt-2"
+                        @onclick="IrAPredicciones">
+                    🎯 Ir a mis predicciones
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 👥 Participantes -->
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <h5 class="mb-3">👥 Participantes</h5>
+
+                <ul class="list-group list-group-flush">
+                    @foreach (var u in participantes)
+                    {
+                        <li class="list-group-item px-0">
+                            👤 @u
+                        </li>
+                    }
+                </ul>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public int PollaId { get; set; }
+
+    // 🔹 Datos simulados (luego backend)
+    private List<RankingItem> ranking = new()
+    {
+        new RankingItem { Posicion = 1, Usuario = "Jonathan", Puntos = 42 },
+        new RankingItem { Posicion = 2, Usuario = "Carlos", Puntos = 38 },
+        new RankingItem { Posicion = 3, Usuario = "Laura", Puntos = 31 }
+    };
+
+    private List<string> participantes = new()
+    {
+        "Jonathan",
+        "Carlos",
+        "Laura",
+        "Andrés",
+        "María"
+    };
+
+    private void IrAPredicciones()
+    {
+        Navigation.NavigateTo("/predicciones");
+    }
+
+    // 🔹 Modelo simple de ranking
+    private class RankingItem
+    {
+        public int Posicion { get; set; }
+        public string Usuario { get; set; } = "";
+        public int Puntos { get; set; }
+    }
+}

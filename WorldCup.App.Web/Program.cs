@@ -20,6 +20,15 @@ builder.Services.AddHttpClient<PrediccionesService>(client =>
     client.BaseAddress = new Uri("https://localhost:7092/");
 });
 
+builder.Services.AddHttpClient<PollasService>(client =>
+{
+    client.BaseAddress = new Uri("https://localhost:7092/");
+});
+
+
+
+
+// en la linea anterior se van agregando los servicios
 //builder.Services.AddScoped<PrediccionesService>();
 
 var app = builder.Build();
