@@ -25,6 +25,9 @@ builder.Services.AddHttpClient<PollasService>(client =>
     client.BaseAddress = new Uri("https://localhost:7092/");
 });
 
+builder.Services.AddScoped<SesionService>();
+
+
 
 
 

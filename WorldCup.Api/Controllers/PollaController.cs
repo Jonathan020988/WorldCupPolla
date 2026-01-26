@@ -216,5 +216,27 @@ namespace WorldCup.Api.Controllers
             return Ok(participantes);
         }
 
+
+        // POST: api/Polla/{pollaId}/invitar/{usuarioId}
+        [HttpPost("{pollaId}/invitar/{usuarioId}")]
+        public async Task<IActionResult> InvitarUsuario(int pollaId, int usuarioId)
+        {
+            var existe = await _context.PollaMiembros
+                .AnyAsync(x => x.PollaId == pollaId && x.UsuarioId == usuarioId);
+
+            if (existe)
+                return BadRequest("El usuario ya pertenece a la polla");
+
+            _context.PollaMiembros.Add(new PollaMiembro
+            {
+                PollaId = pollaId,
+                UsuarioId = usuarioId
+            });
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+
     }
 }

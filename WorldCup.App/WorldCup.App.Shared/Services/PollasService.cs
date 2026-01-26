@@ -60,6 +60,15 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
+        public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
+        {
+            await _http.PostAsync(
+                $"api/Polla/{pollaId}/invitar/{usuarioId}",
+                null
+            );
+        }
+
+
 
     }
 }

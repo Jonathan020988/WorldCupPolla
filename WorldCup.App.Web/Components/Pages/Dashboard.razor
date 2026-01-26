@@ -4,6 +4,7 @@
 @using WorldCup.App.Shared.DTOs
 @inject PollasService PollasService
 @inject NavigationManager Navigation
+@inject SesionService Sesion
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
@@ -54,9 +55,12 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        int usuarioId = 1; // 🔒 luego vendrá del login real
-        pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
+        if (!Sesion.EstaLogueado)
+            return;
+
+        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
     }
+
 
  
 }

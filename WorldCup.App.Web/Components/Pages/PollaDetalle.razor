@@ -43,6 +43,12 @@
                         @onclick="IrAPredicciones">
                     🎯 Ir a predicciones
                 </button>
+
+                <button class="btn btn-sm btn-outline-success"
+                        @onclick="() => Invitar(2)">
+                    ➕ Invitar usuario 2
+                </button>
+
             </div>
         </div>
     </div>
@@ -85,4 +91,11 @@
     {
         Navigation.NavigateTo("/predicciones");
     }
+
+    private async Task Invitar(int usuarioId)
+    {
+        await PollasService.InvitarUsuarioAsync(PollaId, usuarioId);
+        participantes = await PollasService.GetParticipantesAsync(PollaId);
+    }
+
 }
