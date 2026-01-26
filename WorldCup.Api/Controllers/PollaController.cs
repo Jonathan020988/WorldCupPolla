@@ -174,6 +174,22 @@ namespace WorldCup.Api.Controllers
             return Ok(pollas);
         }
 
+        // GET: api/Polla/{pollaId}/participantes
+        [HttpGet("{pollaId}/participantes")]
+        public async Task<IActionResult> GetParticipantes(int pollaId)
+        {
+            var participantes = await _context.PollaMiembros
+                .Include(pm => pm.Usuario)
+                .Where(pm => pm.PollaId == pollaId)
+                .Select(pm => new
+                {
+                    pm.Usuario.Id,
+                    pm.Usuario.Nombre
+                })
+                .ToListAsync();
+
+            return Ok(participantes);
+        }
 
     }
 }

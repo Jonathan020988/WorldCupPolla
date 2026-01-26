@@ -7,7 +7,7 @@
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
-@if (!pollas.Any())
+@if (pollas == null || !pollas.Any())
 {
     <div class="alert alert-info">
         No tienes pollas aún.
@@ -34,10 +34,12 @@ else
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <span class="badge bg-success">Activa</span>
 
-                            <button class="btn btn-sm btn-outline-primary"
-                                    @onclick="() => EntrarPolla(p.Id)">
+                            
+                            <NavLink class="btn btn-sm btn-outline-primary"
+                                    href="@($"/polla/{p.Id}")">
                                 Entrar ▶
-                            </button>
+                            </NavLink>
+
                         </div>
                     </div>
                 </div>
@@ -47,18 +49,16 @@ else
 }
 
 @code {
+
     private List<PollaDto> pollas = new();
 
     protected override async Task OnInitializedAsync()
     {
-        int usuarioId = 1; // luego saldrá del login
+        int usuarioId = 1; // 🔒 luego vendrá del login real
         pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
     }
 
-    private void EntrarPolla(int pollaId)
-    {
-        Navigation.NavigateTo($"/polla/{pollaId}");
-    }
+ 
 }
 
 <style>
