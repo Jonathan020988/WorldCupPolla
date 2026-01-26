@@ -68,7 +68,7 @@ namespace WorldCup.Api.Controllers
         // Crear nueva polla
         // =========================================================
         [HttpPost]
-        public async Task<IActionResult> CrearPolla([FromBody] CrearPollaDTO dto)
+        public async Task<ActionResult> CrearPolla(CrearPollaDTO dto)
         {
             var polla = new Polla
             {
@@ -83,8 +83,20 @@ namespace WorldCup.Api.Controllers
             _context.Pollas.Add(polla);
             await _context.SaveChangesAsync();
 
+            // 🔹 AGREGAR CREADOR COMO PARTICIPANTE
+            var miembro = new PollaMiembro
+            {
+                PollaId = polla.Id,
+                UsuarioId = dto.CreadorId,
+                FechaIngreso = DateTime.UtcNow
+            };
+
+            _context.PollaMiembros.Add(miembro);
+            await _context.SaveChangesAsync();
+
             return CreatedAtAction(nameof(GetPolla), new { id = polla.Id }, polla.Id);
         }
+
 
         // =========================================================
         // PUT: api/Polla/{id}
@@ -174,6 +186,23 @@ namespace WorldCup.Api.Controllers
             return Ok(pollas);
         }
 
+        //// GET: api/Polla/{pollaId}/participantes
+        //[HttpGet("{pollaId}/participantes")]
+        //public async Task<IActionResult> GetParticipantes(int pollaId)
+        //{
+        //    var participantes = await _context.PollaMiembros
+        //        .Include(pm => pm.Usuario)
+        //        .Where(pm => pm.PollaId == pollaId)
+        //        .Select(pm => new
+        //        {
+        //            pm.Usuario.Id,
+        //            pm.Usuario.Nombre
+        //        })
+        //        .ToListAsync();
+
+        //    return Ok(participantes);
+        //}
+
         // GET: api/Polla/{pollaId}/participantes
         [HttpGet("{pollaId}/participantes")]
         public async Task<IActionResult> GetParticipantes(int pollaId)
@@ -181,11 +210,7 @@ namespace WorldCup.Api.Controllers
             var participantes = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
                 .Where(pm => pm.PollaId == pollaId)
-                .Select(pm => new
-                {
-                    pm.Usuario.Id,
-                    pm.Usuario.Nombre
-                })
+                .Select(pm => pm.Usuario.Nombre)
                 .ToListAsync();
 
             return Ok(participantes);
