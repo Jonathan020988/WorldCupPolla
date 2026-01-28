@@ -67,9 +67,16 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // usuario fijo mientras no hay login real
-        pollas = await PollasService.GetPollasPorUsuarioAsync(1);
+        int usuarioId = 4; // 🔴 MISMO usuario fijo
+
+        pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
     }
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     // usuario fijo mientras no hay login real
+    //     pollas = await PollasService.GetPollasPorUsuarioAsync(1);
+    // }
 
     private async Task ConfirmarEliminar(int pollaId)
     {

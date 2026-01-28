@@ -5,6 +5,8 @@
 @using WorldCup.App.Shared.DTOs
 @inject PollasService PollasService
 @inject NavigationManager Navigation
+@inject SesionService Sesion
+
 
 <h1 class="mb-1">➕ Crear nueva polla</h1>
 <p class="text-muted mb-4">
@@ -70,24 +72,26 @@
 
     private void Cancelar()
     {
-        Navigation.NavigateTo("/dashboard", forceLoad: true);
-
+        Navigation.NavigateTo("/dashboard");
     }
 
     private async Task CrearAsync()
     {
+        // 🔒 TEMPORAL: mientras no hay login real
+        int usuarioId = 4; // ← usa el mismo ID que ya probaste
+
         var dto = new CrearPollaDto
             {
                 Nombre = nombre,
                 Descripcion = descripcion,
-                CreadorId = usuarioId,
                 MaximoMiembros = maxParticipantes,
+                CreadorId = usuarioId,
                 PermitirEmpatesEnEliminatoria = true
             };
 
         await PollasService.CrearPollaAsync(dto);
 
         Navigation.NavigateTo("/dashboard", forceLoad: true);
-
     }
+
 }
