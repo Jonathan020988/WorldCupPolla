@@ -1,5 +1,7 @@
-﻿@rendermode InteractiveServer
-
+﻿@using WorldCup.App.Shared.Services
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -18,12 +20,119 @@
             </NavLink>
         </div>
 
+        @if (!Sesion.EstaLogueado)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/login">🔐 Login</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/registro">📝 Registro</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
+            </div>
+        }
+
+        @if (Sesion.EstaLogueado)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/dashboard">🏆 Dashboard</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/crear-polla">➕ Crear Polla</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/predicciones">🎯 Predicciones</NavLink>
+            </div>
+
+
+            <div class="nav-item px-3">
+                <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">
+                    🚪 Cerrar sesión
+                </a>
+            </div>
+        }
+
+        
+
+       
+    </nav>
+</div>
+
+@code {
+        
+    protected override void OnInitialized()
+    {
+        Sesion.OnChange += StateHasChanged;
+    }
+
+    void CerrarSesion()
+    {
+        Sesion.Logout();
+        Navigation.NavigateTo("/login", true);
+    }
+
+    public void Dispose()
+    {
+        Sesion.OnChange -= StateHasChanged;
+    }
+}
+
+
+
+@* @using WorldCup.App.Shared.Services
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">WorldCup.App</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+
+        
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                🏠 Home
+            </NavLink>
+        </div>
+
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="/login">
                 🔐 Login
             </NavLink>
         </div>
 
+        @if (Sesion.EstaLogueado)
+        {
+            <div class="nav-item px-3">
+                <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">
+                    🚪 Cerrar sesión
+                </a>
+            </div>
+        }
+
+
+        @* @if (Sesion.EstaLogueado)
+        {
+            <li class="nav-item">
+                <a class="nav-link" @onclick="CerrarSesion">🚪 Cerrar sesión</a>
+            </li>
+        } *@
+
+@* 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="/registro">
                 📝  Registro
@@ -47,23 +156,27 @@
             <NavLink class="nav-link" href="partidos">
                 ⚽ Partidos
             </NavLink>
-        </div>
+        </div> *@
 
-        <!-- 🔥 NUEVO -->
+  @*       <!-- 🔥 NUEVO -->
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="predicciones">
                 🎯 Predicciones
             </NavLink>
         </div>
-
-    
-
-        
-
-
-      
-      
+             
 
 
     </nav>
 </div>
+
+@code
+{
+
+    void CerrarSesion()
+    {
+        Sesion.Logout();
+        Navigation.NavigateTo("/login");
+    }
+}
+ *@ 

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace WorldCup.App.Shared.Services
+﻿namespace WorldCup.App.Shared.Services
 {
     public class SesionService
     {
@@ -13,16 +7,26 @@ namespace WorldCup.App.Shared.Services
 
         public bool EstaLogueado => UsuarioId.HasValue;
 
+        // 🔔 Evento para notificar cambios
+        public event Action? OnChange;
+
         public void Login(int usuarioId, string nombre)
         {
             UsuarioId = usuarioId;
             Nombre = nombre;
+            NotifyStateChanged();
         }
 
         public void Logout()
         {
             UsuarioId = null;
             Nombre = null;
+            NotifyStateChanged();
+        }
+
+        private void NotifyStateChanged()
+        {
+            OnChange?.Invoke();
         }
     }
 }
