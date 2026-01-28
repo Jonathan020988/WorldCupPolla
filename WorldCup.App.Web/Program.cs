@@ -9,7 +9,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddScoped<SesionService>();
+
+
+
 // HttpClient apuntando a la API (PUERTO 7092)
+builder.Services.AddHttpClient<AuthService>(client =>
+{
+    client.BaseAddress = new Uri("https://localhost:7092/");
+});
+
 builder.Services.AddHttpClient<PartidosService>(client =>
 {
     client.BaseAddress = new Uri("https://localhost:7092/");
@@ -24,15 +33,6 @@ builder.Services.AddHttpClient<PollasService>(client =>
 {
     client.BaseAddress = new Uri("https://localhost:7092/");
 });
-
-builder.Services.AddScoped<SesionService>();
-
-builder.Services.AddScoped<AuthService>();
-
-
-
-
-
 
 // en la linea anterior se van agregando los servicios
 //builder.Services.AddScoped<PrediccionesService>();
