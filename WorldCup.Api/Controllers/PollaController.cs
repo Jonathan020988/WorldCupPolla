@@ -4,6 +4,7 @@ using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
 
+
 namespace WorldCup.Api.Controllers
 {
     [ApiController]
@@ -119,6 +120,7 @@ namespace WorldCup.Api.Controllers
         }
 
         // =========================================================
+        // =========================================================
         // DELETE: api/Polla/{id}
         // =========================================================
         [HttpDelete("{id:int}")]
@@ -128,11 +130,20 @@ namespace WorldCup.Api.Controllers
             if (polla == null)
                 return NotFound();
 
-            _context.Pollas.Remove(polla);
-            await _context.SaveChangesAsync();
+            // 🔥 eliminar dependencias
+            var miembros = _context.PollaMiembros.Where(pm => pm.PollaId == id);
+            var predicciones = _context.Predicciones.Where(p => p.PollaId == id);
 
+            _context.PollaMiembros.RemoveRange(miembros);
+            _context.Predicciones.RemoveRange(predicciones);
+            _context.Pollas.Remove(polla);
+
+            await _context.SaveChangesAsync();
             return NoContent();
         }
+
+
+
 
         // =========================================================
         // GET: api/Polla/{pollaId}/ranking
@@ -204,6 +215,9 @@ namespace WorldCup.Api.Controllers
         //}
 
         // GET: api/Polla/{pollaId}/participantes
+
+
+        // ================= PARTICIPANTES =================
         [HttpGet("{pollaId}/participantes")]
         public async Task<IActionResult> GetParticipantes(int pollaId)
         {
@@ -216,8 +230,7 @@ namespace WorldCup.Api.Controllers
             return Ok(participantes);
         }
 
-
-        // POST: api/Polla/{pollaId}/invitar/{usuarioId}
+        // ================= INVITAR =================
         [HttpPost("{pollaId}/invitar/{usuarioId}")]
         public async Task<IActionResult> InvitarUsuario(int pollaId, int usuarioId)
         {

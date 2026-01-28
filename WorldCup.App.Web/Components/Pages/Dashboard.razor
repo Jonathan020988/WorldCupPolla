@@ -1,10 +1,11 @@
 ﻿@page "/dashboard"
+@rendermode InteractiveServer
 
 @using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
 @inject PollasService PollasService
 @inject NavigationManager Navigation
-@inject SesionService Sesion
+@inject IJSRuntime JS
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
@@ -23,7 +24,7 @@ else
     <div class="row g-3">
         @foreach (var p in pollas)
         {
-            <div class="col-md-4">
+            <div class="col-md-4" @key="p.Id">
                 <div class="card shadow-sm polla-card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">⚽ @p.Nombre</h5>
@@ -31,17 +32,28 @@ else
                         <small class="text-muted">
                             📅 @p.FechaCreacion.ToString("dd/MM/yyyy")
                         </small>
-
-                        <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="d-flex align-items-center mt-3">
+                            <!-- Estado -->
                             <span class="badge bg-success">Activa</span>
 
-                            
-                            <NavLink class="btn btn-sm btn-outline-primary"
-                                    href="@($"/polla/{p.Id}")">
-                                Entrar ▶
-                            </NavLink>
+                            <!-- Entrar centrado -->
+                            <div class="flex-grow-1 text-center">
+                                <NavLink class="btn btn-sm btn-outline-primary"
+                                         href="@($"/polla/{p.Id}")">
+                                    Entrar ▶
+                                </NavLink>
+                            </div>
+
+                            <!-- Eliminar a la derecha -->
+                            <button class="btn btn-sm btn-danger d-flex align-items-center gap-1"
+                                    title="Eliminar polla"
+                                    @onclick="() => ConfirmarEliminar(p.Id)">
+                                🗑 <span>Eliminar</span>
+                            </button>
 
                         </div>
+
+                        
                     </div>
                 </div>
             </div>
@@ -55,14 +67,30 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!Sesion.EstaLogueado)
-            return;
-
-        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+        // usuario fijo mientras no hay login real
+        pollas = await PollasService.GetPollasPorUsuarioAsync(1);
     }
 
+    private async Task ConfirmarEliminar(int pollaId)
+    {
+        var confirmar = await JS.InvokeAsync<bool>(
+            "confirm",
+            "⚠️ ¿Seguro que deseas eliminar esta polla?\n\nEsta acción NO se puede deshacer."
+        );
 
- 
+        if (!confirmar)
+            return;
+
+        // 1️⃣ Eliminar en backend
+        await PollasService.EliminarPollaAsync(pollaId);
+
+        // 2️⃣ Eliminar del listado LOCAL (CLAVE 🔑)
+        var polla = pollas.FirstOrDefault(p => p.Id == pollaId);
+        if (polla != null)
+            pollas.Remove(polla);
+
+        // 3️⃣ Blazor redibuja SOLO
+    }
 }
 
 <style>
@@ -71,3 +99,4 @@ else
         border-radius: 10px;
     }
 </style>
+

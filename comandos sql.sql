@@ -334,4 +334,14 @@ WHERE "PartidoId" = 118;
 DELETE FROM "Predicciones"
 WHERE "UsuarioId" = 1;
 
+select from "Predicciones"
+
+
+------ ver tablas----
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+
+
 

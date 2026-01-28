@@ -1,6 +1,9 @@
 ﻿@page "/crear-polla"
 @rendermode InteractiveServer
 
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+@inject PollasService PollasService
 @inject NavigationManager Navigation
 
 <h1 class="mb-1">➕ Crear nueva polla</h1>
@@ -43,7 +46,7 @@
 
             <button class="btn btn-success"
                     disabled="@(!FormularioValido)"
-                    @onclick="Crear">
+                    @onclick="CrearAsync">
                 ✅ Crear polla
             </button>
         </div>
@@ -58,25 +61,33 @@
     private string descripcion = "";
     private int? maxParticipantes;
 
+    // 🔹 Usuario fijo por ahora (FASE 1)
+    private int usuarioId = 1;
+
     // 🔹 Validación simple front
     private bool FormularioValido =>
         !string.IsNullOrWhiteSpace(nombre);
 
     private void Cancelar()
     {
-        Navigation.NavigateTo("/dashboard");
+        Navigation.NavigateTo("/dashboard", forceLoad: true);
+
     }
 
-    private void Crear()
+    private async Task CrearAsync()
     {
-        // ⚠️ Por ahora SOLO simulamos
-        Console.WriteLine("Polla creada:");
-        Console.WriteLine($"Nombre: {nombre}");
-        Console.WriteLine($"Descripción: {descripcion}");
-        Console.WriteLine($"Máx participantes: {maxParticipantes}");
+        var dto = new CrearPollaDto
+            {
+                Nombre = nombre,
+                Descripcion = descripcion,
+                CreadorId = usuarioId,
+                MaximoMiembros = maxParticipantes,
+                PermitirEmpatesEnEliminatoria = true
+            };
 
-        // 🔜 Luego aquí llamamos al backend
-        // Por ahora redirigimos al dashboard
-        Navigation.NavigateTo("/dashboard");
+        await PollasService.CrearPollaAsync(dto);
+
+        Navigation.NavigateTo("/dashboard", forceLoad: true);
+
     }
 }

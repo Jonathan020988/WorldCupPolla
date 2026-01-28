@@ -68,6 +68,17 @@ namespace WorldCup.App.Shared.Services
             );
         }
 
+        public async Task CrearPollaAsync(CrearPollaDto dto)
+        {
+            await _http.PostAsJsonAsync("api/Polla", dto);
+        }
+
+        public async Task EliminarPollaAsync(int pollaId)
+        {
+            var response = await _http.DeleteAsync($"api/Polla/{pollaId}");
+            response.EnsureSuccessStatusCode();
+        }
+
 
 
     }
