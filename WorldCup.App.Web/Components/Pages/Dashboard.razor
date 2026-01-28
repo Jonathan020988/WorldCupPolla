@@ -6,6 +6,8 @@
 @inject PollasService PollasService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject SesionService Sesion
+
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
@@ -67,10 +69,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        int usuarioId = 4; // 🔴 MISMO usuario fijo
-
-        pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
+        if (Sesion.EstaLogueado)
+        {
+            int usuarioId = Sesion.UsuarioId!.Value;
+            pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
+        }
     }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+
+
 
     // protected override async Task OnInitializedAsync()
     // {
