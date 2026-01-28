@@ -1,4 +1,87 @@
-﻿@page "/login"
+﻿@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+
+@inject AuthService AuthService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+
+@page "/login"
+
+<div class="container py-5" style="max-width:420px">
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+
+            <h3 class="text-center mb-3">🔐 Iniciar sesión</h3>
+
+            @if (error != null)
+            {
+                <div class="alert alert-danger text-center">
+                    @error
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Correo</label>
+                <input type="email"
+                       class="form-control"
+                       placeholder="correo@ejemplo.com"
+                       @bind="email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Contraseña</label>
+                <input type="password"
+                       class="form-control"
+                       placeholder="••••••••"
+                       @bind="password" />
+            </div>
+
+            <button class="btn btn-primary w-100 mt-2"
+                    @onclick="LoginAsync">
+                Entrar
+            </button>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    private string email = "";
+    private string password = "";
+    private string? error;
+
+    private async Task LoginAsync()
+    {
+        error = null;
+
+        var result = await AuthService.LoginAsync(new LoginDto
+            {
+                Email = email,
+                Password = password
+            });
+
+        if (result == null)
+        {
+            error = "Credenciales inválidas";
+            return;
+        }
+
+        Sesion.Login(result.Id, result.Nombre);
+        Navigation.NavigateTo("/dashboard", true);
+    }
+}
+
+@* @page "/login"
+
+@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+
+@inject AuthService AuthService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
 
 <div class="container py-5" style="max-width:420px">
 
@@ -10,19 +93,35 @@
                 Accede a tus pollas y predicciones
             </p>
 
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert alert-danger text-center">
+                    @error
+                </div>
+            }
+
             <div class="mb-3">
                 <label class="form-label">Correo</label>
-                <input type="email" class="form-control" placeholder="correo@ejemplo.com" />
+                <input type="email"
+                       class="form-control"
+                       placeholder="correo@ejemplo.com"
+                       @bind="email" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Contraseña</label>
-                <input type="password" class="form-control" placeholder="••••••••" />
+                <input type="password"
+                       class="form-control"
+                       placeholder="••••••••"
+                       @bind="password" />
             </div>
 
-            <button class="btn btn-primary w-100 mt-2">
+            <button type="button"
+                    class="btn btn-primary w-100 mt-2"
+                    @onclick="LoginAsync">
                 Entrar
             </button>
+
 
             <div class="text-center mt-3">
                 <small class="text-muted">
@@ -36,5 +135,29 @@
 
 </div>
 
+@code {
+    private string email = "";
+    private string password = "";
+    private string? error;
 
+    private async Task LoginAsync()
+    {
+        error = null;
 
+        var usuario = await AuthService.LoginAsync(new LoginDto
+            {
+                Email = email,
+                Password = password
+            });
+
+        if (usuario == null)
+        {
+            error = "Credenciales inválidas";
+            return;
+        }
+
+        Sesion.Login(usuario.Id, usuario.Nombre);
+        Navigation.NavigateTo("/dashboard", true);
+    }
+}
+ *@

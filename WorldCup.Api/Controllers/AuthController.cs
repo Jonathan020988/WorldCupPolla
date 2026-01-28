@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
-using WorldCup.Api.DTOs;
+using WorldCup.Api.DTOs;   // ✅ DTOs DEL API
 
-using DocumentFormat.OpenXml.Math;
 
 namespace WorldCup.Api.Controllers
 {
@@ -29,6 +28,7 @@ namespace WorldCup.Api.Controllers
                 return Unauthorized("Credenciales inválidas");
 
             var passwordValida = BCrypt.Net.BCrypt.Verify(dto.Password, usuario.PasswordHash);
+
 
             if (!passwordValida)
                 return Unauthorized("Credenciales inválidas");

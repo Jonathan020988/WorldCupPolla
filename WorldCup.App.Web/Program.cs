@@ -27,6 +27,9 @@ builder.Services.AddHttpClient<PollasService>(client =>
 
 builder.Services.AddScoped<SesionService>();
 
+builder.Services.AddScoped<AuthService>();
+
+
 
 
 
