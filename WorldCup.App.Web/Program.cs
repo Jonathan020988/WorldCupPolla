@@ -9,8 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddScoped<SesionService>();
+builder.Services.AddScoped<LocalStorageService>();
 
+builder.Services.AddScoped<SesionService>();
 
 
 // HttpClient apuntando a la API (PUERTO 7092)

@@ -79,12 +79,11 @@
     {
         if (!Sesion.EstaLogueado)
         {
-            Navigation.NavigateTo("/login");
+            Navigation.NavigateTo("/login", true);
             return;
         }
 
-        int usuarioId = Sesion.UsuarioId!.Value;
-
+        
         var dto = new CrearPollaDto
             {
                 Nombre = nombre,
@@ -98,5 +97,19 @@
 
         Navigation.NavigateTo("/dashboard");
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+
+            if (!Sesion.EstaLogueado)
+            {
+                Navigation.NavigateTo("/login", true);
+            }
+        }
+    }
+
 
 }

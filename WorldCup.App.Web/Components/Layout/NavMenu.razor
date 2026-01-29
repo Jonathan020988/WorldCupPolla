@@ -74,11 +74,12 @@
         Sesion.OnChange += StateHasChanged;
     }
 
-    void CerrarSesion()
+    private async Task CerrarSesion()
     {
-        Sesion.Logout();
-        Navigation.NavigateTo("/login", true);
+         await Sesion.LogoutAsync();
+         Navigation.NavigateTo("/login", true);
     }
+    
 
     public void Dispose()
     {

@@ -67,21 +67,41 @@ else
 
     private List<PollaDto> pollas = new();
 
+
+    private bool _cargado = false;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
-
-        if (!Sesion.EstaLogueado)
+        if (firstRender)
         {
-            Navigation.NavigateTo("/login");
-            return;
-        }
+            await Sesion.RestaurarSesionAsync();
 
-        int usuarioId = Sesion.UsuarioId!.Value;
-        pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
-        StateHasChanged();
+            if (!Sesion.EstaLogueado)
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+            _cargado = true;
+            StateHasChanged();
+        }
     }
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     if (!firstRender)
+    //         return;
+
+    //     if (!Sesion.EstaLogueado)
+    //     {
+    //         Navigation.NavigateTo("/login");
+    //         return;
+    //     }
+
+    //     int usuarioId = Sesion.UsuarioId!.Value;
+    //     pollas = await PollasService.GetPollasPorUsuarioAsync(usuarioId);
+    //     StateHasChanged();
+    // }
 
 
     // protected override async Task OnInitializedAsync()

@@ -1,5 +1,7 @@
-﻿@inherits LayoutComponentBase
+﻿@using WorldCup.App.Shared.Services
+@inherits LayoutComponentBase
 @rendermode InteractiveServer
+
 
 <div class="page">
     <div class="sidebar">
@@ -22,3 +24,13 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@inject SesionService Sesion
+
+@code 
+{
+    protected override async Task OnInitializedAsync()
+    {
+        await Sesion.RestaurarSesionAsync();
+    }
+}

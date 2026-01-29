@@ -68,7 +68,7 @@
             error = "Credenciales inválidas";
             return;
         }
-        Sesion.Login(result.Id, result.Nombre);
+        await Sesion.LoginAsync(result.Id, result.Nombre);
         Console.WriteLine($"SESION OK -> {Sesion.UsuarioId}");
         Navigation.NavigateTo("/dashboard");
 
