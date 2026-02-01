@@ -64,17 +64,29 @@ namespace WorldCup.Api.Controllers
             });
         }
 
-
         [HttpPost]
         public async Task<IActionResult> CrearPolla([FromBody] CrearPollaDTO dto)
         {
-            Console.WriteLine("🚀 Entró al POST CrearPolla");
+            // 🔴 USUARIO FIJO PARA PRUEBA (NO SESIÓN)
+            const int USUARIO_PRUEBA_ID = 4;
+
+            var usuarioExiste = await _context.Usuarios
+                .AnyAsync(u => u.Id == USUARIO_PRUEBA_ID);
+
+            if (!usuarioExiste)
+                return BadRequest("Usuario de prueba no existe");
+
+            if (string.IsNullOrWhiteSpace(dto.Nombre))
+                return BadRequest("Nombre obligatorio");
+
+            if (dto.MaximoMiembros <= 0)
+                return BadRequest("MaximoMiembros inválido");
 
             var polla = new Polla
             {
                 Nombre = dto.Nombre,
                 Descripcion = dto.Descripcion,
-                CreadorId = dto.CreadorId,
+                CreadorId = USUARIO_PRUEBA_ID,
                 MaximoMiembros = dto.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
                 FechaCreacion = DateTime.UtcNow
@@ -83,44 +95,18 @@ namespace WorldCup.Api.Controllers
             _context.Pollas.Add(polla);
             await _context.SaveChangesAsync();
 
-            Console.WriteLine($"✅ Polla guardada con ID {polla.Id}");
+            var miembro = new PollaMiembro
+            {
+                PollaId = polla.Id,
+                UsuarioId = USUARIO_PRUEBA_ID,
+                FechaIngreso = DateTime.UtcNow
+            };
+
+            _context.PollaMiembros.Add(miembro);
+            await _context.SaveChangesAsync();
 
             return Ok(polla.Id);
         }
-
-        // =========================================================
-        // POST: api/Polla
-        // Crear nueva polla
-        // =========================================================
-        //[HttpPost]
-        //public async Task<ActionResult> CrearPolla(CrearPollaDTO dto)
-        //{
-        //    var polla = new Polla
-        //    {
-        //        Nombre = dto.Nombre,
-        //        Descripcion = dto.Descripcion,
-        //        CreadorId = dto.CreadorId,
-        //        MaximoMiembros = dto.MaximoMiembros,
-        //        PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
-        //        FechaCreacion = DateTime.UtcNow
-        //    };
-
-        //    _context.Pollas.Add(polla);
-        //    await _context.SaveChangesAsync();
-
-        //    // 🔹 AGREGAR CREADOR COMO PARTICIPANTE
-        //    var miembro = new PollaMiembro
-        //    {
-        //        PollaId = polla.Id,
-        //        UsuarioId = dto.CreadorId,
-        //        FechaIngreso = DateTime.UtcNow
-        //    };
-
-        //    _context.PollaMiembros.Add(miembro);
-        //    await _context.SaveChangesAsync();
-
-        //    return CreatedAtAction(nameof(GetPolla), new { id = polla.Id }, polla.Id);
-        //}
 
 
         // =========================================================

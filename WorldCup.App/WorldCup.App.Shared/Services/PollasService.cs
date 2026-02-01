@@ -46,13 +46,6 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        //public async Task<List<ParticipanteDto>> GetParticipantesAsync(int pollaId)
-        //{
-        //    return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
-        //        $"api/Polla/{pollaId}/participantes"
-        //    ) ?? new();
-        //}
-
         public async Task<List<string>> GetParticipantesAsync(int pollaId)
         {
             return await _http.GetFromJsonAsync<List<string>>(
