@@ -6,10 +6,21 @@
 @inject PollasService PollasService
 @inject NavigationManager Navigation
 
-<h2 class="mb-1">🏆 Detalle de la Polla</h2>
-<p class="text-muted mb-4">
-    Polla seleccionada: @PollaId
-</p>
+
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <button class="btn btn-outline-primary btn-lg"
+            @onclick="VolverADashboard">
+        ⬅ Mis pollas
+    </button>
+
+    <div>
+        <h2 class="mb-0">🏆 Detalle de la Polla</h2>
+        <small class="text-muted">
+            Estás viendo el detalle de esta polla
+        </small>
+    </div>
+</div>
 
 <div class="row g-3">
 
@@ -19,6 +30,15 @@
             <div class="card-body">
                 <h5 class="mb-3">📊 Ranking</h5>
 
+
+                @if (!ranking.Any())
+                {
+                   <div class="alert alert-info">
+                         Aún no hay predicciones en esta polla.
+                   </div>
+                }
+                else
+                {
                 <table class="table table-sm">
                     <thead>
                         <tr>
@@ -36,8 +56,13 @@
                                 <td class="text-end fw-bold">@r.Puntos</td>
                             </tr>
                         }
+
                     </tbody>
+
+
                 </table>
+                }
+
 
                 <button class="btn btn-primary btn-sm"
                         @onclick="IrAPredicciones">
@@ -46,7 +71,7 @@
 
                 <button class="btn btn-sm btn-outline-success"
                         @onclick="() => Invitar(2)">
-                    ➕ Invitar usuario 2
+                    ➕ Invitar usuario
                 </button>
 
             </div>
@@ -73,6 +98,7 @@
 
 </div>
 
+
 @code {
 
     [Parameter]
@@ -98,4 +124,11 @@
         participantes = await PollasService.GetParticipantesAsync(PollaId);
     }
 
+    private void VolverADashboard()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
 }
+
+
