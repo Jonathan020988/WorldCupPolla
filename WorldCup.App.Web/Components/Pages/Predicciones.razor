@@ -75,7 +75,9 @@ else
 
                 <!-- INFO -->
                 <div class="mt-1 text-center small text-muted">
-                    🗓️ @p.Fecha.ToLocalTime().ToString("dd/MM HH:mm")
+                    🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                    .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
+
                     · 🏆 @p.Fase
 
                     @if (bloqueado)
