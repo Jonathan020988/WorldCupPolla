@@ -485,3 +485,7 @@ UPDATE "Partidos" SET "Fecha" = '2026-06-23 18:00:00.200879' WHERE "Id" = 186;
 UPDATE "Partidos" SET "Fecha" = '2026-06-27 16:00:00.200879' WHERE "Id" = 187;
 UPDATE "Partidos" SET "Fecha" = '2026-06-17 18:00:00.200879' WHERE "Id" = 188;
 
+SELECT "Id", "Fecha"
+FROM "Partidos"
+ORDER BY "Fecha" ASC;
+
