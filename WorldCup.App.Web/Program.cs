@@ -13,6 +13,14 @@ builder.Services.AddScoped<LocalStorageService>();
 
 builder.Services.AddScoped<SesionService>();
 
+builder.Services.AddScoped<UsuariosService>();
+
+builder.Services.AddScoped(sp =>
+    new HttpClient
+    {
+        BaseAddress = new Uri("https://localhost:7092/")
+    });
+
 
 // HttpClient apuntando a la API (PUERTO 7092)
 builder.Services.AddHttpClient<AuthService>(client =>

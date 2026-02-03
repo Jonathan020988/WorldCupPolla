@@ -1,4 +1,9 @@
-﻿@page "/registro"
+﻿@using WorldCup.App.Shared.DTOs
+@inject WorldCup.App.Shared.Services.UsuariosService UsuariosService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+@page "/registro"
 
 <div class="container py-5" style="max-width:480px">
 
@@ -12,27 +17,38 @@
 
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
-                <input class="form-control" placeholder="Tu nombre" />
+                <input class="form-control" placeholder="Tu nombre" @bind="model.Nombre" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Correo</label>
-                <input type="email" class="form-control" placeholder="correo@ejemplo.com" />
+                <input type="email" class="form-control" placeholder="correo@ejemplo.com" @bind="model.Email" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Contraseña</label>
-                <input type="password" class="form-control" />
+                <input type="password" class="form-control" @bind="model.Password" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Confirmar contraseña</label>
-                <input type="password" class="form-control" />
+                <input type="password" class="form-control" @bind="model.ConfirmPassword" />
             </div>
 
-            <button class="btn btn-success w-100 mt-2">
+            @if (error != null)
+            {
+                <div class="alert alert-danger mt-2">
+                    @error
+                </div>
+            }
+
+
+            <button class="btn btn-success w-100 mt-2"
+                    disabled="@cargando"
+                    @onclick="Registrar">
                 Crear cuenta
             </button>
+
 
             <div class="text-center mt-3">
                 <small class="text-muted">
@@ -45,3 +61,44 @@
     </div>
 
 </div>
+
+@code {
+    private RegistroUsuarioDTO model = new();
+    private string? error;
+    private bool cargando = false;
+
+    private async Task Registrar()
+    {
+        error = null;
+
+        if (model.Password != model.ConfirmPassword)
+        {
+            error = "Las contraseñas no coinciden";
+            return;
+        }
+
+        try
+        {
+            cargando = true;
+
+            await UsuariosService.RegistrarUsuarioAsync(new RegistroUsuarioDTO
+                {
+                    Nombre = model.Nombre,
+                    Email = model.Email,
+                    Password = model.Password
+                });
+
+            // 👉 luego redirigimos a login
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+}
+
