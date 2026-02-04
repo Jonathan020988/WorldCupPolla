@@ -60,7 +60,8 @@ namespace WorldCup.Api.Controllers
                 CreadorId = polla.CreadorId,
                 FechaCreacion = polla.FechaCreacion,
                 MaximoMiembros = polla.MaximoMiembros,
-                PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria
+                PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
+                PinIngreso = polla.PinIngreso // 👈 CLAVE
             });
         }
 
@@ -82,6 +83,9 @@ namespace WorldCup.Api.Controllers
             if (dto.MaximoMiembros <= 0)
                 return BadRequest("MaximoMiembros inválido");
 
+            if (string.IsNullOrWhiteSpace(dto.PinIngreso) || dto.PinIngreso.Length != 4)
+                return BadRequest("El PIN debe tener 4 dígitos");
+
             var polla = new Polla
             {
                 Nombre = dto.Nombre,
@@ -89,7 +93,8 @@ namespace WorldCup.Api.Controllers
                 CreadorId = USUARIO_PRUEBA_ID,
                 MaximoMiembros = dto.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
-                FechaCreacion = DateTime.UtcNow
+                FechaCreacion = DateTime.UtcNow,
+                PinIngreso = dto.PinIngreso // 🔐 AQUÍ SE GUARDA
             };
 
             _context.Pollas.Add(polla);
@@ -260,6 +265,26 @@ namespace WorldCup.Api.Controllers
             return Ok();
         }
 
+      
+
+        // ================= CAMBIAR PIN =================
+        [HttpPut("{pollaId:int}/pin")]
+        public async Task<IActionResult> ActualizarPin(
+            int pollaId,
+            [FromBody] ActualizarPinDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.PinIngreso) || dto.PinIngreso.Length != 4)
+                return BadRequest("El PIN debe tener 4 dígitos");
+
+            var polla = await _context.Pollas.FindAsync(pollaId);
+            if (polla == null)
+                return NotFound();
+
+            polla.PinIngreso = dto.PinIngreso;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
 
     }
 }

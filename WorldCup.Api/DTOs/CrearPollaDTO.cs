@@ -8,5 +8,9 @@
         
         public int CreadorId { get; set; }
         public bool PermitirEmpatesEnEliminatoria { get; set; }
+
+        // 🔐 PIN obligatorio
+        public string PinIngreso { get; set; } = null!;
+
     }
 }

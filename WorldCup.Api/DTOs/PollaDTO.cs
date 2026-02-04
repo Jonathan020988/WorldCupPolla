@@ -9,6 +9,9 @@
         public DateTime FechaCreacion { get; set; }
         public int? MaximoMiembros { get; set; }
         public bool PermitirEmpatesEnEliminatoria { get; set; }
+
+        public string? PinIngreso { get; set; }
+
     }
 
 

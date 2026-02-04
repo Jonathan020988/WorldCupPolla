@@ -13,5 +13,13 @@ namespace WorldCup.App.Shared.DTOs
         public int CantidadParticipantes { get; set; }
         public bool Activa { get; set; }
         public DateTime FechaCreacion { get; set; }   // 👈 ESTA FALTABA
+
+        public string? Descripcion { get; set; }
+        public int CreadorId { get; set; }
+        public int? MaximoMiembros { get; set; }
+        public bool PermitirEmpatesEnEliminatoria { get; set; }
+
+        // 🔑 PIN
+        public string? PinIngreso { get; set; }
     }
 }

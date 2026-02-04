@@ -182,6 +182,10 @@ VALUES (
 --tabla predicciones--
 SELECT * FROM "Pollas";
 
+UPDATE "Pollas"
+SET "PinIngreso" = @Pin
+WHERE "Id" = @PollaId;
+
 
 
 --------tablas por nombre----
@@ -365,7 +369,7 @@ WHERE "PartidoId" = 118;
 DELETE FROM "Predicciones"
 WHERE "UsuarioId" = 1;
 
-select from "Predicciones"
+select from "Pollas"
 
 
 ------ ver tablas----
@@ -488,4 +492,9 @@ UPDATE "Partidos" SET "Fecha" = '2026-06-17 18:00:00.200879' WHERE "Id" = 188;
 SELECT "Id", "Fecha"
 FROM "Partidos"
 ORDER BY "Fecha" ASC;
+
+ALTER TABLE "Pollas"
+ADD COLUMN "PinIngreso" VARCHAR(4);
+
+
 

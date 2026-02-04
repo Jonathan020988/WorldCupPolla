@@ -72,6 +72,20 @@ namespace WorldCup.App.Shared.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task ActualizarPinAsync(int pollaId, string pin)
+        {
+            var dto = new
+            {
+                PinIngreso = pin
+            };
+
+            var response = await _http.PutAsJsonAsync(
+                $"api/Polla/{pollaId}/pin",
+                dto
+            );
+
+            response.EnsureSuccessStatusCode();
+        }
 
 
     }
