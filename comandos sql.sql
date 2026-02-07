@@ -141,7 +141,7 @@ CREATE TABLE "Predicciones" (
         FOREIGN KEY ("PartidoId") REFERENCES "Partidos" ("Id") ON DELETE CASCADE
 );
 
-SELECT * FROM "Partidos";
+SELECT * FROM "Usuarios";
 
 ---mostrar tablas----
 SELECT table_name
@@ -180,12 +180,14 @@ VALUES (
 );
 
 --tabla predicciones--
-SELECT * FROM "Pollas";
+SELECT * FROM "PollaSolicitudes";
 
-UPDATE "Pollas"
-SET "PinIngreso" = @Pin
-WHERE "Id" = @PollaId;
+SELECT "PinIngreso"
+FROM "Pollas"
+WHERE "Id" = 32;
 
+SELECT "Id", "PinIngreso"
+FROM "Pollas";
 
 
 --------tablas por nombre----
@@ -369,7 +371,7 @@ WHERE "PartidoId" = 118;
 DELETE FROM "Predicciones"
 WHERE "UsuarioId" = 1;
 
-select from "Pollas"
+select from "PollaSolicitudes"
 
 
 ------ ver tablas----
@@ -382,12 +384,17 @@ ORDER BY table_name;
 ------borrar usuarios---
 DELETE FROM "Usuarios";
 
-SELECT * FROM "Usuarios";
+SELECT * FROM "PollaMiembros";
 
 SELECT * FROM "Pollas" ORDER BY "Id" DESC;
 
 SELECT id, email, nombre
 FROM "Usuarios";
+
+SELECT * 
+FROM information_schema.tables
+WHERE table_name ILIKE '%solicitud%';
+
 
 ----este join. ver arriba------
 SELECT * FROM vista_partidos_detalle;
@@ -497,4 +504,11 @@ ALTER TABLE "Pollas"
 ADD COLUMN "PinIngreso" VARCHAR(4);
 
 
+CREATE TABLE "PollaSolicitudes" (
+    "Id" SERIAL PRIMARY KEY,
+    "PollaId" INT NOT NULL,
+    "UsuarioId" INT NOT NULL,
+    "FechaSolicitud" TIMESTAMP NOT NULL DEFAULT NOW(),
+    "Estado" VARCHAR(20) NOT NULL DEFAULT 'Pendiente'
+);
 
