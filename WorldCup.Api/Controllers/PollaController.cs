@@ -233,6 +233,29 @@ namespace WorldCup.Api.Controllers
             return Ok(participantes);
         }
 
+        // ================= SOLICITUDES DE INGRESO =================
+        [HttpGet("{pollaId:int}/solicitudes")]
+        public async Task<IActionResult> GetSolicitudesIngreso(int pollaId)
+        {
+            var solicitudes = await _context.SolicitudesIngresoPolla
+                .Include(s => s.Usuario)
+                .Where(s =>
+                    s.PollaId == pollaId &&
+                    s.Estado == "Pendiente"
+                )
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UsuarioId,
+                    UsuarioNombre = s.Usuario.Nombre,
+                    s.FechaSolicitud
+                })
+                .ToListAsync();
+
+            return Ok(solicitudes);
+        }
+
+
         // ================= ELIMINAR MIEMBRO =================
         [HttpDelete("{pollaId:int}/miembros/{usuarioId:int}")]
         public async Task<IActionResult> EliminarMiembro(
@@ -362,43 +385,94 @@ namespace WorldCup.Api.Controllers
             return Ok(new { ingreso = "solicitud" });
         }
 
-        //// ================= EXPULSAR MIEMBRO =================
-        //[HttpDelete("{pollaId:int}/miembro/{usuarioId:int}")]
-        //public async Task<IActionResult> ExpulsarMiembro(
-        //    int pollaId,
-        //    int usuarioId,
-        //    [FromQuery] int adminId
-        //)
-        //{
-        //    // 1️⃣ Verificar que la polla exista
-        //    var polla = await _context.Pollas.FindAsync(pollaId);
-        //    if (polla == null)
-        //        return NotFound("La polla no existe");
+        // ================= SOLICITUDES DEL CREADOR =================
 
-        //    // 2️⃣ Verificar que el admin sea el creador
-        //    if (polla.CreadorId != adminId)
-        //        return BadRequest("No tienes permiso para expulsar usuarios");
+        // ✅ SOLICITUDES DEL CREADOR (HISTORIAL COMPLETO)
+        [HttpGet("solicitudes/{creadorId:int}")]
+        public async Task<IActionResult> GetSolicitudesParaCreador(int creadorId)
+        {
+            var solicitudes = await _context.SolicitudesIngresoPolla
+                .Include(s => s.Usuario)
+                .Include(s => s.Polla)
+                .Where(s => s.Polla.CreadorId == creadorId)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.PollaId,
+                    PollaNombre = s.Polla.Nombre,
+                    UsuarioId = s.UsuarioId,
+                    UsuarioNombre = s.Usuario.Nombre,
+                    s.Estado,               // 👈 IMPORTANTE
+                    s.FechaSolicitud
+                })
+                .OrderByDescending(s => s.FechaSolicitud)
+                .ToListAsync();
 
-        //    // 3️⃣ Evitar que el creador se expulse a sí mismo
-        //    if (usuarioId == polla.CreadorId)
-        //        return BadRequest("El creador no puede expulsarse");
+            return Ok(solicitudes);
+        }
 
-        //    // 4️⃣ Buscar el miembro
-        //    var miembro = await _context.PollaMiembros
-        //        .FirstOrDefaultAsync(pm =>
-        //            pm.PollaId == pollaId &&
-        //            pm.UsuarioId == usuarioId
-        //        );
+        // ================= ACEPTAR SOLICITUD =================
+        [HttpPost("solicitudes/{solicitudId:int}/aceptar")]
+        public async Task<IActionResult> AceptarSolicitud(int solicitudId)
+        {
+            var solicitud = await _context.SolicitudesIngresoPolla
+                .Include(s => s.Polla)
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
 
-        //    if (miembro == null)
-        //        return NotFound("El usuario no pertenece a esta polla");
+            if (solicitud == null)
+                return NotFound("Solicitud no encontrada");
 
-        //    // 5️⃣ Eliminar
-        //    _context.PollaMiembros.Remove(miembro);
-        //    await _context.SaveChangesAsync();
+            if (solicitud.Estado != "Pendiente")
+                return BadRequest("La solicitud ya fue procesada");
 
-        //    return Ok();
-        //}
+            // agregar como miembro
+            _context.PollaMiembros.Add(new PollaMiembro
+            {
+                PollaId = solicitud.PollaId,
+                UsuarioId = solicitud.UsuarioId,
+                FechaIngreso = DateTime.UtcNow
+            });
+
+            solicitud.Estado = "Aprobada";
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        // ================= RECHAZAR SOLICITUD =================
+        [HttpPost("solicitudes/{solicitudId:int}/rechazar")]
+        public async Task<IActionResult> RechazarSolicitud(int solicitudId)
+        {
+            var solicitud = await _context.SolicitudesIngresoPolla
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+            if (solicitud == null)
+                return NotFound("Solicitud no encontrada");
+
+            if (solicitud.Estado != "Pendiente")
+                return BadRequest("La solicitud ya fue procesada");
+
+            solicitud.Estado = "Rechazada";
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+        // ================= ELIMINAR SOLICITUD =================
+        [HttpDelete("solicitudes/{solicitudId:int}")]
+        public async Task<IActionResult> EliminarSolicitud(int solicitudId)
+        {
+            var solicitud = await _context.SolicitudesIngresoPolla
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+            if (solicitud == null)
+                return NotFound();
+
+            _context.SolicitudesIngresoPolla.Remove(solicitud);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
 
 
     }

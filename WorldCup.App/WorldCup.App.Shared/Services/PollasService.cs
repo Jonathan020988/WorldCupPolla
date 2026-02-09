@@ -103,7 +103,34 @@ namespace WorldCup.App.Shared.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task<List<SolicitudIngresoDto>> GetSolicitudesParaCreadorAsync(int creadorId)
+        {
+            return await _http.GetFromJsonAsync<List<SolicitudIngresoDto>>(
+                $"api/Polla/solicitudes/{creadorId}"
+            ) ?? new();
+        }
 
+        public async Task<List<SolicitudIngresoDto>> GetNotificacionesAsync(int creadorId)
+        {
+            return await _http.GetFromJsonAsync<List<SolicitudIngresoDto>>(
+                $"api/Polla/solicitudes/{creadorId}"
+            ) ?? new();
+        }
+
+        public async Task AprobarSolicitudAsync(int solicitudId)
+        {
+            await _http.PostAsync($"api/Solicitudes/{solicitudId}/aprobar", null);
+        }
+
+        public async Task RechazarSolicitudAsync(int solicitudId)
+        {
+            await _http.PostAsync($"api/Solicitudes/{solicitudId}/rechazar", null);
+        }
+
+        public async Task EliminarSolicitudAsync(int solicitudId)
+        {
+            await _http.DeleteAsync($"api/Solicitudes/{solicitudId}");
+        }
 
     }
 }
