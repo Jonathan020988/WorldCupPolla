@@ -70,10 +70,22 @@
         }
         await Sesion.LoginAsync(result.Id, result.Nombre);
         Console.WriteLine($"SESION OK -> {Sesion.UsuarioId}");
-        Navigation.NavigateTo("/dashboard");
+        
+        if (!string.IsNullOrWhiteSpace(returnUrl))
+        {
+            Navigation.NavigateTo(returnUrl);
+        }
+        else
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
 
 
     }
+
+    [Parameter, SupplyParameterFromQuery]
+    public string? returnUrl { get; set; }
+
 
 
 }

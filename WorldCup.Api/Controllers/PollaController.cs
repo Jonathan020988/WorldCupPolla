@@ -68,20 +68,18 @@ namespace WorldCup.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> CrearPolla([FromBody] CrearPollaDTO dto)
         {
-            // 🔴 USUARIO FIJO PARA PRUEBA (NO SESIÓN)
-            const int USUARIO_PRUEBA_ID = 4;
-
+            // ✅ Validar creador
             var usuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.Id == USUARIO_PRUEBA_ID);
+                .AnyAsync(u => u.Id == dto.CreadorId);
 
             if (!usuarioExiste)
-                return BadRequest("Usuario de prueba no existe");
+                return BadRequest("Usuario creador no existe");
 
             if (string.IsNullOrWhiteSpace(dto.Nombre))
                 return BadRequest("Nombre obligatorio");
 
             if (dto.MaximoMiembros <= 0)
-                return BadRequest("MaximoMiembros inválido");
+                return BadRequest("Máximo de miembros inválido");
 
             if (string.IsNullOrWhiteSpace(dto.PinIngreso) || dto.PinIngreso.Length != 4)
                 return BadRequest("El PIN debe tener 4 dígitos");
@@ -90,28 +88,29 @@ namespace WorldCup.Api.Controllers
             {
                 Nombre = dto.Nombre,
                 Descripcion = dto.Descripcion,
-                CreadorId = USUARIO_PRUEBA_ID,
+                CreadorId = dto.CreadorId,   // 🔥 AHORA SÍ
                 MaximoMiembros = dto.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
                 FechaCreacion = DateTime.UtcNow,
-                PinIngreso = dto.PinIngreso // 🔐 AQUÍ SE GUARDA
+                PinIngreso = dto.PinIngreso
             };
 
             _context.Pollas.Add(polla);
             await _context.SaveChangesAsync();
 
-            var miembro = new PollaMiembro
+            // 🔹 El creador entra automáticamente como miembro
+            _context.PollaMiembros.Add(new PollaMiembro
             {
                 PollaId = polla.Id,
-                UsuarioId = USUARIO_PRUEBA_ID,
+                UsuarioId = dto.CreadorId,
                 FechaIngreso = DateTime.UtcNow
-            };
+            });
 
-            _context.PollaMiembros.Add(miembro);
             await _context.SaveChangesAsync();
 
             return Ok(polla.Id);
         }
+
 
 
         // =========================================================
@@ -222,11 +221,51 @@ namespace WorldCup.Api.Controllers
             var participantes = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
                 .Where(pm => pm.PollaId == pollaId)
-                .Select(pm => pm.Usuario.Nombre)
+                .Select(pm => new
+                {
+                    Id = pm.UsuarioId,       // ✅ ESTE ES EL CORRECTO
+                    Nombre = pm.Usuario.Nombre
+                    
+                })
+
                 .ToListAsync();
 
             return Ok(participantes);
         }
+
+        // ================= ELIMINAR MIEMBRO =================
+        [HttpDelete("{pollaId:int}/miembros/{usuarioId:int}")]
+        public async Task<IActionResult> EliminarMiembro(
+            int pollaId,
+            int usuarioId,
+            [FromQuery] int solicitanteId)
+        {
+            var polla = await _context.Pollas.FindAsync(pollaId);
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            // Solo el creador puede eliminar
+            if (polla.CreadorId != solicitanteId)
+                return Forbid("Solo el creador puede eliminar miembros");
+
+            // El creador no puede eliminarse
+            if (usuarioId == polla.CreadorId)
+                return BadRequest("No puedes eliminarte a ti mismo");
+
+            var miembro = await _context.PollaMiembros
+                .FirstOrDefaultAsync(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId);
+
+            if (miembro == null)
+                return NotFound("El usuario no pertenece a la polla");
+
+            _context.PollaMiembros.Remove(miembro);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
 
         // ================= INVITAR =================
         [HttpPost("{pollaId}/invitar/{usuarioId}")]
@@ -322,6 +361,44 @@ namespace WorldCup.Api.Controllers
 
             return Ok(new { ingreso = "solicitud" });
         }
+
+        //// ================= EXPULSAR MIEMBRO =================
+        //[HttpDelete("{pollaId:int}/miembro/{usuarioId:int}")]
+        //public async Task<IActionResult> ExpulsarMiembro(
+        //    int pollaId,
+        //    int usuarioId,
+        //    [FromQuery] int adminId
+        //)
+        //{
+        //    // 1️⃣ Verificar que la polla exista
+        //    var polla = await _context.Pollas.FindAsync(pollaId);
+        //    if (polla == null)
+        //        return NotFound("La polla no existe");
+
+        //    // 2️⃣ Verificar que el admin sea el creador
+        //    if (polla.CreadorId != adminId)
+        //        return BadRequest("No tienes permiso para expulsar usuarios");
+
+        //    // 3️⃣ Evitar que el creador se expulse a sí mismo
+        //    if (usuarioId == polla.CreadorId)
+        //        return BadRequest("El creador no puede expulsarse");
+
+        //    // 4️⃣ Buscar el miembro
+        //    var miembro = await _context.PollaMiembros
+        //        .FirstOrDefaultAsync(pm =>
+        //            pm.PollaId == pollaId &&
+        //            pm.UsuarioId == usuarioId
+        //        );
+
+        //    if (miembro == null)
+        //        return NotFound("El usuario no pertenece a esta polla");
+
+        //    // 5️⃣ Eliminar
+        //    _context.PollaMiembros.Remove(miembro);
+        //    await _context.SaveChangesAsync();
+
+        //    return Ok();
+        //}
 
 
     }

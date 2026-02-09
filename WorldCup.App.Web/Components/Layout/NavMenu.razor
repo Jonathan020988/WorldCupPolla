@@ -14,12 +14,31 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
 
+        @if (Sesion.EstaLogueado)
+        {
+            <div class="px-3 py-2 text-white">
+                👤 <strong>@Sesion.Nombre</strong>
+            </div>
+
+           @*  <button class="btn btn-sm btn-outline-light mx-3"
+                    @onclick="CerrarSesion">
+                Cerrar sesión
+            </button> *@
+        }
+       @*  else
+        {
+            <NavLink class="nav-link" href="/login">
+                🔐 Login
+            </NavLink>
+        } *@
+        
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 🏠 Home
             </NavLink>
         </div>
 
+       
         @if (!Sesion.EstaLogueado)
         {
             <div class="nav-item px-3">
@@ -31,8 +50,13 @@
             </div>
 
             <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
             </div>
+           
         }
 
         @if (Sesion.EstaLogueado)
@@ -43,6 +67,10 @@
 
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/crear-polla">➕ Crear Polla</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
             </div>
 
             <div class="nav-item px-3">

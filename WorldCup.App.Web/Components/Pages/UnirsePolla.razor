@@ -1,8 +1,10 @@
 ﻿@page "/unirse-polla/{PollaId:int}"
 @rendermode InteractiveServer
 
-
+@using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
+
+@inject SesionService Sesion
 @inject NavigationManager Navigation
 @inject HttpClient Http
 
@@ -48,12 +50,28 @@
 
     private async Task Unirse()
     {
+
+        // ✅ VALIDACIÓN OPCIONAL (AQUÍ VA)
+        if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
+        {
+            mensaje = " ⚠️ Debes iniciar sesión para unirte a una polla.";
+            esError = true;
+
+            // 🔁 esperar un poco para que el usuario vea el mensaje
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(1500);
+
+            // 🔐 enviar al login con retorno
+            Navigation.NavigateTo($"/login?returnUrl=/unirse-polla/{PollaId}");
+            return;
+        }
         Console.WriteLine($"Intentando unirse a la polla {PollaId} con PIN {pinIngreso}");
 
         var dto = new UnirsePollaDTO
             {
                 PollaId = PollaId,
-                UsuarioId = 6, // 🔴 usuario fijo por ahora (igual que backend)
+                UsuarioId = Sesion.UsuarioId!.Value,
+                //UsuarioId = 6, // 🔴 usuario fijo por ahora (igual que backend)
                 PinIngreso = pinIngreso
             };
 
@@ -94,11 +112,15 @@
         }
 
     }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+            StateHasChanged();
+        }
+    }
 
 
-    // private void Unirse()
-    // {
-    //     // ⚠️ Por ahora solo prueba visual
-    //     Console.WriteLine($"Intentando unirse a la polla {PollaId} con PIN {pinIngreso}");
-    // }
+        
 }

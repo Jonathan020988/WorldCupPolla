@@ -1,6 +1,8 @@
 ﻿@using WorldCup.App.Shared.Services
 @inherits LayoutComponentBase
 @rendermode InteractiveServer
+@using WorldCup.App.Shared.Services
+@inject SesionService Sesion
 
 
 <div class="page">
@@ -33,4 +35,22 @@
     {
         await Sesion.RestaurarSesionAsync();
     }
+
+    @code {
+        protected override void OnInitialized()
+        {
+            Sesion.OnChange += StateHasChanged;
+        }
+
+        private async Task CerrarSesion()
+        {
+            await Sesion.LogoutAsync();
+        }
+
+        public void Dispose()
+        {
+            Sesion.OnChange -= StateHasChanged;
+        }
+    }
+
 }

@@ -46,12 +46,19 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        public async Task<List<string>> GetParticipantesAsync(int pollaId)
+        public async Task<List<ParticipanteDto>> GetParticipantesAsync(int pollaId)
         {
-            return await _http.GetFromJsonAsync<List<string>>(
+            return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
                 $"api/Polla/{pollaId}/participantes"
             ) ?? new();
         }
+
+        //public async Task<List<string>> GetParticipantesAsync(int pollaId)
+        //{
+        //    return await _http.GetFromJsonAsync<List<string>>(
+        //        $"api/Polla/{pollaId}/participantes"
+        //    ) ?? new();
+        //}
 
         public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
         {
@@ -86,6 +93,16 @@ namespace WorldCup.App.Shared.Services
 
             response.EnsureSuccessStatusCode();
         }
+
+        public async Task EliminarMiembroAsync(int pollaId, int usuarioId, int solicitanteId)
+        {
+            var response = await _http.DeleteAsync(
+                $"api/Polla/{pollaId}/miembros/{usuarioId}?solicitanteId={solicitanteId}"
+            );
+
+            response.EnsureSuccessStatusCode();
+        }
+
 
 
     }

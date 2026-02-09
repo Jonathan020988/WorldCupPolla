@@ -1,0 +1,69 @@
+﻿@page "/unirse"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+
+<h2>🔗 Unirse a una Polla</h2>
+
+<p>Pega aquí el link de invitación para unirte a la polla.</p>
+
+@if (mensaje != null)
+{
+    <div class="alert alert-danger">
+        @mensaje
+    </div>
+}
+
+<div class="card" style="max-width:500px">
+    <div class="card-body">
+
+        <input class="form-control mb-3"
+               placeholder="https://.../unirse-polla/ID"
+               @bind="link" />
+
+        <button class="btn btn-primary w-100"
+                @onclick="ProcesarLink">
+            Continuar
+        </button>
+
+    </div>
+</div>
+
+@code {
+
+    private string link = "";
+    private string? mensaje;
+
+    private void ProcesarLink()
+    {
+        mensaje = null;
+
+        if (string.IsNullOrWhiteSpace(link))
+        {
+            mensaje = "Debes pegar un link válido.";
+            return;
+        }
+
+        // Buscamos "/unirse-polla/"
+        var indice = link.IndexOf("/unirse-polla/");
+        if (indice == -1)
+        {
+            mensaje = "El link no es válido.";
+            return;
+        }
+
+        // Extraer lo que viene después del último /
+        var partes = link.Split('/');
+        var idTexto = partes.Last();
+
+        if (!int.TryParse(idTexto, out var pollaId))
+        {
+            mensaje = "No se pudo obtener el ID de la polla.";
+            return;
+        }
+
+        // Navegar al flujo existente
+        Navigation.NavigateTo($"/unirse-polla/{pollaId}");
+    }
+}
+

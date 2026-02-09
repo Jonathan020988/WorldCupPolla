@@ -134,8 +134,17 @@ else
                     <ul class="list-group list-group-flush">
                         @foreach (var u in participantes)
                         {
-                            <li class="list-group-item px-0">
-                                👤 @u
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>👤 @u.Nombre</span>
+
+                                @* ❌ SOLO EL CREADOR VE EL BOTÓN *@
+                                @if (EsCreador && u.Id != polla.CreadorId)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
+                                        ❌ Eliminar Usuario
+                                    </button>
+                                }
                             </li>
                         }
                     </ul>
@@ -144,6 +153,27 @@ else
         </div>
 
     </div>
+
+    @if (mostrarConfirmacion)
+    {
+        <div class="alert alert-warning mt-3">
+            <p>
+                ¿Seguro que deseas expulsar a
+                <strong>@usuarioAEliminarNombre</strong>?
+            </p>
+
+            <button class="btn btn-danger me-2"
+                    @onclick="EliminarConfirmadoAsync">
+                Sí, expulsar
+            </button>
+
+            <button class="btn btn-secondary"
+                    @onclick="CancelarEliminar">
+                Cancelar
+            </button>
+        </div>
+    }
+
 }
 
 @code {
@@ -153,7 +183,9 @@ else
 
     private PollaDto? polla;
     private List<RankingPollaDto> ranking = new();
-    private List<string> participantes = new();
+    private List<ParticipanteDto> participantes = new();
+
+    // private List<string> participantes = new();
 
     private string emailInvitado = "";
     private string? linkInvitacion;
@@ -202,193 +234,56 @@ else
         nuevoPin = "";
     }
 
+    private bool mostrarConfirmacion = false;
+    private int usuarioAEliminarId;
+    private string? usuarioAEliminarNombre;
+    private string? mensaje;
+    private bool esError;
+
+    private void ConfirmarEliminar(int usuarioId, string nombre)
+    {
+        usuarioAEliminarId = usuarioId;
+        usuarioAEliminarNombre = nombre;
+        mostrarConfirmacion = true;
+    }
+
+    private async Task EliminarConfirmadoAsync()
+    {
+        try
+        {
+            await PollasService.EliminarMiembroAsync(
+                PollaId,
+                usuarioAEliminarId,
+                Sesion.UsuarioId!.Value
+            );
+
+            // refrescar lista
+            participantes = await PollasService.GetParticipantesAsync(PollaId);
+
+            mensaje = $"❌ {usuarioAEliminarNombre} fue expulsado de la polla.";
+            esError = false;
+        }
+        catch
+        {
+            mensaje = "Error al expulsar el usuario.";
+            esError = true;
+        }
+        finally
+        {
+            mostrarConfirmacion = false;
+        }
+
+    }
+
+    private void CancelarEliminar()
+    {
+        mostrarConfirmacion = false;
+    }
+
+
+
 }
 
 
 
 
-
-
-
-@* @page "/polla/{PollaId:int}"
-@rendermode InteractiveServer
-
-@using WorldCup.App.Shared.Services
-@using WorldCup.App.Shared.DTOs
-@inject PollasService PollasService
-@inject SesionService Sesion
-@inject NavigationManager Navigation
-
-<div class="d-flex align-items-center gap-3 mb-4">
-    <button class="btn btn-outline-primary btn-lg"
-            @onclick="VolverADashboard">
-        ⬅ Mis pollas
-    </button>
-
-    <div>
-        <h2 class="mb-0">🏆 Detalle de la Polla</h2>
-        <small class="text-muted">
-            Estás viendo el detalle de esta polla
-        </small>
-    </div>
-</div>
-
-@if (EsCreador)
-{
-    <div class="card mt-3">
-        <div class="card-body">
-            <h5>Invitar a la polla</h5>
-
-            <input class="form-control mb-2"
-                   placeholder="Correo del invitado"
-                   @bind="emailInvitado" />
-
-            <button class="btn btn-primary"
-                    @onclick="async () => await Invitar()">
-                Invitar
-            </button>
-
-
-            @if (!string.IsNullOrEmpty(linkInvitacion))
-            {
-                <div class="alert alert-success mt-2">
-                    Link de invitación:
-                    <br />
-                    <code>@linkInvitacion</code>
-                </div>
-
-
-            @if (polla?.PinIngreso != null)
-            {
-                <div class="alert alert-warning mt-2">
-                    <strong>🔐 PIN de acceso:</strong>
-                    <span class="ms-2 fw-bold">@polla.PinIngreso</span>
-                </div>
-
-            @if (EsCreador && polla?.PinIngreso != null)
-            {
-                <div class="alert alert-warning mt-2">
-                     🔐 <strong>PIN de acceso:</strong>
-                     <code class="ms-2">@polla.PinIngreso</code>
-                 </div>
-            }
-
-            }
-
-            }
-        </div>
-    </div>
-}
-
-<div class="row g-3 mt-3">
-
-    <!-- 📊 Ranking -->
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5 class="mb-3">📊 Ranking</h5>
-
-                @if (!ranking.Any())
-                {
-                    <div class="alert alert-info">
-                        Aún no hay predicciones en esta polla.
-                    </div>
-                }
-                else
-                {
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Usuario</th>
-                                <th class="text-end">Puntos</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var r in ranking)
-                            {
-                                <tr>
-                                    <td>@(ranking.IndexOf(r) + 1)</td>
-                                    <td>@r.Usuario</td>
-                                    <td class="text-end fw-bold">@r.Puntos</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-
-                <button class="btn btn-primary btn-sm"
-                        @onclick="IrAPredicciones">
-                    🎯 Ir a predicciones
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 👥 Participantes -->
-    <div class="col-md-4">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5 class="mb-3">👥 Participantes</h5>
-
-                <ul class="list-group list-group-flush">
-                    @foreach (var u in participantes)
-                    {
-                        <li class="list-group-item px-0">
-                            👤 @u
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-@code {
-
-    [Parameter]
-    public int PollaId { get; set; }
-
-    private List<RankingPollaDto> ranking = new();
-    private List<string> participantes = new();
-
-    private string emailInvitado = "";
-    private string? linkInvitacion;
-
-    // 🔒 TEMPORAL: luego validamos creador real
-    private bool EsCreador => true;
-
-    protected override async Task OnInitializedAsync()
-    {
-        polla = await PollasService.GetPollaAsync(PollaId);
-
-        ranking = await PollasService.GetRankingAsync(PollaId);
-        participantes = await PollasService.GetParticipantesAsync(PollaId);
-    }
-
-    private void IrAPredicciones()
-    {
-        Navigation.NavigateTo("/predicciones");
-    }
-
-    private void VolverADashboard()
-    {
-        Navigation.NavigateTo("/dashboard");
-    }
-
-    private async Task Invitar()
-    {
-        if (string.IsNullOrWhiteSpace(emailInvitado))
-            return;
-
-        linkInvitacion = $"https://localhost:7092/unirse-polla/{PollaId}";
-
-        await InvokeAsync(StateHasChanged);
-    }
-    private PollaDto? polla;
-
-
-}
-
- *@
