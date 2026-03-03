@@ -46,19 +46,19 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        //public async Task<List<ParticipanteDto>> GetParticipantesAsync(int pollaId)
-        //{
-        //    return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
-        //        $"api/Polla/{pollaId}/participantes"
-        //    ) ?? new();
-        //}
-
-        public async Task<List<string>> GetParticipantesAsync(int pollaId)
+        public async Task<List<ParticipanteDto>> GetParticipantesAsync(int pollaId)
         {
-            return await _http.GetFromJsonAsync<List<string>>(
+            return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
                 $"api/Polla/{pollaId}/participantes"
             ) ?? new();
         }
+
+        //public async Task<List<string>> GetParticipantesAsync(int pollaId)
+        //{
+        //    return await _http.GetFromJsonAsync<List<string>>(
+        //        $"api/Polla/{pollaId}/participantes"
+        //    ) ?? new();
+        //}
 
         public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
         {
@@ -79,7 +79,71 @@ namespace WorldCup.App.Shared.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task ActualizarPinAsync(int pollaId, string pin)
+        {
+            var dto = new
+            {
+                PinIngreso = pin
+            };
 
+            var response = await _http.PutAsJsonAsync(
+                $"api/Polla/{pollaId}/pin",
+                dto
+            );
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task EliminarMiembroAsync(int pollaId, int usuarioId, int solicitanteId)
+        {
+            var response = await _http.DeleteAsync(
+                $"api/Polla/{pollaId}/miembros/{usuarioId}?solicitanteId={solicitanteId}"
+            );
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task<List<SolicitudIngresoDto>> GetSolicitudesParaCreadorAsync(int creadorId)
+        {
+            return await _http.GetFromJsonAsync<List<SolicitudIngresoDto>>(
+                $"api/Polla/solicitudes/{creadorId}"
+            ) ?? new();
+        }
+
+        public async Task<List<SolicitudIngresoDto>> GetNotificacionesAsync(int creadorId)
+        {
+            return await _http.GetFromJsonAsync<List<SolicitudIngresoDto>>(
+                $"api/Polla/solicitudes/{creadorId}"
+            ) ?? new();
+        }
+
+        public async Task AprobarSolicitudAsync(int solicitudId)
+        {
+            var response = await _http.PostAsync(
+                $"api/Polla/solicitudes/{solicitudId}/aprobar",
+                null);
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task RechazarSolicitudAsync(int solicitudId)
+        {
+            var response = await _http.PostAsync(
+                $"api/Polla/solicitudes/{solicitudId}/rechazar",
+                null);
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task EliminarSolicitudAsync(int solicitudId)
+        {
+            var response = await _http.DeleteAsync(
+                $"api/Polla/solicitudes/{solicitudId}");
+
+            response.EnsureSuccessStatusCode();
+        }
+
+               
 
     }
 }

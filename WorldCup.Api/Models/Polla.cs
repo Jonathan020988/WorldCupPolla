@@ -26,6 +26,9 @@
 
         // Relación con las invitaciones enviadas
         public List<PollaInvitacion> Invitaciones { get; set; } = new();
+
+        public string? PinIngreso { get; set; }
+
     }
 }
 

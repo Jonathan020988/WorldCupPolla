@@ -1,10 +1,14 @@
 ﻿@page "/predicciones"
 @rendermode InteractiveServer
 
+@using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
 @using WorldCup.App.Shared.Models
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
 @inject WorldCup.App.Shared.Services.PrediccionesService PrediccionesService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+
 
 <h1 class="mb-1">🎯 Mis Predicciones</h1>
 <p class="text-muted mb-3">
@@ -71,7 +75,9 @@ else
 
                 <!-- INFO -->
                 <div class="mt-1 text-center small text-muted">
-                    🗓️ @p.Fecha.ToLocalTime().ToString("dd/MM HH:mm")
+                    🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                    .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
+
                     · 🏆 @p.Fase
 
                     @if (bloqueado)
@@ -176,9 +182,23 @@ else
             Console.WriteLine($"❌ Error al guardar: {ex.Message}");
         }
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+
+            if (!Sesion.EstaLogueado)
+            {
+                Navigation.NavigateTo("/login", true);
+            }
+        }
+    }
+
+}
 }
 
 
 
 
-}

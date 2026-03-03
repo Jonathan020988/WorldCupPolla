@@ -27,6 +27,7 @@ namespace WorldCup.Api.Controllers
                 .Select(p => new
                 {
                     p.Id,
+                    p.Fecha, // ✅ ESTA ES LA CLAVE
                     p.Fase,
                     Local = p.Local.Nombre,
                     Visitante = p.Visitante.Nombre,

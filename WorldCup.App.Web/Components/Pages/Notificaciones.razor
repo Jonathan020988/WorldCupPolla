@@ -1,0 +1,257 @@
+﻿@* <p>Usuario logueado: @Sesion.UsuarioId</p> *@
+
+
+@page "/notificaciones"
+@rendermode InteractiveServer
+
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+
+@inject PollasService PollasService
+@inject SesionService Sesion
+
+<h2>🔔 Notificaciones</h2>
+
+@if (!Sesion.EstaLogueado)
+{
+    <div class="alert alert-warning">
+        Debes iniciar sesión para ver tus notificaciones.
+    </div>
+}
+else if (solicitudes.Count == 0)
+{
+    <div class="alert alert-info">
+        No tienes notificaciones.
+    </div>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var s in solicitudes)
+        {
+            <li class="list-group-item">
+                <div class="fw-bold">
+                    👤 @s.UsuarioNombre quiere unirse a
+                    <strong>@s.PollaNombre</strong>
+                </div>
+
+                <small class="text-muted">
+                    @s.FechaSolicitud.ToString("dd/MM/yyyy hh:mm tt")
+                </small>
+
+                <div class="mt-2">
+                    <span class="badge
+                        @(s.Estado == "Pendiente" ? "bg-warning" :
+                          s.Estado == "Aprobada" ? "bg-success" :
+                          "bg-danger")">
+                        @s.Estado
+                    </span>
+                </div>
+
+                @if (s.Estado == "Pendiente")
+                {
+                    <div class="mt-2">
+                        <button class="btn btn-success btn-sm me-2"
+                                @onclick="() => Aceptar(s.Id)">
+                            ✔ Aprobar
+                        </button>
+
+                        <button class="btn btn-danger btn-sm"
+                                @onclick="() => Rechazar(s.Id)">
+                            ✖ Rechazar
+                        </button>
+                    </div>
+                }
+
+                <button class="btn btn-sm btn-outline-secondary mt-2"
+                        @onclick="() => Eliminar(s.Id)">
+                    🗑 Eliminar
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+
+@code {
+
+    private List<SolicitudIngresoDto> solicitudes = new();
+    private bool cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Esperamos un pequeño ciclo para que la sesión ya esté restaurada
+        await Task.Delay(50);
+
+        if (Sesion.EstaLogueado && Sesion.UsuarioId != null)
+        {
+            await Cargar();
+        }
+
+        cargando = false;
+    }
+
+    private async Task Cargar()
+    {
+        // solicitudes = await PollasService.GetNotificacionesAsync(1);
+
+        solicitudes = await PollasService.GetNotificacionesAsync(
+            Sesion.UsuarioId!.Value
+        );
+    }
+
+    private async Task Aceptar(int id)
+    {
+        await PollasService.AprobarSolicitudAsync(id);
+
+        var solicitud = solicitudes.FirstOrDefault(x => x.Id == id);
+        if (solicitud != null)
+            solicitud.Estado = "Aprobada";
+
+        StateHasChanged();
+    }
+
+    private async Task Rechazar(int id)
+    {
+        await PollasService.RechazarSolicitudAsync(id);
+
+        var solicitud = solicitudes.FirstOrDefault(x => x.Id == id);
+        if (solicitud != null)
+            solicitud.Estado = "Rechazada";
+
+        StateHasChanged();
+    }
+
+    private async Task Eliminar(int id)
+    {
+        await PollasService.EliminarSolicitudAsync(id);
+
+        solicitudes = solicitudes.Where(x => x.Id != id).ToList();
+
+        StateHasChanged();
+    }
+
+  
+}
+
+
+@* @page "/notificaciones"
+@rendermode InteractiveServer
+
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+
+@inject PollasService PollasService
+@inject SesionService Sesion
+
+<h2>🔔 Notificaciones</h2>
+
+@if (!Sesion.EstaLogueado)
+{
+    <div class="alert alert-warning">
+        Debes iniciar sesión para ver tus notificaciones.
+    </div>
+}
+else if (solicitudes.Count == 0)
+{
+    <div class="alert alert-info">
+        No tienes notificaciones.
+    </div>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var s in solicitudes)
+        {
+            <li class="list-group-item">
+                <div class="fw-bold">
+                    👤 @s.UsuarioNombre quiere unirse a
+                    <strong>@s.PollaNombre</strong>
+                </div>
+
+                <small class="text-muted">
+                    @s.FechaSolicitud.ToString("dd/MM/yyyy hh:mm tt")
+                </small>
+
+                <div class="mt-2">
+                    <span class="badge
+                        @(s.Estado == "Pendiente" ? "bg-warning" :
+                          s.Estado == "Aprobada" ? "bg-success" :
+                          "bg-danger")">
+                        @s.Estado
+                    </span>
+                </div>
+
+                @if (s.Estado == "Pendiente")
+                {
+                    <div class="mt-2">
+                        <button class="btn btn-success btn-sm me-2"
+                                @onclick="async () => await Aprobar(s.Id)">
+                            ✔ Aceptar
+                        </button>
+
+                        <button class="btn btn-sm btn-danger"
+                                @onclick="async () => await Rechazar(s.Id)">
+                            ✖ Rechazar
+                        </button>
+                    </div>
+                }
+
+                <button class="btn btn-sm btn-outline-secondary mt-2"
+                        @onclick="async () => await Eliminar(s.Id)">
+                    🗑 Eliminar
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+
+    private List<SolicitudIngresoDto> solicitudes = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+
+            if (!Sesion.EstaLogueado)
+                return;
+
+            await Cargar();
+            StateHasChanged();
+        }
+    }
+
+    private async Task Cargar()
+    {
+        if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
+            return;
+
+        solicitudes = await PollasService.GetNotificacionesAsync(
+            Sesion.UsuarioId.Value
+        );
+    }
+
+    private async Task Aprobar(int id)
+    {
+        await PollasService.AprobarSolicitudAsync(id);
+        await Cargar();
+    }
+
+    private async Task Rechazar(int id)
+    {
+        await PollasService.RechazarSolicitudAsync(id);
+        await Cargar();
+    }
+
+    private async Task Eliminar(int id)
+    {
+        await PollasService.EliminarSolicitudAsync(id);
+        await Cargar();
+    }
+}
+
+
+ *@

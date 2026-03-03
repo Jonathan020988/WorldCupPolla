@@ -1,5 +1,7 @@
-﻿@rendermode InteractiveServer
-
+﻿@using WorldCup.App.Shared.Services
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -12,58 +14,99 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
 
+        @if (Sesion.EstaLogueado)
+        {
+            <div class="px-3 py-2 text-white">
+                👤 <strong>@Sesion.Nombre</strong>
+            </div>
+
+        }
+      
+        
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 🏠 Home
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/login">
-                🔐 Login
-            </NavLink>
-        </div>
+       
+        @if (!Sesion.EstaLogueado)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/login">🔐 Login</NavLink>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/registro">
-                📝  Registro
-        </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/registro">📝 Registro</NavLink>
+            </div>
 
-       <div class="nav-item px-3">
-            <NavLink class="nav-link" href="crear-polla">
-                ➕ Crear Polla
-            </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
+            </div>
 
-          <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/dashboard">
-                🏆  Dashboard
-        </NavLink>
-        </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
+            </div>
+           
+        }
+
+        @if (Sesion.EstaLogueado)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/dashboard">🏆 Mis Pollas</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/notificaciones"> 🔔 Notificaciones</NavLink>
+            </div>
+            
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/crear-polla">➕ Crear Polla</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/predicciones">🎯 Predicciones</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
+            </div>
 
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="partidos">
-                ⚽ Partidos
-            </NavLink>
-        </div>
-
-        <!-- 🔥 NUEVO -->
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="predicciones">
-                🎯 Predicciones
-            </NavLink>
-        </div>
-
-    
+            <div class="nav-item px-3">
+                <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">
+                    🚪 Cerrar sesión
+                </a>
+            </div>
+        }
 
         
 
-
-      
-      
-
-
+       
     </nav>
 </div>
+
+@code {
+        
+    protected override void OnInitialized()
+    {
+        Sesion.OnChange += StateHasChanged;
+    }
+
+    private async Task CerrarSesion()
+    {
+         await Sesion.LogoutAsync();
+         Navigation.NavigateTo("/login", true);
+    }
+    
+
+    public void Dispose()
+    {
+        Sesion.OnChange -= StateHasChanged;
+    }
+}
+

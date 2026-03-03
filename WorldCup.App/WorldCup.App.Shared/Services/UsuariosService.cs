@@ -1,0 +1,34 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using System.Net.Http.Json;
+using WorldCup.App.Shared.DTOs;
+using WorldCup.App.Shared.Services;
+
+
+namespace WorldCup.App.Shared.Services
+{
+    public class UsuariosService
+    {
+        private readonly HttpClient _http;
+
+        public UsuariosService(HttpClient http)
+        {
+            _http = http;
+        }
+
+        public async Task RegistrarUsuarioAsync(RegistroUsuarioDTO dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Usuarios/registro", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception(error);
+            }
+        }
+    }
+}

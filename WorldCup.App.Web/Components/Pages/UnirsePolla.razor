@@ -1,0 +1,126 @@
+﻿@page "/unirse-polla/{PollaId:int}"
+@rendermode InteractiveServer
+
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.DTOs
+
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+
+<h2>🔐 Unirse a la Polla</h2>
+
+@if (mensaje != null)
+{
+    <div class="alert @(esError ? "alert-danger" : "alert-success")">
+        @mensaje
+    </div>
+}
+
+
+<p>Ingresa el PIN para unirte a esta polla.</p>
+
+<div class="card" style="max-width:400px">
+    <div class="card-body">
+
+        <input class="form-control mb-3"
+               placeholder="PIN de 4 dígitos"
+               maxlength="4"
+               @bind="pinIngreso" />
+
+        <button class="btn btn-primary w-100"
+                @onclick="Unirse">
+            Unirse
+        </button>
+
+    </div>
+</div>
+
+@code {
+
+    private string? mensaje;
+
+    private bool esError = false;
+
+    [Parameter]
+    public int PollaId { get; set; }
+
+    private string pinIngreso = "";
+
+    private async Task Unirse()
+    {
+
+        // ✅ VALIDACIÓN OPCIONAL (AQUÍ VA)
+        if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
+        {
+            mensaje = " ⚠️ Debes iniciar sesión para unirte a una polla.";
+            esError = true;
+
+            // 🔁 esperar un poco para que el usuario vea el mensaje
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(1500);
+
+            // 🔐 enviar al login con retorno
+            Navigation.NavigateTo($"/login?returnUrl=/unirse-polla/{PollaId}");
+            return;
+        }
+        Console.WriteLine($"Intentando unirse a la polla {PollaId} con PIN {pinIngreso}");
+
+        var dto = new UnirsePollaDTO
+            {
+                PollaId = PollaId,
+                UsuarioId = Sesion.UsuarioId!.Value,
+                //UsuarioId = 6, // 🔴 usuario fijo por ahora (igual que backend)
+                PinIngreso = pinIngreso
+            };
+
+        var response = await Http.PostAsJsonAsync(
+            $"api/Polla/{PollaId}/unirse",
+            dto
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            mensaje = await response.Content.ReadAsStringAsync();
+            esError = true;
+            return;
+        }
+
+
+
+        var result = await response.Content.ReadFromJsonAsync<ResultadoIngresoDTO>();
+
+        if (result?.Ingreso == "directo")
+        {
+            mensaje = "✅ Te uniste correctamente a la polla. Muchas gracias, bienvenido";
+            esError = false;
+
+            // 🔁 Forzar render del mensaje
+            await InvokeAsync(StateHasChanged);
+
+            // redirigir después de 10 segundos
+            await Task.Delay(5000);
+
+
+            Navigation.NavigateTo($"/polla/{PollaId}");
+        }
+        else if (result?.Ingreso == "solicitud")
+        {
+            mensaje = "Verifica el pin Ingresado,si no lo tienes; ⏳ La Solicitud ya fue enviada al administrador. Espera la aprobación.";
+            esError = false;
+        }
+
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+            StateHasChanged();
+        }
+    }
+
+
+        
+}
