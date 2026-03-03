@@ -412,8 +412,8 @@ namespace WorldCup.Api.Controllers
         }
 
         // ================= ACEPTAR SOLICITUD =================
-        [HttpPost("solicitudes/{solicitudId:int}/aceptar")]
-        public async Task<IActionResult> AceptarSolicitud(int solicitudId)
+        [HttpPost("solicitudes/{solicitudId:int}/aprobar")]
+        public async Task<IActionResult> AprobarSolicitud(int solicitudId)
         {
             var solicitud = await _context.SolicitudesIngresoPolla
                 .Include(s => s.Polla)

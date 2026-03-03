@@ -1,4 +1,7 @@
-﻿@page "/notificaciones"
+﻿@* <p>Usuario logueado: @Sesion.UsuarioId</p> *@
+
+
+@page "/notificaciones"
 @rendermode InteractiveServer
 
 @using WorldCup.App.Shared.Services
@@ -49,8 +52,8 @@ else
                 {
                     <div class="mt-2">
                         <button class="btn btn-success btn-sm me-2"
-                                @onclick="() => Aprobar(s.Id)">
-                            ✔ Aceptar
+                                @onclick="() => Aceptar(s.Id)">
+                            ✔ Aprobar
                         </button>
 
                         <button class="btn btn-danger btn-sm"
@@ -69,44 +72,67 @@ else
     </ul>
 }
 
+
 @code {
 
     private List<SolicitudIngresoDto> solicitudes = new();
+    private bool cargando = true;
 
     protected override async Task OnInitializedAsync()
     {
+        // Esperamos un pequeño ciclo para que la sesión ya esté restaurada
+        await Task.Delay(50);
+
         if (Sesion.EstaLogueado && Sesion.UsuarioId != null)
         {
             await Cargar();
         }
+
+        cargando = false;
     }
 
     private async Task Cargar()
     {
+        // solicitudes = await PollasService.GetNotificacionesAsync(1);
+
         solicitudes = await PollasService.GetNotificacionesAsync(
             Sesion.UsuarioId!.Value
         );
     }
 
-    private async Task Aprobar(int id)
+    private async Task Aceptar(int id)
     {
         await PollasService.AprobarSolicitudAsync(id);
-        await Cargar();
+
+        var solicitud = solicitudes.FirstOrDefault(x => x.Id == id);
+        if (solicitud != null)
+            solicitud.Estado = "Aprobada";
+
+        StateHasChanged();
     }
 
     private async Task Rechazar(int id)
     {
         await PollasService.RechazarSolicitudAsync(id);
-        await Cargar();
+
+        var solicitud = solicitudes.FirstOrDefault(x => x.Id == id);
+        if (solicitud != null)
+            solicitud.Estado = "Rechazada";
+
+        StateHasChanged();
     }
 
     private async Task Eliminar(int id)
     {
         await PollasService.EliminarSolicitudAsync(id);
-        await Cargar();
-    }
-}
 
+        solicitudes = solicitudes.Where(x => x.Id != id).ToList();
+
+        StateHasChanged();
+    }
+
+  
+}
 
 
 @* @page "/notificaciones"

@@ -193,7 +193,7 @@ FROM "Pollas";
 --------tablas por nombre----
 SELECT column_name
 FROM information_schema.columns
-WHERE table_name = 'Usuarios';
+WHERE table_name = 'Polla';
 
 
 ----resetear partido---------
@@ -382,7 +382,7 @@ ORDER BY table_name;
 
 
 ------borrar usuarios---
-DELETE FROM "Usuarios";
+DELETE FROM "Polla";
 
 SELECT * FROM "PollaMiembros";
 
@@ -511,4 +511,11 @@ CREATE TABLE "PollaSolicitudes" (
     "FechaSolicitud" TIMESTAMP NOT NULL DEFAULT NOW(),
     "Estado" VARCHAR(20) NOT NULL DEFAULT 'Pendiente'
 );
+
+SELECT * 
+FROM information_schema.tables
+WHERE table_name ILIKE '%solicitud%';
+
+SELECT * FROM PollaMiembros
+
 
