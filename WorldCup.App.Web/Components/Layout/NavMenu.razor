@@ -1,6 +1,7 @@
 ﻿@using WorldCup.App.Shared.Services
 @inject SesionService Sesion
 @inject NavigationManager Navigation
+@inject PollasService PollasService
 @rendermode InteractiveServer
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -57,7 +58,14 @@
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/notificaciones"> 🔔 Notificaciones</NavLink>
+                <NavLink class="nav-link" href="/notificaciones">
+                    🔔 Notificaciones @if (solicitudesPendientes > 0)
+                    {
+                        <span class="badge bg-danger ms-2">
+                            @solicitudesPendientes
+                        </span>
+                    }
+                </NavLink>
             </div>
             
             <div class="nav-item px-3">
@@ -70,6 +78,12 @@
 
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/predicciones">🎯 Predicciones</NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/clasificacion-grupos">
+                    📊 Clasificación Grupos
+                </NavLink>
             </div>
 
             <div class="nav-item px-3">
@@ -91,11 +105,45 @@
 </div>
 
 @code {
-        
+
+    private async Task CargarSolicitudesPendientes()
+    {
+        if (Sesion.EstaLogueado && Sesion.UsuarioId != null)
+        {
+            var solicitudes = await PollasService
+                .GetNotificacionesAsync(Sesion.UsuarioId.Value);
+
+            solicitudesPendientes = solicitudes
+                .Count(s => s.Estado == "Pendiente");
+
+            StateHasChanged();
+        }
+    }
     protected override void OnInitialized()
     {
-        Sesion.OnChange += StateHasChanged;
+        Sesion.OnChange += async () =>
+        {
+            await CargarSolicitudesPendientes();
+        };
+
+        PollasService.OnNotificacionesChanged += async () =>
+        {
+            await CargarSolicitudesPendientes();
+        };
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+    if (firstRender)
+    {
+        await CargarSolicitudesPendientes();
+    }
+}
+        
+    // // // protected override void OnInitialized()
+    // // {
+    // //     Sesion.OnChange += StateHasChanged;
+    // // }
 
     private async Task CerrarSesion()
     {
@@ -108,5 +156,7 @@
     {
         Sesion.OnChange -= StateHasChanged;
     }
+
+    private int solicitudesPendientes = 0;
 }
 

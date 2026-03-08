@@ -516,6 +516,6 @@ SELECT *
 FROM information_schema.tables
 WHERE table_name ILIKE '%solicitud%';
 
-SELECT * FROM PollaMiembros
+SELECT * FROM PollaSolicitudes
 
 

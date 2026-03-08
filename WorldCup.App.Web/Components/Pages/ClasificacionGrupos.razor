@@ -1,0 +1,551 @@
+﻿<h3>ClasificacionGrupos</h3>
+@rendermode InteractiveServer
+
+@page "/clasificacion-grupos"
+@inject HttpClient Http
+
+<h3 class="mb-4">📊 Clasificación de Grupos</h3>
+
+<div class="mb-4">
+
+    <div class="d-flex justify-content-between mb-1">
+
+        <span class="fw-bold">
+            Progreso de clasificación
+        </span>
+
+        <span>
+            @GruposGuardados() / 12 grupos
+        </span>
+
+    </div>
+
+    <div class="progress">
+
+        <div class="progress-bar bg-success"
+             role="progressbar"
+             style="width:@(GruposGuardados()*100/12)%">
+        </div>
+
+    </div>
+
+</div>
+
+@if (grupos == null)
+{
+    <p>Cargando grupos...</p>
+}
+else
+{
+    <div class="row">
+
+        @foreach (var grupo in grupos)
+        {
+            <div class="col-md-6 mb-4">
+
+
+                <div class="card shadow-sm grupo-card @(grupo.Value.First().bloqueado ? "guardado" : "")">
+
+
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+
+                        <strong>Grupo @grupo.Key</strong>
+
+                        <div class="d-flex align-items-center gap-2">
+
+                            <div class="form-check text-white">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       checked="@gruposTercero.Contains(grupo.Key)"
+                                       disabled="@CheckboxBloqueado(grupo.Key)"
+                                       @onchange="(e => ToggleTercero(grupo.Key))" />
+
+                                <label class="form-check-label">
+                                    Mejor 3°
+                                </label>
+                            </div>
+
+                            <button class="btn btn-success btn-sm"
+                                    disabled="@grupo.Value.First().bloqueado"
+                                    @onclick="() => GuardarGrupo(grupo.Key, grupo.Value)">
+
+                                @(grupo.Value.First().bloqueado ? "✔ Guardado" : "💾 Guardar")
+
+                            </button>
+
+                            <button class="btn btn-warning btn-sm"
+                                    @onclick="() => EditarGrupo(grupo.Value)">
+                                ✏ Editar
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                    @if (erroresGrupo.ContainsKey(grupo.Key) &&
+                   !string.IsNullOrEmpty(erroresGrupo[grupo.Key]))
+                    {
+                        <div class="alert alert-danger m-2">
+                            ⚠ @erroresGrupo[grupo.Key]
+                        </div>
+                    }               
+                                             
+
+                    <div class="card-body p-0">
+
+                        <table class="table table-striped table-hover mb-0">
+
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="padding-left:15px">Equipo</th>
+                                    <th style="width:120px">Posición</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var equipo in grupo.Value)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:10px;">
+                                                <img src="@GetBandera(equipo.equipo)" width="28" />
+                                                <span>@equipo.equipo</span>
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:10px;">
+
+                                                <select class="form-select form-select-sm"
+                                                        style="width:70px"
+                                                        @bind="equipo.posicion"
+                                                        disabled="@equipo.bloqueado">
+
+                                                    <option value="1" disabled="@PosicionOcupada(grupo.Value,1,equipo)">1</option>
+                                                    <option value="2" disabled="@PosicionOcupada(grupo.Value,2,equipo)">2</option>
+                                                    <option value="3" disabled="@PosicionOcupada(grupo.Value,3,equipo)">3</option>
+                                                    <option value="4" disabled="@PosicionOcupada(grupo.Value,4,equipo)">4</option>
+
+                                                </select>
+                                           
+                                            </div>                                           
+
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                          
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+        }
+
+        @if (clasificados.Count > 0)
+        {
+            <div class="card mt-4 shadow">
+
+                <div class="card-header text-white fw-bold"
+                     style="background:linear-gradient(90deg,#0d6efd,#20c997);">
+                    🏆 Equipos clasificados a Octavos
+                </div>
+
+                <div class="card-body">
+
+                    <div class="row">
+
+                        <!-- PRIMEROS -->
+                        <div class="col-md-4">
+
+                            <h5 class="text-center mb-3">🥇 Primeros</h5>
+
+                            @foreach (var equipo in primeros)
+                            {
+                                <div class="border rounded p-2 mb-2 d-flex align-items-center gap-2">
+
+                                    <img src="@GetBandera(equipo.equipo)" width="26" />
+
+                                    <strong>@equipo.equipo</strong>
+
+                                </div>
+                            }
+
+                        </div>
+
+
+                        <!-- SEGUNDOS -->
+                        <div class="col-md-4">
+
+                            <h5 class="text-center mb-3">🥈 Segundos</h5>
+
+                            @foreach (var equipo in segundos)
+                            {
+                                <div class="border rounded p-2 mb-2 d-flex align-items-center gap-2">
+
+                                    <img src="@GetBandera(equipo.equipo)" width="26" />
+
+                                    <strong>@equipo.equipo</strong>
+
+                                </div>
+                            }
+
+                        </div>
+
+
+                        <!-- TERCEROS -->
+                        <div class="col-md-4">
+
+                            <h5 class="text-center mb-3">🥉 Mejores terceros</h5>
+
+                            @foreach (var equipo in terceros)
+                            {
+                                <div class="border rounded p-2 mb-2 d-flex align-items-center gap-2">
+
+                                    <img src="@GetBandera(equipo.equipo)" width="26" />
+
+                                    <strong>@equipo.equipo</strong>
+
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+        }
+
+    </div>
+}
+
+<style>
+
+    .grupo-card {
+        transition: all .3s ease;
+    }
+
+        .grupo-card.guardado {
+            border: 2px solid #28a745;
+            box-shadow: 0 0 10px rgba(40,167,69,.5);
+        }
+
+            .grupo-card.guardado:hover {
+                transform: scale(1.02);
+            }
+
+</style>
+
+@code {
+
+    private Dictionary<string, List<EquipoGrupo>>? grupos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        grupos = new();
+
+        var letras = new[]
+        {
+            "A","B","C","D","E","F",
+            "G","H","I","J","K","L"
+        };
+
+        foreach (var letra in letras)
+        {
+            var tabla = await Http.GetFromJsonAsync<List<EquipoGrupo>>(
+                $"https://localhost:7092/api/Partidos/posiciones/{letra}"
+            );
+
+            if (tabla != null)
+            {
+                for (int i = 0; i < tabla.Count; i++)
+                {
+                    tabla[i].posicion = i + 1;
+                }
+
+                grupos.Add(letra, tabla);
+            }
+        }
+    }
+
+    public class EquipoGrupo
+    {
+        public int equipoId { get; set; }
+        public string equipo { get; set; }
+
+        public int posicion { get; set; }
+
+        public bool bloqueado { get; set; } = false;
+
+        public bool grupoGuardado { get; set; }
+    }
+    
+
+    private bool PosicionOcupada(List<EquipoGrupo> grupo, int posicion, EquipoGrupo actual)
+    {
+        return grupo.Any(e => e != actual && e.posicion == posicion && e.bloqueado);
+    }
+  
+
+    private void VerificarPosiciones(List<EquipoGrupo> grupo)
+    {
+        var usados = new HashSet<int>();
+
+        foreach (var equipo in grupo.OrderBy(e => e.posicion))
+        {
+            if (!usados.Contains(equipo.posicion))
+            {
+                usados.Add(equipo.posicion);
+                continue;
+            }
+
+            for (int i = 1; i <= 4; i++)
+            {
+                if (!usados.Contains(i))
+                {
+                    equipo.posicion = i;
+                    usados.Add(i);
+                    break;
+                }
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void EditarGrupo(List<EquipoGrupo> grupo)
+    {
+        foreach (var equipo in grupo)
+        {
+            equipo.bloqueado = false;
+            equipo.posicion = 0;
+        }
+
+        StateHasChanged();
+    }
+
+    private HashSet<string> gruposTercero = new();
+
+
+    private void ToggleTercero(string grupo)
+    {
+        if (gruposTercero.Contains(grupo))
+        {
+            gruposTercero.Remove(grupo);
+        }
+        else
+        {
+            if (gruposTercero.Count >= 8)
+            {
+                Console.WriteLine("⚠ Solo se permiten 8 mejores terceros");
+                return;
+            }
+
+            gruposTercero.Add(grupo);
+        }
+
+        StateHasChanged();
+    }
+
+    private bool CheckboxBloqueado(string grupo)
+    {
+        return !gruposTercero.Contains(grupo) && gruposTercero.Count >= 8;
+    }
+
+    private async Task GuardarGrupo(string grupoNombre, List<EquipoGrupo> equipos)
+    {
+        var posiciones = equipos.Select(e => e.posicion).ToList();
+
+        if (posiciones.Distinct().Count() != posiciones.Count)
+        {
+            erroresGrupo[grupoNombre] = "No se pueden repetir posiciones en el grupo";
+            StateHasChanged();
+            return;
+        }
+
+        erroresGrupo[grupoNombre] = null;
+
+        var primero = equipos.FirstOrDefault(x => x.posicion == 1);
+        var segundo = equipos.FirstOrDefault(x => x.posicion == 2);
+        var tercero = equipos.FirstOrDefault(x => x.posicion == 3);
+
+        if (primero == null || segundo == null || tercero == null)
+        {
+            erroresGrupo[grupoNombre] = "Debes definir las posiciones 1, 2 y 3 del grupo";
+            StateHasChanged();
+            return;
+        }
+
+        var dto = new
+        {
+            pollaId = 2,
+            grupo = grupoNombre,
+            primeroId = primero.equipoId,
+            segundoId = segundo.equipoId,
+            terceroId = tercero.equipoId
+        };
+
+        try
+        {
+            erroresGrupo[grupoNombre] = null;
+
+            await Http.PostAsJsonAsync(
+                "https://localhost:7092/api/Predicciones/guardar-clasificacion",
+                dto);
+
+            Console.WriteLine($"✅ Grupo {grupoNombre} guardado");
+
+            foreach (var e in equipos)
+            {
+                e.bloqueado = true;
+            }
+
+            CalcularClasificados();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private void CalcularClasificados()
+    {
+        clasificados.Clear();
+        primeros.Clear();
+        segundos.Clear();
+        terceros.Clear();
+
+        if (grupos == null)
+            return;
+
+        foreach (var grupo in grupos)
+        {
+            if (!grupo.Value.First().bloqueado)
+                continue;
+
+            var primero = grupo.Value.FirstOrDefault(e => e.posicion == 1);
+            var segundo = grupo.Value.FirstOrDefault(e => e.posicion == 2);
+
+            if (primero != null)
+            {
+                clasificados.Add(primero);
+                primeros.Add(primero);
+            }
+
+            if (segundo != null)
+            {
+                clasificados.Add(segundo);
+                segundos.Add(segundo);
+            }
+        }
+
+        foreach (var grupoKey in gruposTercero)
+        {
+            var grupo = grupos[grupoKey];
+
+            if (!grupo.First().bloqueado)
+                continue;
+
+            var tercero = grupo.FirstOrDefault(e => e.posicion == 3);
+
+            if (tercero != null)
+            {
+                clasificados.Add(tercero);
+                terceros.Add(tercero);
+            }
+        }
+
+        StateHasChanged();
+    }
+
+
+    private Dictionary<string, string?> erroresGrupo = new();
+
+    private List<EquipoGrupo> clasificados = new();
+    private List<EquipoGrupo> primeros = new();
+    private List<EquipoGrupo> segundos = new();
+    private List<EquipoGrupo> terceros = new();
+
+    private int GruposGuardados()
+    {
+        if (grupos == null)
+            return 0;
+
+        return grupos.Count(g => g.Value.First().bloqueado);
+    }
+
+    private string GetBandera(string equipo)
+    {
+        return equipo.ToLower() switch
+        {
+            "méxico" => "https://flagcdn.com/w40/mx.png",
+            "canadá" => "https://flagcdn.com/w40/ca.png",
+            "estados unidos" => "https://flagcdn.com/w40/us.png",
+
+            "argentina" => "https://flagcdn.com/w40/ar.png",
+            "brasil" => "https://flagcdn.com/w40/br.png",
+            "uruguay" => "https://flagcdn.com/w40/uy.png",
+            "colombia" => "https://flagcdn.com/w40/co.png",
+            "ecuador" => "https://flagcdn.com/w40/ec.png",
+            "perú" => "https://flagcdn.com/w40/pe.png",
+            "paraguay" => "https://flagcdn.com/w40/py.png",
+            "chile" => "https://flagcdn.com/w40/cl.png",
+            "bolivia" => "https://flagcdn.com/w40/bo.png",
+            "venezuela" => "https://flagcdn.com/w40/ve.png",
+
+            "alemania" => "https://flagcdn.com/w40/de.png",
+            "francia" => "https://flagcdn.com/w40/fr.png",
+            "españa" => "https://flagcdn.com/w40/es.png",
+            "italia" => "https://flagcdn.com/w40/it.png",
+            "inglaterra" => "https://flagcdn.com/w40/gb-eng.png",
+            "escocia" => "https://flagcdn.com/w40/gb-sct.png",
+            "gales" => "https://flagcdn.com/w40/gb-wls.png",
+            "portugal" => "https://flagcdn.com/w40/pt.png",
+            "países bajos" => "https://flagcdn.com/w40/nl.png",
+            "bélgica" => "https://flagcdn.com/w40/be.png",
+            "suiza" => "https://flagcdn.com/w40/ch.png",
+            "dinamarca" => "https://flagcdn.com/w40/dk.png",
+            "suecia" => "https://flagcdn.com/w40/se.png",
+            "noruega" => "https://flagcdn.com/w40/no.png",
+            "croacia" => "https://flagcdn.com/w40/hr.png",
+            "serbia" => "https://flagcdn.com/w40/rs.png",
+            "polonia" => "https://flagcdn.com/w40/pl.png",
+            "ucrania" => "https://flagcdn.com/w40/ua.png",
+
+            "japón" => "https://flagcdn.com/w40/jp.png",
+            "corea del sur" => "https://flagcdn.com/w40/kr.png",
+            "australia" => "https://flagcdn.com/w40/au.png",
+            "irán" => "https://flagcdn.com/w40/ir.png",
+            "arabia saudita" => "https://flagcdn.com/w40/sa.png",
+            "qatar" => "https://flagcdn.com/w40/qa.png",
+            "emiratos árabes unidos" => "https://flagcdn.com/w40/ae.png",
+
+            "marruecos" => "https://flagcdn.com/w40/ma.png",
+            "senegal" => "https://flagcdn.com/w40/sn.png",
+            "ghana" => "https://flagcdn.com/w40/gh.png",
+            "nigeria" => "https://flagcdn.com/w40/ng.png",
+            "camerún" => "https://flagcdn.com/w40/cm.png",
+            "túnez" => "https://flagcdn.com/w40/tn.png",
+            "egipto" => "https://flagcdn.com/w40/eg.png",
+            "sudáfrica" => "https://flagcdn.com/w40/za.png",
+            "haití" => "https://flagcdn.com/w40/ht.png",
+            "costa de marfil" => "https://flagcdn.com/w40/ci.png",
+
+            "curazao" => "https://flagcdn.com/w40/cw.png",
+            "nueva zelanda" => "https://flagcdn.com/w40/nz.png",
+            "cabo verde" => "https://flagcdn.com/w40/cv.png",
+            "argelia" => "https://flagcdn.com/w40/dz.png",
+            "austria" => "https://flagcdn.com/w40/at.png",
+            "jordania" => "https://flagcdn.com/w40/jo.png",
+            "uzbekistán" => "https://flagcdn.com/w40/uz.png",
+            "panama" => "https://flagcdn.com/w40/pa.png",
+
+            _ => "https://flagcdn.com/w40/un.png"
+        };
+    }
+
+}

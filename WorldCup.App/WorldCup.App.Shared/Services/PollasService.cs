@@ -11,6 +11,8 @@ namespace WorldCup.App.Shared.Services
 {
     public class PollasService
     {
+        public event Action? OnNotificacionesChanged;
+
         private readonly HttpClient _http;
 
         public PollasService(HttpClient http)
@@ -124,6 +126,7 @@ namespace WorldCup.App.Shared.Services
                 null);
 
             response.EnsureSuccessStatusCode();
+            
         }
 
         public async Task RechazarSolicitudAsync(int solicitudId)
@@ -133,6 +136,7 @@ namespace WorldCup.App.Shared.Services
                 null);
 
             response.EnsureSuccessStatusCode();
+            
         }
 
         public async Task EliminarSolicitudAsync(int solicitudId)
@@ -141,6 +145,7 @@ namespace WorldCup.App.Shared.Services
                 $"api/Polla/solicitudes/{solicitudId}");
 
             response.EnsureSuccessStatusCode();
+            
         }
 
                
