@@ -1,10 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using ClosedXML.Excel;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
-using ClosedXML.Excel;
-using System.IO;
 
 
 namespace WorldCup.Api.Controllers
@@ -18,6 +17,15 @@ namespace WorldCup.Api.Controllers
         public PrediccionesController(AppDbContext context)
         {
             _context = context;
+        }
+
+        private DateTime FechaInicioMundial = new DateTime(2026, 6, 11, 16, 0, 0, DateTimeKind.Utc);
+        // ⚠️ Ajusta la hora real si es necesario
+
+        private bool EstaCerrado()
+        {
+            var cierre = FechaInicioMundial.AddMinutes(-20);
+            return DateTime.UtcNow >= cierre;
         }
 
         // =========================================================
@@ -406,7 +414,13 @@ namespace WorldCup.Api.Controllers
              GuardarPrediccionGrupoDTO dto)
 
 
+
         {
+            if (EstaCerrado())
+            {
+                return Conflict("⛔ Las clasificaciones están cerradas (faltan menos de 20 minutos para el inicio del mundial)");
+            }
+
             int usuarioId = UserIdActual();
 
             // 🔒 BLOQUEO: si ya empezó el primer partido del grupo
@@ -452,32 +466,52 @@ namespace WorldCup.Api.Controllers
                     p.UsuarioId == usuarioId &&
                     p.Grupo == grupo);
 
-            if (existente != null && existente.Bloqueada)
-                return Conflict("La clasificación ya está bloqueada");
+            //if (existente != null && existente.Bloqueada)
+            //    return Conflict("La clasificación ya está bloqueada");
 
             if (existente == null)
             {
-                _context.PrediccionesGrupo.Add(new PrediccionGrupo
+                existente = new PrediccionGrupo
                 {
                     PollaId = dto.PollaId,
                     UsuarioId = usuarioId,
-                    Grupo = grupo,
-                    PrimeroId = dto.PrimeroId,
-                    SegundoId = dto.SegundoId,
-                    TerceroId = dto.TerceroId,
-                    Bloqueada = false
-                });
+                    Grupo = grupo
+                };
+
+                _context.PrediccionesGrupo.Add(existente);
             }
-            else
-            {
-                existente.PrimeroId = dto.PrimeroId;
-                existente.SegundoId = dto.SegundoId;
-                existente.TerceroId = dto.TerceroId;
-            }
+
+            existente.PrimeroId = dto.PrimeroId;
+            existente.SegundoId = dto.SegundoId;
+            existente.TerceroId = dto.TerceroId;
+
+
+            _context.Entry(existente).State = EntityState.Modified;
 
             await _context.SaveChangesAsync();
 
             return Ok("✅ Clasificación de grupo guardada correctamente");
+        }
+
+        [HttpGet("clasificacion")]
+        public async Task<IActionResult> ObtenerClasificacion()
+        {
+            int usuarioId = UserIdActual();
+
+            var clasificacion = await _context.PrediccionesGrupo
+                .Where(p => p.UsuarioId == usuarioId)
+                .Select(p => new
+                {
+                    grupo = p.Grupo,
+                    primeroId = p.PrimeroId,
+                    segundoId = p.SegundoId,
+                    terceroId = p.TerceroId,
+                    bloqueada = p.Bloqueada
+
+                })
+                .ToListAsync();
+
+            return Ok(clasificacion);
         }
 
         // GET: api/Predicciones/ranking/{pollaId}
@@ -584,7 +618,7 @@ namespace WorldCup.Api.Controllers
                 Tabla = tabla
             });
         }
-        
+
 
         [HttpGet("resumen-final/{pollaId}/{grupo}")]
         public async Task<IActionResult> GetResumenFinalGrupo(int pollaId, string grupo)
@@ -719,7 +753,7 @@ namespace WorldCup.Api.Controllers
             .OrderBy(g => g.Grupo)
             .ToList();
 
-                
+
 
             return Ok(new ResumenFinalPollaDTO
             {
@@ -872,6 +906,18 @@ namespace WorldCup.Api.Controllers
                 usuarioId,
                 usuario = $"Usuario {usuarioId}", // luego tabla Usuarios
                 historial
+            });
+        }
+
+        [HttpGet("estado-clasificacion")]
+        public IActionResult EstadoClasificacion()
+        {
+            var cierre = FechaInicioMundial.AddMinutes(-20);
+
+            return Ok(new
+            {
+                cerrado = DateTime.UtcNow >= cierre,
+                fechaCierre = cierre
             });
         }
 

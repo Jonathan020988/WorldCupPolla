@@ -163,7 +163,7 @@ FROM information_schema.columns
 WHERE table_name = 'Usuarios';
 
 -- trae los usuarios creados-----
-SELECT * FROM "Usuarios";
+SELECT * FROM "PrediccionesGrupo";
 
 ---insertar la polla---
 INSERT INTO "Pollas" (
@@ -518,4 +518,16 @@ WHERE table_name ILIKE '%solicitud%';
 
 SELECT * FROM PollaSolicitudes
 
+---desbloquear predicciones de grupos--
 
+UPDATE "PrediccionesGrupo"
+SET "Bloqueada" = false
+WHERE "Grupo" = 'A';
+
+SELECT * FROM "PrediccionesGrupo";
+
+SELECT * FROM "Equipos";
+
+UPDATE "Partidos"
+SET "Fecha" = '2026-01-20 20:00:00'
+WHERE "Id" = 118;

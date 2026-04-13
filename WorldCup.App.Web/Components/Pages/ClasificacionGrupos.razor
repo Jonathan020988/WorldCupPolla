@@ -1,6 +1,6 @@
 ﻿<h3>ClasificacionGrupos</h3>
 @rendermode InteractiveServer
-
+using System.Timers;
 @page "/clasificacion-grupos"
 @inject HttpClient Http
 
@@ -22,10 +22,26 @@
 
     <div class="progress">
 
-        <div class="progress-bar bg-success"
-             role="progressbar"
-             style="width:@(GruposGuardados()*100/12)%">
+        <div> class="progress-bar bg-success"
+        role="progressbar"
+             style=@($"width:{GruposGuardados()*100/12}%")
         </div>
+
+    </div>
+
+    @{
+        var claseAlerta = clasificacionCerrada ? "alert-danger" : "alert-info";
+    }
+    <div class="alert @claseAlerta">
+
+        @if (clasificacionCerrada)
+        {
+            <strong>⛔ Clasificaciones cerradas</strong>
+        }
+        else
+        {
+            <strong>⏳ Cierre en: @contador</strong>
+        }
 
     </div>
 
@@ -55,10 +71,10 @@ else
 
                             <div class="form-check text-white">
                                 <input class="form-check-input"
-                                       type="checkbox"
-                                       checked="@gruposTercero.Contains(grupo.Key)"
-                                       disabled="@CheckboxBloqueado(grupo.Key)"
-                                       @onchange="(e => ToggleTercero(grupo.Key))" />
+                                type="checkbox"
+                                checked="@gruposTercero.Contains(grupo.Key)"
+                                disabled="@(CheckboxBloqueado(grupo.Key) || clasificacionCerrada)"
+                                @onchange="(e => ToggleTercero(grupo.Key))" />
 
                                 <label class="form-check-label">
                                     Mejor 3°
@@ -66,15 +82,15 @@ else
                             </div>
 
                             <button class="btn btn-success btn-sm"
-                                    disabled="@grupo.Value.First().bloqueado"
-                                    @onclick="() => GuardarGrupo(grupo.Key, grupo.Value)">
+                            disabled="@(grupo.Value.First().bloqueado || clasificacionCerrada)"
+                            @onclick="() => GuardarGrupo(grupo.Key, grupo.Value)">
 
                                 @(grupo.Value.First().bloqueado ? "✔ Guardado" : "💾 Guardar")
 
                             </button>
 
                             <button class="btn btn-warning btn-sm"
-                                    @onclick="() => EditarGrupo(grupo.Value)">
+                            @onclick="() => EditarGrupo(grupo.Value)">
                                 ✏ Editar
                             </button>
 
@@ -83,13 +99,13 @@ else
                     </div>
 
                     @if (erroresGrupo.ContainsKey(grupo.Key) &&
-                   !string.IsNullOrEmpty(erroresGrupo[grupo.Key]))
+                  !string.IsNullOrEmpty(erroresGrupo[grupo.Key]))
                     {
                         <div class="alert alert-danger m-2">
                             ⚠ @erroresGrupo[grupo.Key]
                         </div>
                     }               
-                                             
+
 
                     <div class="card-body p-0">
 
@@ -117,9 +133,9 @@ else
                                             <div style="display:flex;align-items:center;gap:10px;">
 
                                                 <select class="form-select form-select-sm"
-                                                        style="width:70px"
-                                                        @bind="equipo.posicion"
-                                                        disabled="@equipo.bloqueado">
+                                                style="width:70px"
+                                                @bind="equipo.posicion"
+                                                disabled="@(equipo.bloqueado  || clasificacionCerrada)">
 
                                                     <option value="1" disabled="@PosicionOcupada(grupo.Value,1,equipo)">1</option>
                                                     <option value="2" disabled="@PosicionOcupada(grupo.Value,2,equipo)">2</option>
@@ -127,14 +143,14 @@ else
                                                     <option value="4" disabled="@PosicionOcupada(grupo.Value,4,equipo)">4</option>
 
                                                 </select>
-                                           
+
                                             </div>                                           
 
                                         </td>
                                     </tr>
                                 }
                             </tbody>
-                          
+
                         </table>
 
                     </div>
@@ -149,7 +165,7 @@ else
             <div class="card mt-4 shadow">
 
                 <div class="card-header text-white fw-bold"
-                     style="background:linear-gradient(90deg,#0d6efd,#20c997);">
+                style="background:linear-gradient(90deg,#0d6efd,#20c997);">
                     🏆 Equipos clasificados a Octavos
                 </div>
 
@@ -226,21 +242,26 @@ else
 <style>
 
     .grupo-card {
-        transition: all .3s ease;
+    transition: all .3s ease;
     }
 
-        .grupo-card.guardado {
-            border: 2px solid #28a745;
-            box-shadow: 0 0 10px rgba(40,167,69,.5);
-        }
+    .grupo-card.guardado {
+    border: 2px solid #28a745;
+    box-shadow: 0 0 10px rgba(40,167,69,.5);
+    }
 
-            .grupo-card.guardado:hover {
-                transform: scale(1.02);
-            }
+    .grupo-card.guardado:hover {
+    transform: scale(1.02);
+    }
 
 </style>
 
 @code {
+
+    private bool clasificacionCerrada = false;
+    private DateTime fechaCierre;
+    private string contador = "";
+    private System.Timers.Timer? timer;
 
     private Dictionary<string, List<EquipoGrupo>>? grupos;
 
@@ -262,20 +283,63 @@ else
 
             if (tabla != null)
             {
-                for (int i = 0; i < tabla.Count; i++)
-                {
-                    tabla[i].posicion = i + 1;
-                }
+
 
                 grupos.Add(letra, tabla);
             }
+        }
+        await CargarClasificacionGuardada();
+        await CargarEstadoClasificacion(); // 👈 AGREGA ESTO
+        IniciarContador();
+    }
+
+    private async Task CargarClasificacionGuardada()
+    {
+        try
+        {
+            var guardadas = await Http.GetFromJsonAsync<List<ClasificacionGuardadaDto>>(
+                "https://localhost:7092/api/Predicciones/clasificacion");
+
+            if (guardadas == null || grupos == null)
+                return;
+
+            foreach (var clasificacion in guardadas)
+
+            {
+                if (!grupos.ContainsKey(clasificacion.grupo))
+                    continue;
+
+                var grupo = grupos[clasificacion.grupo];
+
+                gruposTercero.Add(clasificacion.grupo);
+
+                foreach (var equipo in grupo)
+                {
+                    if (equipo.equipoId == clasificacion.primeroId)
+                        equipo.posicion = 1;
+                    else if (equipo.equipoId == clasificacion.segundoId)
+                        equipo.posicion = 2;
+                    else if (equipo.equipoId == clasificacion.terceroId)
+                        equipo.posicion = 3;
+                    else
+                        equipo.posicion = 4;
+
+
+                }
+            }
+
+            CalcularClasificados();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
         }
     }
 
     public class EquipoGrupo
     {
         public int equipoId { get; set; }
-        public string equipo { get; set; }
+        public string equipo { get; set; } = string.Empty;
 
         public int posicion { get; set; }
 
@@ -283,13 +347,13 @@ else
 
         public bool grupoGuardado { get; set; }
     }
-    
+
 
     private bool PosicionOcupada(List<EquipoGrupo> grupo, int posicion, EquipoGrupo actual)
     {
         return grupo.Any(e => e != actual && e.posicion == posicion && e.bloqueado);
     }
-  
+
 
     private void VerificarPosiciones(List<EquipoGrupo> grupo)
     {
@@ -478,6 +542,19 @@ else
         return grupos.Count(g => g.Value.First().bloqueado);
     }
 
+    public class ClasificacionGuardadaDto
+    {
+        public string grupo { get; set; } = string.Empty;
+
+        public int primeroId { get; set; }
+
+        public int segundoId { get; set; }
+
+        public int terceroId { get; set; }
+
+
+    }
+
     private string GetBandera(string equipo)
     {
         return equipo.ToLower() switch
@@ -542,10 +619,72 @@ else
             "austria" => "https://flagcdn.com/w40/at.png",
             "jordania" => "https://flagcdn.com/w40/jo.png",
             "uzbekistán" => "https://flagcdn.com/w40/uz.png",
-            "panama" => "https://flagcdn.com/w40/pa.png",
+            "panamá" => "https://flagcdn.com/w40/pa.png",
+            "República Checa" => "https://flagcdn.com/w40/cz.png",
+            "Bosnia y Herzegovina" => "https://flagcdn.com/w40/ba.png",
+            "Turquía" => "https://flagcdn.com/w40/tr.png",
+            "Irak" => "https://flagcdn.com/w40/iq.png",
+            "RD Congo" => "https://flagcdn.com/w40/cg.png",
+            "Suecia" => "https://flagcdn.com/w40/se.png",
 
             _ => "https://flagcdn.com/w40/un.png"
+        
+
         };
     }
 
+    private async Task CargarEstadoClasificacion()
+    {
+        try
+        {
+            var estado = await Http.GetFromJsonAsync<EstadoDto>(
+                "https://localhost:7092/api/Predicciones/estado-clasificacion");
+
+            if (estado != null)
+            {
+                clasificacionCerrada = estado.cerrado;
+                fechaCierre = estado.fechaCierre;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    public class EstadoDto
+    {
+        public bool cerrado { get; set; }
+        public DateTime fechaCierre { get; set; }
+    }
+
+    
+    private void IniciarContador()
+    {
+        timer = new System.Timers.Timer(1000);
+        timer.Elapsed += (s, e) =>
+        {
+            if (!clasificacionCerrada)
+            {
+                var restante = fechaCierre - DateTime.UtcNow;
+
+                if (restante.TotalSeconds <= 0)
+                {
+                    clasificacionCerrada = true;
+                    contador = "⛔ Cerrado";
+                }
+                else
+                {
+                    contador = $"{restante.Days}d {restante.Hours}h {restante.Minutes}m {restante.Seconds}s";
+                }
+
+                InvokeAsync(StateHasChanged);
+            }
+        };
+
+        timer.Start();
+    }
 }
+
+    
+

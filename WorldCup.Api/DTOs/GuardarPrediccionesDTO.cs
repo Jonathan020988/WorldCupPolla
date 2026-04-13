@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using WorldCup.Api.Models;
-
-namespace WorldCup.Api.DTOs
+﻿namespace WorldCup.Api.DTOs
 {
     public class GuardarPrediccionGrupoDTO
     {
@@ -12,6 +9,7 @@ namespace WorldCup.Api.DTOs
         public int SegundoId { get; set; }
         public int TerceroId { get; set; }
 
+       
         public List<PrediccionItemDTO> Predicciones { get; set; } = new();
 
 
