@@ -921,5 +921,47 @@ namespace WorldCup.Api.Controllers
             });
         }
 
+        [HttpPost("guardar-terceros")]
+        public async Task<IActionResult> GuardarTerceros([FromBody] List<string> grupos)
+        {
+            int usuarioId = UserIdActual();
+            int pollaId = 2;
+
+            // 🔴 eliminar anteriores
+            var existentes = await _context.PrediccionesTerceros
+                .Where(x => x.PollaId == pollaId && x.UsuarioId == usuarioId)
+                .ToListAsync();
+
+            _context.PrediccionesTerceros.RemoveRange(existentes);
+
+            // 🟢 guardar nuevos
+            foreach (var grupo in grupos)
+            {
+                _context.PrediccionesTerceros.Add(new PrediccionTercero
+                {
+                    PollaId = pollaId,
+                    UsuarioId = usuarioId,
+                    Grupo = grupo
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+        [HttpGet("terceros")]
+        public async Task<IActionResult> ObtenerTerceros(int pollaId)
+        {
+            int usuarioId = UserIdActual();
+
+            var grupos = await _context.PrediccionesTerceros
+                .Where(x => x.PollaId == pollaId && x.UsuarioId == usuarioId)
+                .Select(x => x.Grupo)
+                .ToListAsync();
+
+            return Ok(grupos);
+        }
+
     }
 }

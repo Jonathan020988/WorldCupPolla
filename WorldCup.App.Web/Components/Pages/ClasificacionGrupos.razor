@@ -21,12 +21,13 @@ using System.Timers;
     </div>
 
     <div class="progress">
-
-        <div> class="progress-bar bg-success"
-        role="progressbar"
-             style=@($"width:{GruposGuardados()*100/12}%")
+        <div class="progress-bar bg-success"
+             role="progressbar"
+             style="width:@(GruposGuardados()*100/12)%"
+             aria-valuenow="@(GruposGuardados()*100/12)"
+             aria-valuemin="0"
+             aria-valuemax="100">
         </div>
-
     </div>
 
     @{
@@ -289,6 +290,7 @@ else
             }
         }
         await CargarClasificacionGuardada();
+        await CargarTerceros();
         await CargarEstadoClasificacion(); // 👈 AGREGA ESTO
         IniciarContador();
     }
@@ -303,15 +305,16 @@ else
             if (guardadas == null || grupos == null)
                 return;
 
-            foreach (var clasificacion in guardadas)
+            gruposTercero.Clear(); // 🔥 IMPORTANTE
 
+            foreach (var clasificacion in guardadas)
             {
                 if (!grupos.ContainsKey(clasificacion.grupo))
                     continue;
 
                 var grupo = grupos[clasificacion.grupo];
 
-                gruposTercero.Add(clasificacion.grupo);
+                // ❌ ELIMINADO: gruposTercero.Add(...)
 
                 foreach (var equipo in grupo)
                 {
@@ -323,8 +326,6 @@ else
                         equipo.posicion = 3;
                     else
                         equipo.posicion = 4;
-
-
                 }
             }
 
@@ -392,10 +393,18 @@ else
         StateHasChanged();
     }
 
+    private async Task GuardarTerceros()
+    {
+        await Http.PostAsJsonAsync(
+            "https://localhost:7092/api/Predicciones/guardar-terceros",
+            gruposTercero.ToList()
+        );
+    }
+
     private HashSet<string> gruposTercero = new();
 
 
-    private void ToggleTercero(string grupo)
+    private async void ToggleTercero(string grupo)
     {
         if (gruposTercero.Contains(grupo))
         {
@@ -412,8 +421,22 @@ else
             gruposTercero.Add(grupo);
         }
 
+        await GuardarTerceros(); // 🔥 CLAVE
+
         StateHasChanged();
     }
+
+    private async Task CargarTerceros()
+    {
+        var grupos = await Http.GetFromJsonAsync<List<string>>(
+            "https://localhost:7092/api/Predicciones/terceros?pollaId=2");
+
+        if (grupos != null)
+        {
+            gruposTercero = grupos.ToHashSet();
+        }
+    }
+ 
 
     private bool CheckboxBloqueado(string grupo)
     {

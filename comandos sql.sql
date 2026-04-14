@@ -528,6 +528,42 @@ SELECT * FROM "PrediccionesGrupo";
 
 SELECT * FROM "Equipos";
 
+SELECT * FROM "Partidos";
+
 UPDATE "Partidos"
 SET "Fecha" = '2026-01-20 20:00:00'
 WHERE "Id" = 118;
+
+--para ver tablas con nombres d equipos--
+SELECT 
+    p."Id",
+    p."Fecha",
+    p."Fase",
+    el."Nombre" AS "EquipoLocal",
+    ev."Nombre" AS "EquipoVisitante",
+    p."GolesLocal",
+    p."GolesVisitante",
+    p."Finalizado",
+    p."PenalesLocal",
+    p."PenalesVisitante"
+FROM "Partidos" p
+INNER JOIN "Equipos" el ON p."LocalId" = el."Id"
+INNER JOIN "Equipos" ev ON p."VisitanteId" = ev."Id";
+
+---informacion de las tblas--
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public';
+
+---informacion de las columnas de cada tabala---
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Usuarios';
+
+CREATE TABLE "PrediccionesTerceros" (
+    "Id" SERIAL PRIMARY KEY,
+    "PollaId" INT NOT NULL,
+    "UsuarioId" INT NOT NULL,
+    "Grupo" VARCHAR(1) NOT NULL
+);
+

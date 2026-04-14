@@ -25,8 +25,8 @@ namespace WorldCup.Api.Data
         public DbSet<SolicitudIngresoPolla> SolicitudesIngresoPolla { get; set; }
 
         // 👆 AÑADIR ESTA LÍNEA
-       
 
+        public DbSet<PrediccionTercero> PrediccionesTerceros { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
