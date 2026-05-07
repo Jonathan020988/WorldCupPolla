@@ -142,7 +142,11 @@ namespace WorldCup.Api.Controllers
         // =========================================================
 
         // Simulado por ahora (luego JWT)
-        private int UserIdActual() => 1;
+        //private int UserIdActual() => 1;
+        private int UserIdActual()
+        {
+            return 4;
+        }
 
         private int CalcularPuntosGrupo(
             int glReal,

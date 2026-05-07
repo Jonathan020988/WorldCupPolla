@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using WorldCup.App.Shared.DTOs;
 using WorldCup.App.Shared.Models;
 
@@ -29,15 +23,31 @@ public class PrediccionesService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
+
+            Console.WriteLine(error);
+
             throw new Exception(error);
         }
     }
 
     public async Task<List<PrediccionExistenteDto>> GetPrediccionesAsync()
     {
-        return await _http.GetFromJsonAsync<List<PrediccionExistenteDto>>(
-            "api/Predicciones"
-        ) ?? new();
-    }
+        var response = await _http.GetAsync(
+            "api/Predicciones?pollaId=74"
+        );
 
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+
+            Console.WriteLine(error);
+
+            return new List<PrediccionExistenteDto>();
+        }
+
+        var data = await response.Content
+            .ReadFromJsonAsync<List<PrediccionExistenteDto>>();
+
+        return data ?? new List<PrediccionExistenteDto>();
+    }
 }
