@@ -20,19 +20,19 @@ else
 
         @for (int i = 0; i < grupos.Count; i += 2)
         {
-            <div class="row mb-4">
+            <div class="row mb-3">
 
                 @foreach (var grupo in grupos.Skip(i).Take(2))
                 {
                     <div class="col-lg-6">
 
-                        <div class="card shadow-sm mb-2">
+                        <div class="card shadow-sm mb-3 border-0">
 
-                            <div class="card-header bg-dark text-white fw-bold">
+                            <div class="card-header bg-dark text-white fw-bold py-2">
                                 🏆 @grupo.Key
                             </div>
 
-                            <div class="card-body">
+                            <div class="card-body p-2">
 
                                 @foreach (var partido in grupo)
                                 {
@@ -68,7 +68,7 @@ else
 
                                         </div>
 
-                                        <div class="text-end mt-2">
+                                        <div class="text-end mt-1">
 
                                             <button class="btn btn-success btn-sm py-0 px-2"
                                                     @onclick="() => GuardarPartido(partido)">
@@ -93,11 +93,209 @@ else
         <div class="text-center mt-4 mb-5">
 
             <button class="btn btn-primary btn-lg"
-                    @onclick="SimularOctavos">
+                    @onclick="Simular16avos">
                 ⚽ Simular 16avos
             </button>
 
         </div>
+
+        @if (tablasPorGrupo.Any())
+        {
+            <div class="mt-5">
+
+                <h3 class="mb-4">
+                    📊 Tabla de Posiciones
+                </h3>
+
+                <div class="row">
+
+                    @foreach (var grupo in tablasPorGrupo.OrderBy(x => x.Key))
+                    {
+                        <div class="col-lg-4 mb-4">
+
+                            <div class="card shadow-sm border-0">
+
+                                <div class="card-header bg-dark text-white fw-bold">
+                                    🏆 @grupo.Key
+                                </div>
+
+                                <div class="card-body p-0">
+
+                                    <table class="table table-sm table-striped mb-0">
+
+                                        <thead class="table-dark">
+
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Equipo</th>
+                                                <th>Pts</th>
+                                                <th>GF</th>
+                                                <th>GC</th>
+                                                <th>DG</th>
+                                            </tr>
+
+                                        </thead>
+
+                                        <tbody>
+
+                                            @{
+                                                int pos = 1;
+                                            }
+
+                                            @foreach (var equipo in grupo.Value)
+                                            {
+                                                string clase = "";
+
+                                                if (pos <= 2)
+                                                {
+                                                    clase = "table-success";
+                                                }
+                                                else if (mejoresTerceros.Any(x =>
+                                                x.Nombre == equipo.Nombre))
+                                                {
+                                                    clase = "table-warning";
+                                                }
+                                                else
+                                                {
+                                                    clase = "table-danger";
+                                                }
+
+                                                <tr class="@clase">
+
+                                                    <td>@pos</td>
+
+                                                    <td>@equipo.Nombre</td>
+
+                                                    <td>
+                                                        <strong>@equipo.Puntos</strong>
+                                                    </td>
+
+                                                    <td>@equipo.GolesFavor</td>
+
+                                                    <td>@equipo.GolesContra</td>
+
+                                                    <td>@equipo.Diferencia</td>
+
+                                                </tr>
+
+                                                pos++;
+                                            }
+
+                                        </tbody>
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+
+        @if (mejoresTerceros.Any())
+        {
+            <div class="card shadow-sm mb-5 border-0">
+
+                <div class="card-header bg-warning fw-bold">
+                    ⭐ Mejores Terceros
+                </div>
+
+                <div class="card-body p-0">
+
+                    <table class="table table-striped mb-0">
+
+                        <thead class="table-dark">
+
+                            <tr>
+                                <th>#</th>
+                                <th>Equipo</th>
+                                <th>Grupo</th>
+                                <th>Puntos</th>
+                                <th>DG</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @{
+                                int pos = 1;
+                            }
+
+                            @foreach (var equipo in mejoresTerceros)
+                            {
+                                <tr>
+
+                                    <td>@pos</td>
+
+                                    <td>@equipo.Nombre</td>
+
+                                    <td>@equipo.Grupo</td>
+
+                                    <td>@equipo.Puntos</td>
+
+                                    <td>@equipo.Diferencia</td>
+
+                                </tr>
+
+                                pos++;
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+        }
+
+        @if (dieciseisavos.Any())
+        {
+            <div class="mt-5">
+
+                <h3 class="mb-4">
+                    ⚔️ Cruces 16avos
+                </h3>
+
+                <div class="row">
+
+                    @foreach (var partido in dieciseisavos)
+                    {
+                        <div class="col-lg-3 mb-3">
+
+                            <div class="card shadow-sm border-0">
+
+                                <div class="card-body text-center">
+
+                                    <h6 class="fw-bold mb-3">
+                                        @partido.Local
+                                    </h6>
+
+                                    <div class="fw-bold text-primary">
+                                        VS
+                                    </div>
+
+                                    <h6 class="fw-bold mt-3">
+                                        @partido.Visitante
+                                    </h6>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
 
     </div>
 }
@@ -105,6 +303,14 @@ else
 @code {
 
     private List<SimuladorPartidoDto>? partidos;
+
+    private List<EquipoGrupoDto> clasificados = new();
+
+    private List<EquipoGrupoDto> mejoresTerceros = new();
+
+    private Dictionary<string, List<EquipoGrupoDto>> tablasPorGrupo = new();
+
+    private List<(string Local, string Visitante)> dieciseisavos = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,8 +327,104 @@ else
         );
     }
 
-    private void SimularOctavos()
+    private void Simular16avos()
     {
-        Console.WriteLine("Simulando octavos...");
+        clasificados.Clear();
+        mejoresTerceros.Clear();
+        tablasPorGrupo.Clear();
+        dieciseisavos.Clear();
+
+        var terceros = new List<EquipoGrupoDto>();
+
+        var grupos = partidos!
+            .GroupBy(x => x.Grupo);
+
+        foreach (var grupo in grupos)
+        {
+            var equipos = new Dictionary<string, EquipoGrupoDto>();
+
+            foreach (var partido in grupo)
+            {
+                if (!equipos.ContainsKey(partido.Local))
+                {
+                    equipos.Add(partido.Local, new EquipoGrupoDto
+                        {
+                            Nombre = partido.Local,
+                            Grupo = grupo.Key
+                        });
+                }
+
+                if (!equipos.ContainsKey(partido.Visitante))
+                {
+                    equipos.Add(partido.Visitante, new EquipoGrupoDto
+                        {
+                            Nombre = partido.Visitante,
+                            Grupo = grupo.Key
+                        });
+                }
+
+                var local = equipos[partido.Local];
+                var visitante = equipos[partido.Visitante];
+
+                int gl = partido.GolesLocal ?? 0;
+                int gv = partido.GolesVisitante ?? 0;
+
+                local.GolesFavor += gl;
+                local.GolesContra += gv;
+
+                visitante.GolesFavor += gv;
+                visitante.GolesContra += gl;
+
+                if (gl > gv)
+                {
+                    local.Puntos += 3;
+                }
+                else if (gv > gl)
+                {
+                    visitante.Puntos += 3;
+                }
+                else
+                {
+                    local.Puntos += 1;
+                    visitante.Puntos += 1;
+                }
+            }
+
+            var ordenados = equipos.Values
+                .OrderByDescending(x => x.Puntos)
+                .ThenByDescending(x => x.Diferencia)
+                .ThenByDescending(x => x.GolesFavor)
+                .ToList();
+
+            tablasPorGrupo[grupo.Key] = ordenados;
+
+            clasificados.Add(ordenados[0]);
+            clasificados.Add(ordenados[1]);
+
+            if (ordenados.Count > 2)
+            {
+                terceros.Add(ordenados[2]);
+            }
+        }
+
+        mejoresTerceros = terceros
+            .OrderByDescending(x => x.Puntos)
+            .ThenByDescending(x => x.Diferencia)
+            .ThenByDescending(x => x.GolesFavor)
+            .Take(8)
+            .ToList();
+
+        clasificados.AddRange(mejoresTerceros);
+
+        for (int i = 0; i < clasificados.Count; i += 2)
+        {
+            if (i + 1 < clasificados.Count)
+            {
+                dieciseisavos.Add((
+                    clasificados[i].Nombre,
+                    clasificados[i + 1].Nombre
+                ));
+            }
+        }
     }
 }
