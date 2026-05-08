@@ -1,0 +1,128 @@
+﻿@page "/simulador"
+@using WorldCup.App.Shared.DTOs
+@inject HttpClient Http
+@rendermode InteractiveServer
+
+<h2 class="mb-4">🌎 Simulador Mundial</h2>
+
+@if (partidos == null)
+{
+    <p>Cargando partidos...</p>
+}
+else
+{
+    var grupos = partidos
+        .GroupBy(x => x.Grupo)
+        .OrderBy(x => x.Key)
+        .ToList();
+
+    <div class="container-fluid">
+
+        @for (int i = 0; i < grupos.Count; i += 2)
+        {
+            <div class="row mb-4">
+
+                @foreach (var grupo in grupos.Skip(i).Take(2))
+                {
+                    <div class="col-lg-6">
+
+                        <div class="card shadow-sm mb-2">
+
+                            <div class="card-header bg-dark text-white fw-bold">
+                                🏆 @grupo.Key
+                            </div>
+
+                            <div class="card-body">
+
+                                @foreach (var partido in grupo)
+                                {
+                                    <div class="border rounded p-2 mb-2 bg-light">
+
+                                        <div class="row align-items-center text-center small">
+
+                                            <div class="col-4 fw-bold">
+                                                @partido.Local
+                                            </div>
+
+                                            <div class="col-2">
+                                                <input type="number"
+                                                       min="0"
+                                                       class="form-control form-control-sm text-center"
+                                                       @bind="partido.GolesLocal" />
+                                            </div>
+
+                                            <div class="col-1 fw-bold">
+                                                VS
+                                            </div>
+
+                                            <div class="col-2">
+                                                <input type="number"
+                                                       min="0"
+                                                       class="form-control form-control-sm text-center"
+                                                       @bind="partido.GolesVisitante" />
+                                            </div>
+
+                                            <div class="col-3 fw-bold">
+                                                @partido.Visitante
+                                            </div>
+
+                                        </div>
+
+                                        <div class="text-end mt-2">
+
+                                            <button class="btn btn-success btn-sm py-0 px-2"
+                                                    @onclick="() => GuardarPartido(partido)">
+                                                💾 Guardar
+                                            </button>
+
+                                        </div>
+
+                                    </div>
+                                }
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+        <div class="text-center mt-4 mb-5">
+
+            <button class="btn btn-primary btn-lg"
+                    @onclick="SimularOctavos">
+                ⚽ Simular 16avos
+            </button>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    private List<SimuladorPartidoDto>? partidos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        partidos = await Http.GetFromJsonAsync<List<SimuladorPartidoDto>>(
+            "api/Partidos/simulador"
+        );
+    }
+
+    private async Task GuardarPartido(SimuladorPartidoDto partido)
+    {
+        await Http.PutAsJsonAsync(
+            $"api/Partidos/simulador/{partido.Id}",
+            partido
+        );
+    }
+
+    private void SimularOctavos()
+    {
+        Console.WriteLine("Simulando octavos...");
+    }
+}

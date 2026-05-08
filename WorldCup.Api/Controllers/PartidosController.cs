@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.App.Shared.DTOs;
+
 
 namespace WorldCup.Api.Controllers
 {
@@ -1458,6 +1460,50 @@ namespace WorldCup.Api.Controllers
             }
 
             await _context.SaveChangesAsync();
+        }
+
+        [HttpGet("simulador")]
+        public async Task<ActionResult<IEnumerable<SimuladorPartidoDto>>> GetSimulador()
+        {
+            var partidos = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Select(p => new SimuladorPartidoDto
+                {
+                    Id = p.Id,
+
+                    // ✅ AQUÍ ESTÁ EL ARREGLO REAL
+                    Grupo = "Grupo " + p.Local.Grupo,
+
+                    Local = p.Local.Nombre,
+                    Visitante = p.Visitante.Nombre,
+
+                    GolesLocal = p.GolesLocal,
+                    GolesVisitante = p.GolesVisitante
+                })
+                .ToListAsync();
+
+            return Ok(partidos);
+        
+        }
+
+        [HttpPut("simulador/{id}")]
+        public async Task<IActionResult> ActualizarSimulacion(
+            int id,
+            SimuladorPartidoDto dto
+        )
+        {
+            var partido = await _context.Partidos.FindAsync(id);
+
+            if (partido == null)
+                return NotFound();
+
+            partido.GolesLocal = dto.GolesLocal;
+            partido.GolesVisitante = dto.GolesVisitante;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
 
