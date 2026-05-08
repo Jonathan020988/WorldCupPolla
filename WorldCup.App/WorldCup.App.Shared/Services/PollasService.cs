@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using WorldCup.App.Shared.DTOs;
 
 namespace WorldCup.App.Shared.Services
@@ -126,7 +120,7 @@ namespace WorldCup.App.Shared.Services
                 null);
 
             response.EnsureSuccessStatusCode();
-            
+
         }
 
         public async Task RechazarSolicitudAsync(int solicitudId)
@@ -136,7 +130,7 @@ namespace WorldCup.App.Shared.Services
                 null);
 
             response.EnsureSuccessStatusCode();
-            
+
         }
 
         public async Task EliminarSolicitudAsync(int solicitudId)
@@ -145,10 +139,17 @@ namespace WorldCup.App.Shared.Services
                 $"api/Polla/solicitudes/{solicitudId}");
 
             response.EnsureSuccessStatusCode();
-            
+
         }
 
-               
+        public async Task<List<DetalleRankingDto>> GetRankingDetalleAsync(int pollaId)
+        {
+            return await _http.GetFromJsonAsync<List<DetalleRankingDto>>(
+                $"api/Polla/{pollaId}/ranking-detalle"
+            ) ?? new();
+        }
+
+
 
     }
 }

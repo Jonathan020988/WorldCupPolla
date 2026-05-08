@@ -210,3 +210,16 @@ Esta observación queda visible en la tabla de miembros.
 ✔ Sin contradicciones
 ✔ Sistema justo y profesional
 ✔ Listo para diseño de base de datos y backend
+
+La lógica quedaría así:
+
+Columna	Significado
+Marcador	puntos base del marcador
+Exacto	bonus por acertar exacto
+Ganador	acertó ganador/empate
+Diferencia	acertó diferencia de goles
+Goles	acertó goles de un equipo
+Clasificación	KO/clasificados
+Puntos extras	bonus especiales
+Podio	campeón/tercero
+Total	suma final

@@ -1,11 +1,12 @@
 ﻿@page "/polla/{PollaId:int}"
 @rendermode InteractiveServer
-
+@using System.Net.Http.Json
 @using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
 @inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 <div class="d-flex align-items-center gap-3 mb-4">
     <button class="btn btn-outline-primary btn-lg"
@@ -87,8 +88,178 @@ else
             <div class="card shadow-sm">
                 <div class="card-body">
                     <h5 class="mb-3">📊 Ranking</h5>
+                    <hr />
 
                     @if (!ranking.Any())
+                    {
+                        <div class="alert alert-info">
+                            Aún no hay predicciones en esta polla.
+                        </div>
+                    }
+                    else
+                    {
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Usuario</th>
+                                    <th class="text-end">Puntos</th>
+                                    <th style="width:140px;"></th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var r in ranking)
+                                {
+                                    <tr>
+                                        <td>
+                                            @(ranking.IndexOf(r) + 1)
+                                        </td>
+
+                                        <td class="fw-bold">
+                                            @r.Usuario
+                                        </td>
+
+                                        <td class="text-end fw-bold">
+                                            @r.Puntos
+                                        </td>
+
+                                        <td class="text-end">
+
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    @onclick="() => ToggleDetalleUsuario(r.Usuario)">
+
+                                                @(usuarioDetalleAbierto == r.Usuario
+                                                    ? "Ocultar detalle"
+                                                    : "Ver detalle")
+
+                                            </button>
+
+                                        </td>
+                                    </tr>
+
+                                    @if (usuarioDetalleAbierto == r.Usuario)
+                                    {
+                                        <tr>
+                                            <td colspan="4">
+
+                                                <div class="table-responsive mt-2 mb-3">
+
+                                                    <table class="table table-bordered table-hover table-sm align-middle">
+
+                                                        <thead class="table-dark">
+                                                            <tr>
+                                                                <th>Partido</th>
+                                                                <th>Pronóstico</th>
+                                                                <th>Resultado</th>
+                                                                <th class="text-center">Marcador</th>
+                                                                <th class="text-center">Clasificación</th>
+                                                                <th class="text-center">Podio</th>
+                                                                <th class="text-center">Total</th>
+                                                            </tr>
+                                                        </thead>
+
+                                                        <tbody>
+
+                                                            @foreach (var d in rankingDetalle
+                                                           .Where(x => x.Usuario == r.Usuario))
+                                                            {
+                                                                <tr>
+
+                                                                    <td>
+                                                                        <strong>@d.Local</strong>
+                                                                        vs
+                                                                        <strong>@d.Visitante</strong>
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <span class="badge bg-primary">
+                                                                            @d.PronosticoLocal - @d.PronosticoVisitante
+                                                                        </span>
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <span class="badge bg-dark">
+                                                                            @d.ResultadoLocal - @d.ResultadoVisitante
+                                                                        </span>
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosMarcador > 0)
+                                                                        {
+                                                                            <span class="badge bg-success">
+                                                                                +@d.PuntosMarcador
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">
+                                                                                0
+                                                                            </span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosClasificacion > 0)
+                                                                        {
+                                                                            <span class="badge bg-info text-dark">
+                                                                                +@d.PuntosClasificacion
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">
+                                                                                0
+                                                                            </span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosPodio > 0)
+                                                                        {
+                                                                            <span class="badge bg-warning text-dark">
+                                                                                +@d.PuntosPodio
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">
+                                                                                0
+                                                                            </span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center fw-bold">
+                                                                        @d.Total
+                                                                    </td>
+
+                                                                </tr>
+                                                            }
+
+                                                        </tbody>
+
+                                                    </table>
+
+                                                </div>
+
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+
+                            </tbody>
+
+                        </table>
+                    }
+
+                 @*    @if (!ranking.Any())
                     {
                         <div class="alert alert-info">
                             Aún no hay predicciones en esta polla.
@@ -115,7 +286,7 @@ else
                                 }
                             </tbody>
                         </table>
-                    }
+                    } *@
 
                     <button class="btn btn-primary btn-sm"
                             @onclick="IrAPredicciones">
@@ -183,6 +354,19 @@ else
 
     private PollaDto? polla;
     private List<RankingPollaDto> ranking = new();
+    private List<DetalleRankingDto> rankingDetalle = new();
+    private string? usuarioDetalleAbierto;
+    private void ToggleDetalleUsuario(string usuario)
+    {
+        if (usuarioDetalleAbierto == usuario)
+        {
+            usuarioDetalleAbierto = null;
+        }
+        else
+        {
+            usuarioDetalleAbierto = usuario;
+        }
+    }
     private List<ParticipanteDto> participantes = new();
 
     // private List<string> participantes = new();
@@ -197,6 +381,10 @@ else
     {
         polla = await PollasService.GetPollaAsync(PollaId);
         ranking = await PollasService.GetRankingAsync(PollaId);
+        rankingDetalle =
+            await Http.GetFromJsonAsync<List<DetalleRankingDto>>(
+                $"api/Polla/{PollaId}/ranking-detalle"
+            ) ?? new();
         participantes = await PollasService.GetParticipantesAsync(PollaId);
     }
 

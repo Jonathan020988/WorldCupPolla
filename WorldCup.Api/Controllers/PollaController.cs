@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.App.Shared.DTOs;
 
 
 namespace WorldCup.Api.Controllers
@@ -183,6 +184,41 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             return Ok(ranking);
+        }
+
+        [HttpGet("{pollaId:int}/ranking-detalle")]
+        public async Task<IActionResult> GetRankingDetalle(int pollaId)
+        {
+            var detalle = await _context.Predicciones
+                .Include(p => p.Usuario)
+                .Include(p => p.Partido)
+                    .ThenInclude(x => x.Local)
+                .Include(p => p.Partido)
+                    .ThenInclude(x => x.Visitante)
+                .Where(p => p.PollaId == pollaId)
+                .Select(p => new DetalleRankingDto
+                {
+                    Usuario = p.Usuario.Nombre,
+
+                    Local = p.Partido.Local.Nombre,
+                    Visitante = p.Partido.Visitante.Nombre,
+
+                    PronosticoLocal = p.GolesLocal,
+                    PronosticoVisitante = p.GolesVisitante,
+
+                    ResultadoLocal = p.Partido.GolesLocal,
+                    ResultadoVisitante = p.Partido.GolesVisitante,
+
+                    PuntosMarcador = p.PuntosMarcador,
+                    PuntosClasificacion = p.PuntosClasificacion,
+                    PuntosPodio = p.PuntosPodio,
+
+                    Total = p.PuntosTotales
+                })
+                .OrderByDescending(x => x.Total)
+                .ToListAsync();
+
+            return Ok(detalle);
         }
 
         [HttpGet("usuario/{usuarioId}")]
