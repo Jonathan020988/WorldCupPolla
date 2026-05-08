@@ -153,8 +153,13 @@ else
                                                                 <th>Partido</th>
                                                                 <th>Pronóstico</th>
                                                                 <th>Resultado</th>
-                                                                <th class="text-center">Marcador</th>
+
+                                                                <th class="text-center">Exacto</th>
+                                                                <th class="text-center">Ganador</th>
+                                                                <th class="text-center">Diferencia</th>
+                                                                <th class="text-center">Goles</th>
                                                                 <th class="text-center">Clasificación</th>
+                                                                <th class="text-center">Extras</th>
                                                                 <th class="text-center">Podio</th>
                                                                 <th class="text-center">Total</th>
                                                             </tr>
@@ -187,17 +192,60 @@ else
 
                                                                     <td class="text-center">
 
-                                                                        @if (d.PuntosMarcador > 0)
+                                                                        @if (d.PuntosExacto > 0)
                                                                         {
                                                                             <span class="badge bg-success">
-                                                                                +@d.PuntosMarcador
+                                                                                +@d.PuntosExacto
                                                                             </span>
                                                                         }
                                                                         else
                                                                         {
-                                                                            <span class="text-muted">
-                                                                                0
+                                                                            <span class="text-muted">0</span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosGanador > 0)
+                                                                        {
+                                                                            <span class="badge bg-info text-dark">
+                                                                                +@d.PuntosGanador
                                                                             </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">0</span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosDiferencia > 0)
+                                                                        {
+                                                                            <span class="badge bg-secondary">
+                                                                                +@d.PuntosDiferencia
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">0</span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosGoles > 0)
+                                                                        {
+                                                                            <span class="badge bg-primary">
+                                                                                +@d.PuntosGoles
+                                                                            </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">0</span>
                                                                         }
 
                                                                     </td>
@@ -206,15 +254,28 @@ else
 
                                                                         @if (d.PuntosClasificacion > 0)
                                                                         {
-                                                                            <span class="badge bg-info text-dark">
+                                                                            <span class="badge bg-warning text-dark">
                                                                                 +@d.PuntosClasificacion
                                                                             </span>
                                                                         }
                                                                         else
                                                                         {
-                                                                            <span class="text-muted">
-                                                                                0
+                                                                            <span class="text-muted">0</span>
+                                                                        }
+
+                                                                    </td>
+
+                                                                    <td class="text-center">
+
+                                                                        @if (d.PuntosExtras > 0)
+                                                                        {
+                                                                            <span class="badge bg-dark">
+                                                                                +@d.PuntosExtras
                                                                             </span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span class="text-muted">0</span>
                                                                         }
 
                                                                     </td>
@@ -223,15 +284,13 @@ else
 
                                                                         @if (d.PuntosPodio > 0)
                                                                         {
-                                                                            <span class="badge bg-warning text-dark">
+                                                                            <span class="badge bg-danger">
                                                                                 +@d.PuntosPodio
                                                                             </span>
                                                                         }
                                                                         else
                                                                         {
-                                                                            <span class="text-muted">
-                                                                                0
-                                                                            </span>
+                                                                            <span class="text-muted">0</span>
                                                                         }
 
                                                                     </td>
@@ -259,34 +318,7 @@ else
                         </table>
                     }
 
-                 @*    @if (!ranking.Any())
-                    {
-                        <div class="alert alert-info">
-                            Aún no hay predicciones en esta polla.
-                        </div>
-                    }
-                    else
-                    {
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Usuario</th>
-                                    <th class="text-end">Puntos</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var r in ranking)
-                                {
-                                    <tr>
-                                        <td>@(ranking.IndexOf(r) + 1)</td>
-                                        <td>@r.Usuario</td>
-                                        <td class="text-end fw-bold">@r.Puntos</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    } *@
+                 
 
                     <button class="btn btn-primary btn-sm"
                             @onclick="IrAPredicciones">

@@ -7,17 +7,21 @@
         public string Local { get; set; } = "";
         public string Visitante { get; set; } = "";
 
-        // Pronóstico usuario
         public int? PronosticoLocal { get; set; }
         public int? PronosticoVisitante { get; set; }
 
-        // Resultado real
         public int? ResultadoLocal { get; set; }
         public int? ResultadoVisitante { get; set; }
 
-        // Puntos
-        public int PuntosMarcador { get; set; }
+        // NUEVO DETALLE DE PUNTOS
+        public int PuntosExacto { get; set; }
+        public int PuntosGanador { get; set; }
+        public int PuntosDiferencia { get; set; }
+        public int PuntosGoles { get; set; }
+
+        // EXISTENTES
         public int PuntosClasificacion { get; set; }
+        public int PuntosExtras { get; set; }
         public int PuntosPodio { get; set; }
 
         public int Total { get; set; }
