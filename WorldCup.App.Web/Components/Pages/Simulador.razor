@@ -304,9 +304,33 @@ else
 
                                         <div class="col-5">
 
-                                            <div class="fw-bold mb-2">
-                                                @partido.Visitante
-                                            </div>
+                                            @if (string.IsNullOrWhiteSpace(partido.Visitante))
+                                            {
+                                                <select class="form-select form-select-sm mb-2"
+                                                        @bind="partido.Visitante">
+
+                                                    <option value="">
+                                                        Mejor tercero
+                                                    </option>
+
+                                                    @foreach (var tercero in mejoresTerceros
+                                                   .Where(t => !dieciseisavos
+                                                   .Any(d => d != partido &&
+                                                   d.Visitante == t.Nombre)))
+                                                    {
+                                                        <option value="@tercero.Nombre">
+                                                            @tercero.Nombre (@tercero.Grupo)
+                                                        </option>
+                                                    }
+
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                <div class="fw-bold mb-2">
+                                                    @partido.Visitante
+                                                </div>
+                                            }
 
                                             <input type="number"
                                                    min="0"
@@ -1015,6 +1039,8 @@ else
         );
     }
 
+
+
     private void Simular16avos()
     {
         clasificados.Clear();
@@ -1025,7 +1051,8 @@ else
         var terceros = new List<EquipoGrupoDto>();
 
         var grupos = partidos!
-            .GroupBy(x => x.Grupo);
+            .GroupBy(x => x.Grupo)
+            .OrderBy(x => x.Key);
 
         foreach (var grupo in grupos)
         {
@@ -1084,15 +1111,12 @@ else
                 .ThenByDescending(x => x.GolesFavor)
                 .ToList();
 
-            tablasPorGrupo[grupo.Key] = ordenados;
+            tablasPorGrupo[grupo.Key.Trim().Replace("Grupo ", "")] = ordenados;
 
             clasificados.Add(ordenados[0]);
             clasificados.Add(ordenados[1]);
 
-            if (ordenados.Count > 2)
-            {
-                terceros.Add(ordenados[2]);
-            }
+            terceros.Add(ordenados[2]);
         }
 
         mejoresTerceros = terceros
@@ -1102,19 +1126,127 @@ else
             .Take(8)
             .ToList();
 
-        clasificados.AddRange(mejoresTerceros);
+        EquipoGrupoDto Primero(string grupo) =>
+       
+        tablasPorGrupo[grupo][0];
 
-        for (int i = 0; i < clasificados.Count; i += 2)
+        EquipoGrupoDto Segundo(string grupo) =>
+            tablasPorGrupo[grupo][1];
+
+        dieciseisavos = new List<PartidoEliminacionDto>()
+    {
+        // 73
+        new()
         {
-            if (i + 1 < clasificados.Count)
-            {
-                dieciseisavos.Add(new PartidoEliminacionDto
-                    {
-                        Local = clasificados[i].Nombre,
-                        Visitante = clasificados[i + 1].Nombre
-                    });
-            }
+            Local = Segundo("A").Nombre,
+            Visitante = Segundo("B").Nombre
+        },
+
+        // 74
+        new()
+        {
+            Local = Primero("E").Nombre,
+            Visitante = ""
+        },
+
+        // 75
+        new()
+        {
+            Local = Primero("F").Nombre,
+            Visitante = Segundo("C").Nombre
+        },
+
+        // 76
+        new()
+        {
+            Local = Primero("C").Nombre,
+            Visitante = Segundo("F").Nombre
+        },
+
+        // 77
+        new()
+        {
+            Local = Primero("I").Nombre,
+            Visitante = ""
+        },
+
+        // 78
+        new()
+        {
+            Local = Segundo("E").Nombre,
+            Visitante = Segundo("I").Nombre
+        },
+
+        // 79
+        new()
+        {
+            Local = Primero("A").Nombre,
+            Visitante = ""
+        },
+
+        // 80
+        new()
+        {
+            Local = Primero("L").Nombre,
+            Visitante = ""
+        },
+
+        // 81
+        new()
+        {
+            Local = Primero("D").Nombre,
+            Visitante = ""
+        },
+
+        // 82
+        new()
+        {
+            Local = Primero("G").Nombre,
+            Visitante = ""
+        },
+
+        // 83
+        new()
+        {
+            Local = Segundo("K").Nombre,
+            Visitante = Segundo("L").Nombre
+        },
+
+        // 84
+        new()
+        {
+            Local = Primero("H").Nombre,
+            Visitante = Segundo("J").Nombre
+        },
+
+        // 85
+        new()
+        {
+            Local = Primero("B").Nombre,
+            Visitante = ""
+        },
+
+        // 86
+        new()
+        {
+            Local = Primero("J").Nombre,
+            Visitante = Segundo("H").Nombre
+        },
+
+        // 87
+        new()
+        {
+            Local = Primero("K").Nombre,
+            Visitante = ""
+        },
+
+        // 88
+        new()
+        {
+            Local = Segundo("D").Nombre,
+            Visitante = Segundo("G").Nombre
         }
+    };
     }
 
     private void GenerarSemifinales()
