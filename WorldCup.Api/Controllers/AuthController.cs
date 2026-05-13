@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;   // ✅ DTOs DEL API
+using WorldCup.Api.Services;
 
 
 namespace WorldCup.Api.Controllers
@@ -11,10 +12,14 @@ namespace WorldCup.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly AdminAuthorizationService _adminAuthorization;
 
-        public AuthController(AppDbContext context)
+        public AuthController(
+            AppDbContext context,
+            AdminAuthorizationService adminAuthorization)
         {
             _context = context;
+            _adminAuthorization = adminAuthorization;
         }
 
         // POST: api/auth/login
@@ -37,7 +42,8 @@ namespace WorldCup.Api.Controllers
             {
                 Id = usuario.Id,
                 Nombre = usuario.Nombre,
-                Email = usuario.Email
+                Email = usuario.Email,
+                EsAdmin = await _adminAuthorization.EsAdminAsync(usuario.Id)
             });
         }
     }

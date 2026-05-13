@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 using WorldCup.App.Shared.DTOs;
 
 
@@ -35,7 +36,8 @@ namespace WorldCup.Api.Controllers
                     Visitante = p.Visitante.Nombre,
                     p.GolesLocal,
                     p.GolesVisitante,
-                    p.Finalizado
+                    p.Finalizado,
+                    p.Estado
                 })
                 .ToListAsync();
 
@@ -59,7 +61,8 @@ namespace WorldCup.Api.Controllers
                 VisitanteId = p.VisitanteId,
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
-                Finalizado = p.Finalizado
+                Finalizado = p.Finalizado,
+                Estado = p.Estado
             };
         }
 
@@ -113,6 +116,7 @@ namespace WorldCup.Api.Controllers
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
             partido.Finalizado = true;
+            partido.Estado = "Finalizado";
 
             await _context.SaveChangesAsync();
 
@@ -144,6 +148,63 @@ namespace WorldCup.Api.Controllers
             return Ok(new
             {
                 partido.Id,
+                partido.GolesLocal,
+                partido.GolesVisitante,
+                partido.Finalizado
+            });
+        }
+
+
+        [HttpPut("{id}/admin-resultado")]
+        public async Task<IActionResult> ActualizarResultadoAdmin(
+            int id,
+            AdminActualizarPartidoDTO dto)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(dto.AdminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede modificar resultados reales");
+            }
+
+            var estado = NormalizarEstadoPartido(dto.Estado);
+            if (estado == null)
+            {
+                return BadRequest("Estado inválido. Usa Pendiente, EnJuego, Postergado o Finalizado.");
+            }
+
+            var partido = await _context.Partidos
+                .Include(p => p.Local)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (partido == null)
+            {
+                return NotFound("Partido no encontrado");
+            }
+
+            if (estado == "Finalizado" &&
+                (!dto.GolesLocal.HasValue || !dto.GolesVisitante.HasValue))
+            {
+                return BadRequest("Para finalizar el partido debes ingresar ambos marcadores.");
+            }
+
+            partido.Estado = estado;
+            partido.Finalizado = estado == "Finalizado";
+            partido.GolesLocal = dto.GolesLocal;
+            partido.GolesVisitante = dto.GolesVisitante;
+
+            await RecalcularPuntosPartidoAsync(partido);
+
+            if (partido.Finalizado && partido.Fase == "Grupos")
+            {
+                await CalcularPuntosClasificacionGrupo(partido.Local.Grupo!);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                partido.Id,
+                partido.Estado,
                 partido.GolesLocal,
                 partido.GolesVisitante,
                 partido.Finalizado
@@ -565,10 +626,14 @@ namespace WorldCup.Api.Controllers
         }
 
         private readonly AppDbContext _context;
+        private readonly AdminAuthorizationService? _adminAuthorization;
 
-        public PartidosController(AppDbContext context)
+        public PartidosController(
+            AppDbContext context,
+            AdminAuthorizationService? adminAuthorization = null)
         {
             _context = context;
+            _adminAuthorization = adminAuthorization;
         }
 
         //edpoint      
@@ -1048,6 +1113,53 @@ namespace WorldCup.Api.Controllers
             return puntos;
         }
 
+        private string? NormalizarEstadoPartido(string estado)
+        {
+            var limpio = estado.Trim().ToLowerInvariant();
+
+            return limpio switch
+            {
+                "pendiente" => "Pendiente",
+                "enjuego" => "EnJuego",
+                "en juego" => "EnJuego",
+                "postergado" => "Postergado",
+                "finalizado" => "Finalizado",
+                _ => null
+            };
+        }
+
+        private async Task RecalcularPuntosPartidoAsync(Partido partido)
+        {
+            var predicciones = await _context.Predicciones
+                .Where(p => p.PartidoId == partido.Id)
+                .ToListAsync();
+
+            if (!partido.Finalizado ||
+                !partido.GolesLocal.HasValue ||
+                !partido.GolesVisitante.HasValue)
+            {
+                foreach (var pred in predicciones)
+                {
+                    pred.PuntosMarcador = 0;
+                    pred.PuntosTotales =
+                        pred.PuntosClasificacion +
+                        pred.PuntosPodio;
+                    pred.Bloqueada = false;
+                }
+
+                return;
+            }
+
+            if (partido.Fase == "Grupos")
+            {
+                await CalcularPuntosGrupoParaPartido(partido);
+            }
+            else
+            {
+                CalcularPuntosEliminatoria(partido);
+            }
+        }
+
         private async Task CalcularPuntosGrupoParaPartido(Partido partido)
         {
             var predicciones = await _context.Predicciones
@@ -1067,7 +1179,11 @@ namespace WorldCup.Api.Controllers
                 );
 
                 pred.PuntosMarcador = puntos;
-                pred.PuntosTotales = puntos;
+                pred.PuntosTotales =
+                    pred.PuntosMarcador +
+                    pred.PuntosClasificacion +
+                    pred.PuntosPodio;
+                pred.Bloqueada = true;
             }
 
             await _context.SaveChangesAsync();
@@ -1136,7 +1252,10 @@ namespace WorldCup.Api.Controllers
 
                 pred.PuntosMarcador = puntosMarcador;
                 pred.PuntosClasificacion = puntosClasificacion;
-                pred.PuntosTotales = puntosMarcador + puntosClasificacion;
+                pred.PuntosTotales =
+                    pred.PuntosMarcador +
+                    pred.PuntosClasificacion +
+                    pred.PuntosPodio;
                 pred.Bloqueada = true;
             }
         }

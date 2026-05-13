@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using WorldCup.Api.Data;
+using WorldCup.Api.Services;
 using WorldCup.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 // DbContext (Postgres)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<AdminAuthorizationService>();
 
 // JWT
 var jwt = builder.Configuration.GetSection("Jwt");

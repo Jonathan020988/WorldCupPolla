@@ -504,9 +504,6 @@ namespace WorldCup.Api.Controllers
             existente.SegundoId = dto.SegundoId;
             existente.TerceroId = dto.TerceroId;
 
-
-            _context.Entry(existente).State = EntityState.Modified;
-
             await _context.SaveChangesAsync();
 
             return Ok("✅ Clasificación de grupo guardada correctamente");

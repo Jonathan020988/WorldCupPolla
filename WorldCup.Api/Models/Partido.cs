@@ -24,6 +24,8 @@
         // ¿El partido ya terminó y tiene marcador oficial?
         public bool Finalizado { get; set; } = false;
 
+        public string Estado { get; set; } = "Pendiente";
+
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
 
