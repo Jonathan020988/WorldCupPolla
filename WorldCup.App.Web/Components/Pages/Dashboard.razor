@@ -136,6 +136,11 @@ else
         if (polla != null)
             pollas.Remove(polla);
 
+        if (Sesion.PollaActivaId == pollaId)
+        {
+            await Sesion.LimpiarPollaActivaAsync();
+        }
+
         // 3️⃣ Blazor redibuja SOLO
     }
 }

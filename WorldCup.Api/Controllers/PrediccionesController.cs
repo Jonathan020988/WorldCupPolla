@@ -35,7 +35,7 @@ namespace WorldCup.Api.Controllers
         public async Task<IActionResult> GuardarMultiples(GuardarPrediccionGrupoDTO dto)
         {
 
-            int usuarioId = UserIdActual(); // Simulado por ahora
+            int usuarioId = UserIdActual(dto.UsuarioId);
 
             foreach (var item in dto.Predicciones)
             {
@@ -118,9 +118,23 @@ namespace WorldCup.Api.Controllers
         // GET: api/Predicciones
         // =========================================================
         [HttpGet]
-        public async Task<IActionResult> GetPredicciones()
+        public async Task<IActionResult> GetPredicciones(
+            [FromQuery] int? pollaId,
+            [FromQuery] int? usuarioId)
         {
-            var predicciones = await _context.Predicciones
+            var usuario = UserIdActual(usuarioId);
+
+            var query = _context.Predicciones
+                .AsQueryable();
+
+            if (pollaId.HasValue)
+            {
+                query = query.Where(p => p.PollaId == pollaId.Value);
+            }
+
+            query = query.Where(p => p.UsuarioId == usuario);
+
+            var predicciones = await query
                 .Select(p => new
                 {
                     p.Id,
@@ -143,9 +157,9 @@ namespace WorldCup.Api.Controllers
 
         // Simulado por ahora (luego JWT)
         //private int UserIdActual() => 1;
-        private int UserIdActual()
+        private int UserIdActual(int? usuarioId = null)
         {
-            return 4;
+            return usuarioId.GetValueOrDefault(4);
         }
 
         private int CalcularPuntosGrupo(
@@ -372,8 +386,6 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             string grupo)
         {
-            int usuarioId = UserIdActual();
-
             // 🔵 Tabla real
             var tablaRealResult = await new PartidosController(_context)
                 .GetTablaPosiciones(grupo) as OkObjectResult;
@@ -425,7 +437,7 @@ namespace WorldCup.Api.Controllers
                 return Conflict("⛔ Las clasificaciones están cerradas (faltan menos de 20 minutos para el inicio del mundial)");
             }
 
-            int usuarioId = UserIdActual();
+            int usuarioId = UserIdActual(dto.UsuarioId);
 
             // 🔒 BLOQUEO: si ya empezó el primer partido del grupo
             var grupoNorm = dto.Grupo.ToUpper();
@@ -460,7 +472,10 @@ namespace WorldCup.Api.Controllers
             // 2️⃣ Validar equipos
             if (!equiposGrupo.Contains(dto.PrimeroId) ||
                 !equiposGrupo.Contains(dto.SegundoId) ||
-                dto.PrimeroId == dto.SegundoId)
+                !equiposGrupo.Contains(dto.TerceroId) ||
+                dto.PrimeroId == dto.SegundoId ||
+                dto.PrimeroId == dto.TerceroId ||
+                dto.SegundoId == dto.TerceroId)
                 return BadRequest("Clasificación inválida");
 
             // 3️⃣ Ver si ya existe
@@ -498,12 +513,21 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("clasificacion")]
-        public async Task<IActionResult> ObtenerClasificacion()
+        public async Task<IActionResult> ObtenerClasificacion(
+            [FromQuery] int? pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual();
+            int usuario = UserIdActual(usuarioId);
 
-            var clasificacion = await _context.PrediccionesGrupo
-                .Where(p => p.UsuarioId == usuarioId)
+            var query = _context.PrediccionesGrupo
+                .Where(p => p.UsuarioId == usuario);
+
+            if (pollaId.HasValue)
+            {
+                query = query.Where(p => p.PollaId == pollaId.Value);
+            }
+
+            var clasificacion = await query
                 .Select(p => new
                 {
                     grupo = p.Grupo,
@@ -926,14 +950,17 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("guardar-terceros")]
-        public async Task<IActionResult> GuardarTerceros([FromBody] List<string> grupos)
+        public async Task<IActionResult> GuardarTerceros(
+            [FromBody] List<string> grupos,
+            [FromQuery] int? pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual();
-            int pollaId = 2;
+            int usuario = UserIdActual(usuarioId);
+            int polla = pollaId.GetValueOrDefault(2);
 
             // 🔴 eliminar anteriores
             var existentes = await _context.PrediccionesTerceros
-                .Where(x => x.PollaId == pollaId && x.UsuarioId == usuarioId)
+                .Where(x => x.PollaId == polla && x.UsuarioId == usuario)
                 .ToListAsync();
 
             _context.PrediccionesTerceros.RemoveRange(existentes);
@@ -943,8 +970,8 @@ namespace WorldCup.Api.Controllers
             {
                 _context.PrediccionesTerceros.Add(new PrediccionTercero
                 {
-                    PollaId = pollaId,
-                    UsuarioId = usuarioId,
+                    PollaId = polla,
+                    UsuarioId = usuario,
                     Grupo = grupo
                 });
             }
@@ -955,12 +982,14 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("terceros")]
-        public async Task<IActionResult> ObtenerTerceros(int pollaId)
+        public async Task<IActionResult> ObtenerTerceros(
+            int pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual();
+            int usuario = UserIdActual(usuarioId);
 
             var grupos = await _context.PrediccionesTerceros
-                .Where(x => x.PollaId == pollaId && x.UsuarioId == usuarioId)
+                .Where(x => x.PollaId == pollaId && x.UsuarioId == usuario)
                 .Select(x => x.Grupo)
                 .ToListAsync();
 

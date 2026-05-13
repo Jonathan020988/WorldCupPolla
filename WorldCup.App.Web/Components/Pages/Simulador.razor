@@ -1,4 +1,5 @@
 ﻿@page "/simulador"
+@page "/simulador/{PollaId:int}"
 @using WorldCup.App.Shared.DTOs
 @inject HttpClient Http
 @rendermode InteractiveServer
@@ -945,6 +946,9 @@ else
 }
 
 @code {
+
+    [Parameter]
+    public int? PollaId { get; set; }
 
     private List<SimuladorPartidoDto>? partidos;
 

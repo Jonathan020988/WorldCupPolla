@@ -3,6 +3,7 @@
     public class GuardarPrediccionGrupoDTO
     {
         public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
         public string Grupo { get; set; } = null!;
 
         public int PrimeroId { get; set; }

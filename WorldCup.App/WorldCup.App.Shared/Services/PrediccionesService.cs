@@ -30,10 +30,12 @@ public class PrediccionesService
         }
     }
 
-    public async Task<List<PrediccionExistenteDto>> GetPrediccionesAsync()
+    public async Task<List<PrediccionExistenteDto>> GetPrediccionesAsync(
+        int pollaId,
+        int usuarioId)
     {
         var response = await _http.GetAsync(
-            "api/Predicciones?pollaId=74"
+            $"api/Predicciones?pollaId={pollaId}&usuarioId={usuarioId}"
         );
 
         if (!response.IsSuccessStatusCode)

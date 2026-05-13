@@ -420,8 +420,35 @@ else
         participantes = await PollasService.GetParticipantesAsync(PollaId);
     }
 
-    private void IrAPredicciones()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+
+        if (!Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo($"/login?returnUrl=/polla/{PollaId}", true);
+            return;
+        }
+
+        if (polla != null)
+        {
+            await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+            StateHasChanged();
+        }
+    }
+
+    private async Task IrAPredicciones()
+    {
+        if (polla != null)
+        {
+            await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+        }
+
         Navigation.NavigateTo("/predicciones");
     }
 

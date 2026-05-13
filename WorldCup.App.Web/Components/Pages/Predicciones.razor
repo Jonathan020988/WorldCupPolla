@@ -6,6 +6,7 @@
 @using WorldCup.App.Shared.Models
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
 @inject WorldCup.App.Shared.Services.PrediccionesService PrediccionesService
+@inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
 
@@ -15,79 +16,132 @@
     ⏱️ Puedes modificar tus predicciones hasta <b>20 minutos</b> antes del partido
 </p>
 
-@if (partidos == null)
+@if (cargando)
 {
-    <p>Cargando partidos...</p>
+    <p>Cargando predicciones...</p>
+}
+else if (!Sesion.PollaActivaId.HasValue)
+{
+    <div class="card shadow-sm mb-4" style="max-width:520px">
+        <div class="card-body">
+            <h5 class="mb-3">Selecciona la polla</h5>
+            <p class="text-muted">
+                Tus predicciones se guardarán en la polla que elijas.
+            </p>
+
+            @if (!pollas.Any())
+            {
+                <div class="alert alert-info">
+                    No tienes pollas disponibles todavía.
+                </div>
+
+                <a class="btn btn-success" href="/dashboard">
+                    Ir a mis pollas
+                </a>
+            }
+            else
+            {
+                <div class="d-grid gap-2">
+                    @foreach (var polla in pollas)
+                    {
+                        <button class="btn btn-outline-primary text-start"
+                                @onclick="() => SeleccionarPolla(polla)">
+                            🏆 @polla.Nombre
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
 }
 else
 {
-    @foreach (var p in partidos)
+    <div class="alert alert-success d-flex justify-content-between align-items-center">
+        <span>
+            Trabajando en la polla:
+            <strong>@Sesion.PollaActivaNombre</strong>
+        </span>
+
+        <button class="btn btn-sm btn-outline-success"
+                @onclick="CambiarPolla">
+            Cambiar polla
+        </button>
+    </div>
+
+    @if (partidos == null)
     {
-        var bloqueado = EstaBloqueado(p);
+        <p>Cargando partidos...</p>
+    }
+    else
+    {
+        @foreach (var p in partidos)
+        {
+            var bloqueado = EstaBloqueado(p);
 
-        <div class="card mb-2 partido-card">
+            <div class="card mb-2 partido-card">
 
-            <div class="card-body py-2 px-3">
+                <div class="card-body py-2 px-3">
 
-                <!-- FILA PARTIDO -->
-                <div class="row align-items-center text-center">
+                    <!-- FILA PARTIDO -->
+                    <div class="row align-items-center text-center">
 
-                    <!-- LOCAL -->
-                    <div class="col-4 text-end fw-semibold text-truncate">
-                        ⚽ @p.Local
+                        <!-- LOCAL -->
+                        <div class="col-4 text-end fw-semibold text-truncate">
+                            ⚽ @p.Local
+                        </div>
+
+                        <!-- MARCADOR -->
+                        <div class="col-3 d-flex justify-content-center align-items-center gap-1">
+
+                            <input type="number"
+                                   class="form-control form-control-sm marcador-input"
+                                   min="0"
+                                   disabled="@bloqueado"
+                                   @bind="predicciones[p.Id].GolesLocal"
+                                   @bind:event="oninput" />
+
+                            <span class="fw-bold text-muted">:</span>
+
+                            <input type="number"
+                                   class="form-control form-control-sm marcador-input"
+                                   min="0"
+                                   disabled="@bloqueado"
+                                   @bind="predicciones[p.Id].GolesVisitante"
+                                   @bind:event="oninput" />
+                        </div>
+
+                        <!-- VISITANTE -->
+                        <div class="col-4 text-start fw-semibold text-truncate">
+                            @p.Visitante ⚽
+                        </div>
+
+                        <!-- GUARDAR -->
+                        <div class="col-1 text-end">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    disabled="@bloqueado"
+                                    title="Guardar predicción"
+                                    @onclick="() => GuardarPartido(p)">
+                                💾
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- MARCADOR -->
-                    <div class="col-3 d-flex justify-content-center align-items-center gap-1">
+                    <!-- INFO -->
+                    <div class="mt-1 text-center small text-muted">
+                        🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                        .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
 
-                        <input type="number"
-                               class="form-control form-control-sm marcador-input"
-                               min="0"
-                               disabled="@bloqueado"
-                               @bind="predicciones[p.Id].GolesLocal"
-                               @bind:event="oninput" />
+                        · 🏆 @p.Fase
 
-                        <span class="fw-bold text-muted">:</span>
-
-                        <input type="number"
-                               class="form-control form-control-sm marcador-input"
-                               min="0"
-                               disabled="@bloqueado"
-                               @bind="predicciones[p.Id].GolesVisitante"
-                               @bind:event="oninput" />
+                        @if (bloqueado)
+                        {
+                            <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
+                        }
                     </div>
 
-                    <!-- VISITANTE -->
-                    <div class="col-4 text-start fw-semibold text-truncate">
-                        @p.Visitante ⚽
-                    </div>
-
-                    <!-- GUARDAR -->
-                    <div class="col-1 text-end">
-                        <button class="btn btn-sm btn-outline-primary"
-                                disabled="@bloqueado"
-                                title="Guardar predicción"
-                                @onclick="() => GuardarPartido(p)">
-                            💾
-                        </button>
-                    </div>
                 </div>
-
-                <!-- INFO -->
-                <div class="mt-1 text-center small text-muted">
-                    🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
-                    .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
-
-                    · 🏆 @p.Fase
-
-                    @if (bloqueado)
-                    {
-                        <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
-                    }
-                </div>
-
             </div>
-        </div>
+        }
     }
 }
 
@@ -109,18 +163,78 @@ else
 
     private List<PartidoDto>? partidos;
     private Dictionary<int, GuardarPrediccionItemDto> predicciones = new();
+    private List<PollaDto> pollas = new();
+    private bool cargando = true;
 
-    private const int PollaId = 2;
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+
+        if (!Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/predicciones", true);
+            return;
+        }
+
+        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+
+        if (Sesion.PollaActivaId.HasValue &&
+            !pollas.Any(p => p.Id == Sesion.PollaActivaId.Value))
+        {
+            await Sesion.LimpiarPollaActivaAsync();
+        }
+
+        if (Sesion.PollaActivaId.HasValue)
+        {
+            await CargarPrediccionesAsync();
+        }
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task SeleccionarPolla(PollaDto polla)
+    {
+        cargando = true;
+        StateHasChanged();
+
+        await Sesion.SeleccionarPollaAsync(polla.Id, polla.Nombre);
+        await CargarPrediccionesAsync();
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task CambiarPolla()
+    {
+        await Sesion.LimpiarPollaActivaAsync();
+        partidos = null;
+        predicciones.Clear();
+    }
+
+    private async Task CargarPrediccionesAsync()
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
         partidos = await PartidosService.GetPartidosAsync();
 
-        var existentes = await PrediccionesService.GetPrediccionesAsync();
+        var existentes = await PrediccionesService.GetPrediccionesAsync(
+            Sesion.PollaActivaId.Value,
+            Sesion.UsuarioId.Value);
 
         var existentesDict = existentes
             .GroupBy(x => x.PartidoId)
             .ToDictionary(x => x.Key, x => x.First());
+
+        predicciones.Clear();
 
         foreach (var p in partidos)
         {
@@ -154,12 +268,17 @@ else
 
     private async Task GuardarPartido(PartidoDto partido)
     {
-        if (!predicciones.ContainsKey(partido.Id))
+        if (!predicciones.ContainsKey(partido.Id) ||
+            !Sesion.PollaActivaId.HasValue ||
+            !Sesion.UsuarioId.HasValue)
+        {
             return;
+        }
 
         var dto = new GuardarPrediccionGrupoDto
             {
-                PollaId = 74,
+                PollaId = Sesion.PollaActivaId.Value,
+                UsuarioId = Sesion.UsuarioId.Value,
 
                 // Backend exige Grupo siempre
                 Grupo = partido.Fase == "Grupos"
@@ -182,21 +301,6 @@ else
             Console.WriteLine($"❌ Error al guardar: {ex.Message}");
         }
     }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await Sesion.RestaurarSesionAsync();
-
-            if (!Sesion.EstaLogueado)
-            {
-                Navigation.NavigateTo("/login", true);
-            }
-        }
-    }
-
-   
 
 }
 

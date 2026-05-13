@@ -3,6 +3,7 @@
 public class GuardarPrediccionGrupoDto
 {
     public int PollaId { get; set; }
+    public int UsuarioId { get; set; }
 
     // 🔴 NO puede ser nullable
     public string Grupo { get; set; } = string.Empty;
