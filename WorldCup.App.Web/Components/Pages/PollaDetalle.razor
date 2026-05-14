@@ -377,6 +377,13 @@ else
         </div>
     }
 
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="alert @(esError ? "alert-danger" : "alert-success") mt-3">
+            @mensaje
+        </div>
+    }
+
 }
 
 @code {
@@ -400,8 +407,6 @@ else
         }
     }
     private List<ParticipanteDto> participantes = new();
-
-    // private List<string> participantes = new();
 
     private string emailInvitado = "";
     private string? linkInvitacion;
@@ -457,7 +462,7 @@ else
         Navigation.NavigateTo("/dashboard");
     }
 
-    private async Task Invitar()
+    private void Invitar()
     {
         if (string.IsNullOrWhiteSpace(emailInvitado))
             return;

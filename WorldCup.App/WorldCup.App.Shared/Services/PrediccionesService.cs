@@ -23,9 +23,6 @@ public class PrediccionesService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-
-            Console.WriteLine(error);
-
             throw new Exception(error);
         }
     }
@@ -40,10 +37,6 @@ public class PrediccionesService
 
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-
-            Console.WriteLine(error);
-
             return new List<PrediccionExistenteDto>();
         }
 

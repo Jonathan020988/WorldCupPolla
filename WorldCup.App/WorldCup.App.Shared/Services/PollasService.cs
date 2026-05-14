@@ -5,8 +5,6 @@ namespace WorldCup.App.Shared.Services
 {
     public class PollasService
     {
-        public event Action? OnNotificacionesChanged;
-
         private readonly HttpClient _http;
 
         public PollasService(HttpClient http)
@@ -48,13 +46,6 @@ namespace WorldCup.App.Shared.Services
                 $"api/Polla/{pollaId}/participantes"
             ) ?? new();
         }
-
-        //public async Task<List<string>> GetParticipantesAsync(int pollaId)
-        //{
-        //    return await _http.GetFromJsonAsync<List<string>>(
-        //        $"api/Polla/{pollaId}/participantes"
-        //    ) ?? new();
-        //}
 
         public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
         {

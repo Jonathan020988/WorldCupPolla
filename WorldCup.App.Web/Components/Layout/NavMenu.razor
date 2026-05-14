@@ -1,4 +1,5 @@
-﻿@using WorldCup.App.Shared.Services
+@using WorldCup.App.Shared.Services
+@implements IDisposable
 @inject SesionService Sesion
 @inject NavigationManager Navigation
 @inject PollasService PollasService
@@ -20,17 +21,14 @@
             <div class="px-3 py-2 text-white">
                 👤 <strong>@Sesion.Nombre</strong>
             </div>
-
         }
-      
-        
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 🏠 Home
             </NavLink>
         </div>
 
-       
         @if (!Sesion.EstaLogueado)
         {
             <div class="nav-item px-3">
@@ -48,9 +46,6 @@
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
             </div>
-
-            
-           
         }
 
         @if (Sesion.EstaLogueado)
@@ -61,7 +56,8 @@
 
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/notificaciones">
-                    🔔 Notificaciones @if (solicitudesPendientes > 0)
+                    🔔 Notificaciones
+                    @if (solicitudesPendientes > 0)
                     {
                         <span class="badge bg-danger ms-2">
                             @solicitudesPendientes
@@ -69,7 +65,7 @@
                     }
                 </NavLink>
             </div>
-            
+
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/crear-polla">➕ Crear Polla</NavLink>
             </div>
@@ -103,73 +99,60 @@
                 <NavLink class="nav-link" href="/simulador">📊 Simulador</NavLink>
             </div>
 
-
             <div class="nav-item px-3">
                 <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">
                     🚪 Cerrar sesión
                 </a>
             </div>
         }
-
-        
-
-       
     </nav>
 </div>
 
 @code {
+    private int solicitudesPendientes;
 
-    private async Task CargarSolicitudesPendientes()
-    {
-        if (Sesion.EstaLogueado && Sesion.UsuarioId != null)
-        {
-            var solicitudes = await PollasService
-                .GetNotificacionesAsync(Sesion.UsuarioId.Value);
-
-            solicitudesPendientes = solicitudes
-                .Count(s => s.Estado == "Pendiente");
-
-            StateHasChanged();
-        }
-    }
     protected override void OnInitialized()
     {
-        Sesion.OnChange += async () =>
-        {
-            await CargarSolicitudesPendientes();
-        };
-
-        PollasService.OnNotificacionesChanged += async () =>
-        {
-            await CargarSolicitudesPendientes();
-        };
+        Sesion.OnChange += OnSesionChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
-{
-    if (firstRender)
     {
-        await CargarSolicitudesPendientes();
+        if (firstRender)
+        {
+            await CargarSolicitudesPendientes();
+        }
     }
-}
-        
-    // // // protected override void OnInitialized()
-    // // {
-    // //     Sesion.OnChange += StateHasChanged;
-    // // }
+
+    private void OnSesionChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await CargarSolicitudesPendientes();
+            StateHasChanged();
+        });
+    }
+
+    private async Task CargarSolicitudesPendientes()
+    {
+        if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
+        {
+            solicitudesPendientes = 0;
+            return;
+        }
+
+        var solicitudes = await PollasService.GetNotificacionesAsync(Sesion.UsuarioId.Value);
+        solicitudesPendientes = solicitudes.Count(s => s.Estado == "Pendiente");
+    }
 
     private async Task CerrarSesion()
     {
-         await Sesion.LogoutAsync();
-         Navigation.NavigateTo("/login", true);
+        await Sesion.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
     }
-    
 
     public void Dispose()
     {
-        Sesion.OnChange -= StateHasChanged;
+        Sesion.OnChange -= OnSesionChanged;
     }
-
-    private int solicitudesPendientes = 0;
 }
-

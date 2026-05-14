@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using WorldCup.Api.Data;
 using WorldCup.Api.Services;
-using WorldCup.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,13 +43,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-  var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-   db.Database.Migrate();
-}
-
 
 // middleware
 if (app.Environment.IsDevelopment())

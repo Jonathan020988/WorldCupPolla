@@ -75,7 +75,6 @@
             return;
         }
         await Sesion.LoginAsync(result.Id, result.Nombre, result.EsAdmin);
-        Console.WriteLine($"SESION OK -> {Sesion.UsuarioId}");
         
         if (!string.IsNullOrWhiteSpace(returnUrl))
         {

@@ -61,6 +61,13 @@ else
         </button>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(mensajeClasificacion))
+    {
+        <div class="alert @(clasificacionConError ? "alert-danger" : "alert-success")">
+            @mensajeClasificacion
+        </div>
+    }
+
     <div class="mb-4">
 
     <div class="d-flex justify-content-between mb-1">
@@ -323,6 +330,8 @@ else
     private Dictionary<string, List<EquipoGrupo>>? grupos;
     private List<PollaDto> pollas = new();
     private bool cargandoContexto = true;
+    private string? mensajeClasificacion;
+    private bool clasificacionConError;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -459,9 +468,10 @@ else
 
             CalcularClasificados();
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine(ex.Message);
+            mensajeClasificacion = "No se pudo cargar la clasificación guardada.";
+            clasificacionConError = true;
         }
     }
 
@@ -549,7 +559,8 @@ else
         {
             if (gruposTercero.Count >= 8)
             {
-                Console.WriteLine("⚠ Solo se permiten 8 mejores terceros");
+                mensajeClasificacion = "Solo se permiten 8 mejores terceros.";
+                clasificacionConError = true;
                 return;
             }
 
@@ -632,19 +643,20 @@ else
 
             response.EnsureSuccessStatusCode();
 
-            Console.WriteLine($"✅ Grupo {grupoNombre} guardado");
-
             foreach (var e in equipos)
             {
                 e.bloqueado = true;
             }
 
             CalcularClasificados();
+            mensajeClasificacion = $"Grupo {grupoNombre} guardado correctamente.";
+            clasificacionConError = false;
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
             erroresGrupo[grupoNombre] = $"No se pudo guardar: {ex.Message}";
+            mensajeClasificacion = erroresGrupo[grupoNombre];
+            clasificacionConError = true;
             StateHasChanged();
         }
     }
@@ -820,9 +832,10 @@ else
                 fechaCierre = estado.fechaCierre;
             }
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine(ex.Message);
+            mensajeClasificacion = "No se pudo cargar el estado de cierre de la clasificación.";
+            clasificacionConError = true;
         }
     }
 

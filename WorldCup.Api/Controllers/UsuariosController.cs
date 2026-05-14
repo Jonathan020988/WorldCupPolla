@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
-using BCrypt.Net;
 
 namespace WorldCup.Api.Controllers
 {
@@ -50,16 +49,3 @@ namespace WorldCup.Api.Controllers
         }
     }
 }
-
-
-//using Microsoft.AspNetCore.Http;
-//using Microsoft.AspNetCore.Mvc;
-
-//namespace WorldCup.Api.Controllers
-//{
-//    [Route("api/[controller]")]
-//    [ApiController]
-//    public class UsuariosController : ControllerBase
-//    {
-//    }
-//}

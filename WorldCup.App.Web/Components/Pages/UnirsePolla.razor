@@ -65,13 +65,10 @@
             Navigation.NavigateTo($"/login?returnUrl=/unirse-polla/{PollaId}");
             return;
         }
-        Console.WriteLine($"Intentando unirse a la polla {PollaId} con PIN {pinIngreso}");
-
         var dto = new UnirsePollaDTO
             {
                 PollaId = PollaId,
                 UsuarioId = Sesion.UsuarioId!.Value,
-                //UsuarioId = 6, // 🔴 usuario fijo por ahora (igual que backend)
                 PinIngreso = pinIngreso
             };
 

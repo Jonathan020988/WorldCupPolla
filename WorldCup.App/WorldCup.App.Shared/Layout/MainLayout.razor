@@ -1,9 +1,8 @@
-﻿@using WorldCup.App.Shared.Services
 @inherits LayoutComponentBase
 @rendermode InteractiveServer
 @using WorldCup.App.Shared.Services
+@implements IDisposable
 @inject SesionService Sesion
-
 
 <div class="page">
     <div class="sidebar">
@@ -11,10 +10,6 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
         <article class="content px-4">
             @Body
         </article>
@@ -27,30 +22,15 @@
     <span class="dismiss">🗙</span>
 </div>
 
-@inject SesionService Sesion
-
-@code 
-{
+@code {
     protected override async Task OnInitializedAsync()
     {
         await Sesion.RestaurarSesionAsync();
+        Sesion.OnChange += StateHasChanged;
     }
 
-    @code {
-        protected override void OnInitialized()
-        {
-            Sesion.OnChange += StateHasChanged;
-        }
-
-        private async Task CerrarSesion()
-        {
-            await Sesion.LogoutAsync();
-        }
-
-        public void Dispose()
-        {
-            Sesion.OnChange -= StateHasChanged;
-        }
+    public void Dispose()
+    {
+        Sesion.OnChange -= StateHasChanged;
     }
-
 }
