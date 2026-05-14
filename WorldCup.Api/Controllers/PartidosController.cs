@@ -27,10 +27,13 @@ namespace WorldCup.Api.Controllers
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
                 .OrderBy(p => p.Id)
+                .ToListAsync();
+
+            var resultado = partidos
                 .Select(p => new
                 {
                     p.Id,
-                    p.Fecha,
+                    Fecha = ColombiaClock.ToColombia(p.Fecha),
                     p.Fase,
                     p.LocalId,
                     p.VisitanteId,
@@ -44,9 +47,9 @@ namespace WorldCup.Api.Controllers
                     p.Finalizado,
                     p.Estado
                 })
-                .ToListAsync();
+                .ToList();
 
-            return Ok(partidos);
+            return Ok(resultado);
         }
 
 
@@ -62,7 +65,7 @@ namespace WorldCup.Api.Controllers
             return new PartidoDTO
             {
                 Id = p.Id,
-                Fecha = p.Fecha,
+                Fecha = ColombiaClock.ToColombia(p.Fecha),
                 Fase = p.Fase,
                 LocalId = p.LocalId,
                 VisitanteId = p.VisitanteId,
@@ -82,7 +85,7 @@ namespace WorldCup.Api.Controllers
         {
             var partido = new Partido
             {
-                Fecha = dto.Fecha,
+                Fecha = ColombiaClock.FromColombiaToUtc(dto.Fecha),
                 Fase = dto.Fase,
                 LocalId = dto.LocalId,
                 VisitanteId = dto.VisitanteId
@@ -276,13 +279,13 @@ namespace WorldCup.Api.Controllers
                 return NotFound("Partido no encontrado");
             }
 
-            partido.Fecha = DateTime.SpecifyKind(dto.Fecha, DateTimeKind.Unspecified);
+            partido.Fecha = ColombiaClock.FromColombiaToUtc(dto.Fecha);
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
                 partido.Id,
-                partido.Fecha,
+                Fecha = ColombiaClock.ToColombia(partido.Fecha),
                 partido.Fase,
                 Local = partido.Local.Nombre,
                 Visitante = partido.Visitante.Nombre
@@ -1244,9 +1247,11 @@ namespace WorldCup.Api.Controllers
 
         private static DateTime FechaProgramadaEliminatoria(int numeroPartido)
         {
-            return FechasEliminatoriasColombia.TryGetValue(numeroPartido, out var fecha)
+            var fechaColombia = FechasEliminatoriasColombia.TryGetValue(numeroPartido, out var fecha)
                 ? fecha
                 : ColombiaClock.Now();
+
+            return ColombiaClock.FromColombiaToUtc(fechaColombia);
         }
 
         private static List<CruceIndices> ObtenerCrucesSiguienteFase(string faseAnterior, int cantidadPartidos)

@@ -168,7 +168,7 @@ namespace WorldCup.Api.Controllers
             return partidos.Any(p =>
                 p.Finalizado ||
                 p.Estado == "EnJuego" ||
-                p.Fecha <= ahoraColombia);
+                ColombiaClock.ToColombia(p.Fecha) <= ahoraColombia);
         }
 
         private async Task<List<object>> ObtenerEquiposPodioDisponibles()

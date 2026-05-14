@@ -47,7 +47,7 @@ namespace WorldCup.Api.Controllers
                     return BadRequest("Partido no válido");
 
                 // 2️⃣ BLOQUEO: 1 hora antes del inicio
-                if (ColombiaClock.Now() >= partido.Fecha.AddHours(-1))
+                if (PartidoCerrado(partido))
                     return Conflict("Las predicciones se cerraron 1 hora antes del partido");
 
                 // 3️⃣ Seguridad extra
@@ -187,7 +187,7 @@ namespace WorldCup.Api.Controllers
 
             if (prediccion.Bloqueada ||
                 prediccion.Partido.Finalizado ||
-                ColombiaClock.Now() >= prediccion.Partido.Fecha.AddHours(-1))
+                PartidoCerrado(prediccion.Partido))
             {
                 return Conflict("La predicción ya está bloqueada y no se puede eliminar");
             }
@@ -207,6 +207,11 @@ namespace WorldCup.Api.Controllers
         private int UserIdActual(int? usuarioId = null)
         {
             return usuarioId.GetValueOrDefault(4);
+        }
+
+        private static bool PartidoCerrado(Partido partido)
+        {
+            return ColombiaClock.Now() >= ColombiaClock.ToColombia(partido.Fecha).AddHours(-1);
         }
 
         private int CalcularPuntosGrupo(
@@ -500,7 +505,8 @@ namespace WorldCup.Api.Controllers
                 .Select(p => p.Fecha)
                 .ToListAsync();
 
-            bool grupoYaInicio = partidosGrupo.Any(fecha => fecha <= ahoraColombia);
+            bool grupoYaInicio = partidosGrupo.Any(fecha =>
+                ColombiaClock.ToColombia(fecha) <= ahoraColombia);
 
 
             if (grupoYaInicio)
@@ -933,7 +939,7 @@ namespace WorldCup.Api.Controllers
                 historial.Add(new HistorialPuntosDTO
                 {
                     PartidoId = p.PartidoId,
-                    Fecha = p.Partido.Fecha,
+                    Fecha = ColombiaClock.ToColombia(p.Partido.Fecha),
                     Fase = p.Partido.Fase,
                     Partido = $"{p.Partido.Local.Nombre} vs {p.Partido.Visitante.Nombre}",
                     PuntosPartido = p.PuntosTotales,
@@ -970,7 +976,7 @@ namespace WorldCup.Api.Controllers
 
                 return new
                 {
-                    fecha = p.Partido.Fecha,
+                    fecha = ColombiaClock.ToColombia(p.Partido.Fecha),
                     partido = $"{p.Partido.Local.Nombre} vs {p.Partido.Visitante.Nombre}",
                     puntosPartido = p.PuntosTotales,
                     puntosAcumulados = acumulado

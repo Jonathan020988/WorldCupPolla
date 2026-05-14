@@ -47,7 +47,7 @@
             </p>
             <ul>
                 <li>El usuario entra con invitacion, enlace o PIN.</li>
-                <li>El creador administra participantes y accesos.</li>
+                <li>El creador organiza la polla y sus participantes.</li>
                 <li>Los usuarios inactivos no aparecen en el ranking.</li>
             </ul>
         </article>
@@ -245,18 +245,6 @@
             </ol>
         </article>
     </div>
-
-    <div class="admin-note">
-        <div>
-            <span class="section-kicker">Control del administrador</span>
-            <h2>Resultados reales</h2>
-        </div>
-        <p>
-            El administrador registra manualmente los resultados oficiales, cambia el estado
-            de los partidos y puede corregir marcadores si detecta un error. Al finalizar un
-            partido o una fase, el sistema recalcula los puntos del ranking.
-        </p>
-    </div>
 </section>
 
 <style>
@@ -289,8 +277,7 @@
     .rules-hero h1,
     .rules-hero p,
     .flyer-panel h2,
-    .section-heading h2,
-    .admin-note h2 {
+    .section-heading h2 {
         margin: 0;
     }
 
@@ -339,7 +326,6 @@
 
     .flyer-panel,
     .score-section,
-    .admin-note,
     .rule-card {
         border: 1px solid var(--line);
         border-radius: 8px;
@@ -406,7 +392,6 @@
 
     .rule-card p,
     .rule-card li,
-    .admin-note p,
     .section-heading p {
         color: var(--muted);
     }
@@ -510,8 +495,7 @@
         background: #fbfcfc;
     }
 
-    .note-band,
-    .admin-note {
+    .note-band {
         padding: 1rem;
         background: #fff8df;
         color: #6e5210;
@@ -539,22 +523,9 @@
         background: var(--soft);
     }
 
-    .admin-note {
-        display: grid;
-        grid-template-columns: minmax(220px, .45fr) 1fr;
-        gap: 1rem;
-        align-items: center;
-    }
-
-    .admin-note p {
-        margin: 0;
-        color: #5a4612;
-    }
-
     @@media (max-width: 900px) {
         .rules-hero,
-        .flyer-panel,
-        .admin-note {
+        .flyer-panel {
             grid-template-columns: 1fr;
             flex-direction: column;
             align-items: stretch;

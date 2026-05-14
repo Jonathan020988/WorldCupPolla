@@ -1188,7 +1188,11 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             var partidosProximos = partidosCandidatos
-                .Where(p => p.Fecha > ahora && p.Fecha <= limite)
+                .Where(p =>
+                {
+                    var fechaColombia = ColombiaClock.ToColombia(p.Fecha);
+                    return fechaColombia > ahora && fechaColombia <= limite;
+                })
                 .ToList();
 
             foreach (var polla in pollasUsuario)
@@ -1217,8 +1221,8 @@ namespace WorldCup.Api.Controllers
                         PartidoId = partido.Id,
                         Partido = $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}",
                         Estado = "Pendiente",
-                        FechaSolicitud = partido.Fecha,
-                        FechaPartido = partido.Fecha,
+                        FechaSolicitud = ColombiaClock.ToColombia(partido.Fecha),
+                        FechaPartido = ColombiaClock.ToColombia(partido.Fecha),
                         Link = "/predicciones",
                         Mensaje = $"Falta tu predicción de {partido.Local.Nombre} vs {partido.Visitante.Nombre} en {polla.Nombre}. El partido empieza en menos de 2 horas."
                     });
