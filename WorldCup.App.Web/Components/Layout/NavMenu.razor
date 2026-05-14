@@ -124,7 +124,9 @@
     {
         if (firstRender)
         {
+            await Sesion.RestaurarSesionAsync();
             await CargarSolicitudesPendientes();
+            StateHasChanged();
         }
     }
 

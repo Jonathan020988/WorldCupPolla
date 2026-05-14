@@ -78,11 +78,11 @@
         
         if (!string.IsNullOrWhiteSpace(returnUrl))
         {
-            Navigation.NavigateTo(returnUrl);
+            Navigation.NavigateTo(returnUrl, true);
         }
         else
         {
-            Navigation.NavigateTo("/dashboard");
+            Navigation.NavigateTo("/dashboard", true);
         }
 
 
