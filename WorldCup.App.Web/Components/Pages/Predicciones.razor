@@ -12,11 +12,15 @@
 @inject NavigationManager Navigation
 @inject HttpClient Http
 
-
-<h1 class="mb-1">🎯 Mis Predicciones</h1>
-<p class="text-muted mb-3">
-    ⏱️ Puedes modificar tus predicciones hasta <b>20 minutos</b> antes del partido
-</p>
+<section class="predictions-header">
+    <div>
+        <span class="predictions-kicker">Mundial 2026</span>
+        <h1>Mis Predicciones</h1>
+        <p>
+            Puedes modificar tus marcadores hasta <b>20 minutos</b> antes de cada partido.
+        </p>
+    </div>
+</section>
 
 @if (cargando)
 {
@@ -58,7 +62,7 @@ else if (!Sesion.PollaActivaId.HasValue)
 }
 else
 {
-    <div class="alert alert-success d-flex justify-content-between align-items-center">
+    <div class="polla-banner">
         <span>
             Trabajando en la polla:
             <strong>@Sesion.PollaActivaNombre</strong>
@@ -139,112 +143,126 @@ else
     {
         @foreach (var fase in partidos.GroupBy(p => p.Fase).OrderBy(g => OrdenFase(g.Key)))
         {
-            <h4 class="mt-4 mb-2">@fase.Key</h4>
+            <div class="phase-title">
+                <span>@fase.Key</span>
+                <small>@fase.Count() partidos</small>
+            </div>
 
             @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
             {
                 var bloqueado = EstaBloqueado(p);
+                var guardada = EstaGuardada(p);
+                var editable = EstaEditable(p);
 
-                <div class="card mb-2 partido-card">
-
-                    <div class="card-body py-2 px-3">
-
-                        <!-- FILA PARTIDO -->
-                        <div class="row align-items-center text-center">
-
-                            <!-- LOCAL -->
-                            <div class="col-4 text-end fw-semibold text-truncate">
-                                <span>@p.Local</span>
-                                <img class="team-flag ms-1"
-                                     src="@GetBandera(p.Local)"
-                                     alt="@p.Local" />
-                            </div>
-
-                            <!-- MARCADOR -->
-                            <div class="col-3 d-flex justify-content-center align-items-center gap-1">
-
-                                <input type="number"
-                                       class="form-control form-control-sm marcador-input"
-                                       min="0"
-                                       disabled="@bloqueado"
-                                       @bind="predicciones[p.Id].GolesLocal"
-                                       @bind:event="oninput" />
-
-                                <span class="fw-bold text-muted">:</span>
-
-                                <input type="number"
-                                       class="form-control form-control-sm marcador-input"
-                                       min="0"
-                                       disabled="@bloqueado"
-                                       @bind="predicciones[p.Id].GolesVisitante"
-                                       @bind:event="oninput" />
-                            </div>
-
-                            <!-- VISITANTE -->
-                            <div class="col-4 text-start fw-semibold text-truncate">
-                                <img class="team-flag me-1"
-                                     src="@GetBandera(p.Visitante)"
-                                     alt="@p.Visitante" />
-                                <span>@p.Visitante</span>
-                            </div>
-
-                            <!-- GUARDAR -->
-                            <div class="col-1 text-end">
-                                <button class="btn btn-sm btn-outline-primary"
-                                        disabled="@bloqueado"
-                                        title="Guardar predicción"
-                                        @onclick="() => GuardarPartido(p)">
-                                    💾
-                                </button>
-                            </div>
+                <div class="prediction-card @(guardada ? "is-saved" : "") @(editable ? "is-editing" : "")">
+                    <div class="prediction-card-main">
+                        <div class="prediction-team prediction-team-local">
+                            <span>@p.Local</span>
+                            <img class="team-flag"
+                                 src="@GetBandera(p.Local)"
+                                 alt="@p.Local" />
                         </div>
 
-                        @if (p.Fase != "Grupos")
+                        <div class="score-panel">
+                            <input type="number"
+                                   class="form-control form-control-sm score-input"
+                                   min="0"
+                                   disabled="@(!editable)"
+                                   @bind="predicciones[p.Id].GolesLocal"
+                                   @bind:event="oninput" />
+
+                            <span class="score-separator">-</span>
+
+                            <input type="number"
+                                   class="form-control form-control-sm score-input"
+                                   min="0"
+                                   disabled="@(!editable)"
+                                   @bind="predicciones[p.Id].GolesVisitante"
+                                   @bind:event="oninput" />
+                        </div>
+
+                        <div class="prediction-team prediction-team-visitor">
+                            <img class="team-flag"
+                                 src="@GetBandera(p.Visitante)"
+                                 alt="@p.Visitante" />
+                            <span>@p.Visitante</span>
+                        </div>
+
+                        <div class="prediction-actions">
+                            <button class="btn btn-sm btn-success"
+                                    disabled="@(!editable)"
+                                    title="Guardar predicción"
+                                    @onclick="() => GuardarPartido(p)">
+                                Guardar
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    disabled="@(bloqueado || !guardada || editable)"
+                                    title="Editar predicción"
+                                    @onclick="() => EditarPartido(p)">
+                                Editar
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-danger"
+                                    disabled="@(bloqueado || !guardada)"
+                                    title="Eliminar predicción"
+                                    @onclick="() => EliminarPartido(p)">
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (p.Fase != "Grupos")
+                    {
+                        <div class="prediction-extra">
+                            <select class="form-select form-select-sm"
+                                    disabled="@(!editable)"
+                                    @bind="predicciones[p.Id].PrediceClasificadoId">
+                                <option value="">Equipo que clasifica</option>
+                                <option value="@p.LocalId">@p.Local</option>
+                                <option value="@p.VisitanteId">@p.Visitante</option>
+                            </select>
+
+                            <label class="form-check compact-check">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       disabled="@(!editable)"
+                                       @bind="predicciones[p.Id].PrediceTiempoExtra" />
+                                <span class="form-check-label">Tiempo extra</span>
+                            </label>
+
+                            <label class="form-check compact-check">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       disabled="@(!editable)"
+                                       @bind="predicciones[p.Id].PredicePenales" />
+                                <span class="form-check-label">Penales</span>
+                            </label>
+                        </div>
+                    }
+
+                    <div class="prediction-footer">
+                        <span>
+                            @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                                .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
+                        </span>
+
+                        @if (bloqueado)
                         {
-                            <div class="row g-2 mt-2 align-items-center">
-                                <div class="col-md-4">
-                                    <select class="form-select form-select-sm"
-                                            disabled="@bloqueado"
-                                            @bind="predicciones[p.Id].PrediceClasificadoId">
-                                        <option value="">Equipo que clasifica</option>
-                                        <option value="@p.LocalId">@p.Local</option>
-                                        <option value="@p.VisitanteId">@p.Visitante</option>
-                                    </select>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               disabled="@bloqueado"
-                                               @bind="predicciones[p.Id].PrediceTiempoExtra" />
-                                        <label class="form-check-label">Tiempo extra</label>
-                                    </div>
-
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               disabled="@bloqueado"
-                                               @bind="predicciones[p.Id].PredicePenales" />
-                                        <label class="form-check-label">Penales</label>
-                                    </div>
-                                </div>
-                            </div>
+                            <span class="status-pill locked">Bloqueado</span>
                         }
-
-                        <!-- INFO -->
-                        <div class="mt-1 text-center small text-muted">
-                            🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
-                            .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
-
-                            · 🏆 @p.Fase
-
-                            @if (bloqueado)
-                            {
-                                <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
-                            }
-                        </div>
-
+                        else if (editable && guardada)
+                        {
+                            <span class="status-pill editing">Editando</span>
+                        }
+                        else if (guardada)
+                        {
+                            <span class="status-pill saved">Guardada</span>
+                        }
+                        else
+                        {
+                            <span class="status-pill pending">Pendiente</span>
+                        }
                     </div>
                 </div>
             }
@@ -253,24 +271,242 @@ else
 }
 
 <style>
-    .partido-card {
-        border-left: 4px solid #0d6efd;
+    .predictions-header {
+        margin-bottom: 1rem;
+        padding: 1rem 1.2rem;
+        border: 1px solid #d8e8df;
+        border-left: 5px solid #198754;
         border-radius: 8px;
+        background: linear-gradient(135deg, #ffffff 0%, #f5fbf7 100%);
     }
 
-    .marcador-input {
-        width: 42px;
-        text-align: center;
-        padding: 2px 4px;
+    .predictions-header h1 {
+        margin: 0;
+        font-size: clamp(1.6rem, 2vw, 2.1rem);
+        font-weight: 800;
+        color: #17221c;
+    }
+
+    .predictions-header p {
+        margin: .25rem 0 0;
+        color: #5f6f66;
+    }
+
+    .predictions-kicker {
+        display: block;
+        margin-bottom: .15rem;
+        color: #198754;
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .polla-banner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        margin-bottom: 1rem;
+        padding: .75rem 1rem;
+        border: 1px solid #cfe8d8;
+        border-radius: 8px;
+        background: #f3fbf6;
+        color: #163c27;
+    }
+
+    .phase-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: .75rem;
+        margin: 1.35rem 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid #e1e6eb;
+    }
+
+    .phase-title span {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #1d2733;
+    }
+
+    .phase-title small {
+        color: #6b7785;
         font-weight: 600;
     }
 
+    .prediction-card {
+        margin-bottom: .65rem;
+        padding: .75rem;
+        border: 1px solid #dfe5eb;
+        border-left: 4px solid #9aa7b6;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    }
+
+    .prediction-card.is-saved {
+        border-left-color: #198754;
+    }
+
+    .prediction-card.is-editing {
+        border-left-color: #ffc107;
+        background: #fffdf5;
+    }
+
+    .prediction-card-main {
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr) auto;
+        align-items: center;
+        gap: .75rem;
+    }
+
+    .prediction-team {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        font-weight: 750;
+        color: #1f2933;
+    }
+
+    .prediction-team span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .prediction-team-local {
+        justify-content: flex-end;
+        text-align: right;
+    }
+
+    .prediction-team-visitor {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .score-panel {
+        display: grid;
+        grid-template-columns: 54px auto 54px;
+        align-items: center;
+        gap: .35rem;
+    }
+
+    .score-input {
+        height: 34px;
+        text-align: center;
+        font-weight: 800;
+    }
+
+    .score-separator {
+        color: #56616d;
+        font-weight: 800;
+    }
+
+    .prediction-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .35rem;
+    }
+
+    .prediction-extra {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .65rem;
+        margin-top: .65rem;
+        padding-top: .65rem;
+        border-top: 1px dashed #d7dee6;
+    }
+
+    .prediction-extra .form-select {
+        max-width: 260px;
+    }
+
+    .compact-check {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin: 0;
+        color: #4b5563;
+        font-size: .9rem;
+        font-weight: 600;
+    }
+
+    .prediction-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .6rem;
+        margin-top: .55rem;
+        color: #6b7785;
+        font-size: .82rem;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: .1rem .5rem;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 800;
+    }
+
+    .status-pill.saved {
+        background: #e7f6ed;
+        color: #17663a;
+    }
+
+    .status-pill.editing {
+        background: #fff3cd;
+        color: #7a5b00;
+    }
+
+    .status-pill.pending {
+        background: #eef2f7;
+        color: #586579;
+    }
+
+    .status-pill.locked {
+        background: #fde8e8;
+        color: #b42318;
+    }
+
     .team-flag {
+        flex: 0 0 auto;
         width: 28px;
         height: 20px;
         object-fit: cover;
         border-radius: 3px;
         box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+    }
+
+    @@media (max-width: 900px) {
+        .prediction-card-main {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+
+        .prediction-team,
+        .prediction-team-local,
+        .prediction-team-visitor,
+        .prediction-actions {
+            justify-content: center;
+            text-align: center;
+        }
+
+        .score-panel {
+            justify-content: center;
+        }
+
+        .prediction-footer,
+        .polla-banner {
+            flex-direction: column;
+            align-items: flex-start;
+        }
     }
 </style>
 
@@ -278,6 +514,8 @@ else
 
     private List<PartidoDto>? partidos;
     private Dictionary<int, GuardarPrediccionItemDto> predicciones = new();
+    private HashSet<int> prediccionesGuardadas = new();
+    private HashSet<int> prediccionesEnEdicion = new();
     private List<PollaDto> pollas = new();
     private PodioEstadoDto? podioEstado;
     private GuardarPodioDto podio = new();
@@ -336,6 +574,8 @@ else
         await Sesion.LimpiarPollaActivaAsync();
         partidos = null;
         predicciones.Clear();
+        prediccionesGuardadas.Clear();
+        prediccionesEnEdicion.Clear();
         podioEstado = null;
         podio = new();
     }
@@ -362,11 +602,14 @@ else
             .ToDictionary(x => x.Key, x => x.First());
 
         predicciones.Clear();
+        prediccionesGuardadas.Clear();
+        prediccionesEnEdicion.Clear();
 
         foreach (var p in partidos)
         {
             if (existentesDict.TryGetValue(p.Id, out var e))
             {
+                prediccionesGuardadas.Add(p.Id);
                 predicciones[p.Id] = new GuardarPrediccionItemDto
                     {
                         PartidoId = p.Id,
@@ -396,12 +639,56 @@ else
                || partido.Finalizado;
     }
 
+    private bool EstaGuardada(PartidoDto partido)
+    {
+        return prediccionesGuardadas.Contains(partido.Id);
+    }
+
+    private bool EstaEditable(PartidoDto partido)
+    {
+        return !EstaBloqueado(partido) &&
+               (!EstaGuardada(partido) || prediccionesEnEdicion.Contains(partido.Id));
+    }
+
+    private string NombrePartido(PartidoDto partido)
+    {
+        return $"{partido.Local} vs {partido.Visitante}";
+    }
+
+    private void EditarPartido(PartidoDto partido)
+    {
+        if (EstaBloqueado(partido))
+        {
+            mensajeGuardado = $"La predicción {NombrePartido(partido)} ya está bloqueada.";
+            guardadoConError = true;
+            return;
+        }
+
+        if (!EstaGuardada(partido))
+        {
+            mensajeGuardado = $"La predicción {NombrePartido(partido)} todavía no está guardada.";
+            guardadoConError = true;
+            return;
+        }
+
+        prediccionesEnEdicion.Add(partido.Id);
+        mensajeGuardado = $"Puedes editar la predicción {NombrePartido(partido)}.";
+        guardadoConError = false;
+    }
+
     private async Task GuardarPartido(PartidoDto partido)
     {
         if (!predicciones.ContainsKey(partido.Id) ||
             !Sesion.PollaActivaId.HasValue ||
             !Sesion.UsuarioId.HasValue)
         {
+            return;
+        }
+
+        if (EstaBloqueado(partido))
+        {
+            mensajeGuardado = $"La predicción {NombrePartido(partido)} ya está bloqueada.";
+            guardadoConError = true;
             return;
         }
 
@@ -451,12 +738,51 @@ else
         try
         {
             await PrediccionesService.GuardarMultiplesAsync(dto);
-            mensajeGuardado = "Predicción guardada correctamente.";
+            prediccionesGuardadas.Add(partido.Id);
+            prediccionesEnEdicion.Remove(partido.Id);
+            mensajeGuardado = $"Predicción {NombrePartido(partido)} guardada correctamente.";
             guardadoConError = false;
         }
         catch (Exception ex)
         {
             mensajeGuardado = $"No se pudo guardar la predicción: {ex.Message}";
+            guardadoConError = true;
+        }
+    }
+
+    private async Task EliminarPartido(PartidoDto partido)
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        if (EstaBloqueado(partido))
+        {
+            mensajeGuardado = $"La predicción {NombrePartido(partido)} ya está bloqueada.";
+            guardadoConError = true;
+            return;
+        }
+
+        try
+        {
+            await PrediccionesService.EliminarPrediccionAsync(
+                Sesion.PollaActivaId.Value,
+                Sesion.UsuarioId.Value,
+                partido.Id);
+
+            predicciones[partido.Id] = new GuardarPrediccionItemDto
+                {
+                    PartidoId = partido.Id
+                };
+            prediccionesGuardadas.Remove(partido.Id);
+            prediccionesEnEdicion.Remove(partido.Id);
+            mensajeGuardado = $"Predicción {NombrePartido(partido)} eliminada correctamente.";
+            guardadoConError = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeGuardado = $"No se pudo eliminar la predicción {NombrePartido(partido)}: {ex.Message}";
             guardadoConError = true;
         }
     }

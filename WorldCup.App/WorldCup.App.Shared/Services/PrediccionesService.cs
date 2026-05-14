@@ -45,4 +45,20 @@ public class PrediccionesService
 
         return data ?? new List<PrediccionExistenteDto>();
     }
+
+    public async Task EliminarPrediccionAsync(
+        int pollaId,
+        int usuarioId,
+        int partidoId)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/Predicciones/{partidoId}?pollaId={pollaId}&usuarioId={usuarioId}"
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+    }
 }

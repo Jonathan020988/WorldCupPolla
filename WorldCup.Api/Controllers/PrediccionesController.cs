@@ -163,6 +163,42 @@ namespace WorldCup.Api.Controllers
         }
 
         // =========================================================
+        // DELETE: api/Predicciones/{partidoId}?pollaId=1&usuarioId=1
+        // =========================================================
+        [HttpDelete("{partidoId:int}")]
+        public async Task<IActionResult> EliminarPrediccion(
+            int partidoId,
+            [FromQuery] int pollaId,
+            [FromQuery] int? usuarioId)
+        {
+            var usuario = UserIdActual(usuarioId);
+
+            var prediccion = await _context.Predicciones
+                .Include(p => p.Partido)
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuario &&
+                    p.PartidoId == partidoId);
+
+            if (prediccion == null)
+            {
+                return NotFound("No existe una predicción guardada para este partido");
+            }
+
+            if (prediccion.Bloqueada ||
+                prediccion.Partido.Finalizado ||
+                DateTime.UtcNow >= prediccion.Partido.Fecha.AddMinutes(-20))
+            {
+                return Conflict("La predicción ya está bloqueada y no se puede eliminar");
+            }
+
+            _context.Predicciones.Remove(prediccion);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // =========================================================
         // MÉTODOS AUXILIARES
         // =========================================================
 
