@@ -249,15 +249,65 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
                 .ToListAsync();
 
+            var prediccionesGrupo = await _context.PrediccionesGrupo
+                .Where(p => p.PollaId == pollaId)
+                .ToListAsync();
+            var gruposPorUsuario = prediccionesGrupo
+                .GroupBy(p => (p.UsuarioId, p.PollaId, Grupo: p.Grupo.ToUpperInvariant()))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var grupo in prediccionesGrupo
+                .Select(p => p.Grupo.ToUpperInvariant())
+                .Distinct())
+            {
+                tablasGrupo[grupo] = await ObtenerTablaGrupo(grupo);
+            }
+
+            var prediccionesPodio = await _context.PrediccionesPodio
+                .Where(p => p.PollaId == pollaId)
+                .ToListAsync();
+            var podiosPorUsuario = prediccionesPodio
+                .GroupBy(p => (p.UsuarioId, p.PollaId))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var final = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
+
+            var tercerPuesto = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+
             return predicciones
-                .Select(CrearDetalleRanking)
+                .Select(p => CrearDetalleRanking(
+                    p,
+                    gruposPorUsuario,
+                    tablasGrupo,
+                    podiosPorUsuario,
+                    final,
+                    tercerPuesto))
                 .ToList();
         }
 
-        private static DetalleRankingDto CrearDetalleRanking(Prediccion prediccion)
+        private static DetalleRankingDto CrearDetalleRanking(
+            Prediccion prediccion,
+            Dictionary<(int UsuarioId, int PollaId, string Grupo), PrediccionGrupo> gruposPorUsuario,
+            Dictionary<string, List<TablaPosicionDTO>> tablasGrupo,
+            Dictionary<(int UsuarioId, int PollaId), PrediccionPodio> podiosPorUsuario,
+            Partido? final,
+            Partido? tercerPuesto)
         {
             var puntosMarcador = DesglosarMarcador(prediccion);
             var puntosKo = DesglosarClasificacionKo(prediccion);
+            var grupo = prediccion.Partido.Local.Grupo?.ToUpperInvariant() ??
+                prediccion.Grupo?.ToUpperInvariant() ??
+                "";
+            var puntosClasificacion = prediccion.Partido.Fase == "Grupos"
+                ? prediccion.PuntosClasificacion
+                : puntosKo.Clasificacion;
 
             return new DetalleRankingDto
             {
@@ -275,13 +325,175 @@ namespace WorldCup.Api.Controllers
                 PuntosGanador = puntosMarcador.Ganador,
                 PuntosDiferencia = puntosMarcador.Diferencia,
                 PuntosGoles = puntosMarcador.Goles,
-                PuntosClasificacion = prediccion.Partido.Fase == "Grupos"
-                    ? prediccion.PuntosClasificacion
-                    : puntosKo.Clasificacion,
+                PuntosClasificacion = puntosClasificacion,
                 PuntosExtras = puntosKo.Extras,
                 PuntosPodio = prediccion.PuntosPodio,
+                DetalleClasificacion = DescribirClasificacion(
+                    prediccion,
+                    puntosClasificacion,
+                    puntosKo,
+                    gruposPorUsuario,
+                    tablasGrupo,
+                    grupo),
+                DetalleExtras = DescribirExtras(prediccion, puntosKo),
+                DetallePodio = DescribirPodio(
+                    prediccion,
+                    podiosPorUsuario,
+                    final,
+                    tercerPuesto),
                 Total = prediccion.PuntosTotales
             };
+        }
+
+        private static string DescribirClasificacion(
+            Prediccion prediccion,
+            int puntosClasificacion,
+            PuntosKoDetalle puntosKo,
+            Dictionary<(int UsuarioId, int PollaId, string Grupo), PrediccionGrupo> gruposPorUsuario,
+            Dictionary<string, List<TablaPosicionDTO>> tablasGrupo,
+            string grupo)
+        {
+            if (puntosClasificacion <= 0)
+            {
+                return "";
+            }
+
+            if (prediccion.Partido.Fase != "Grupos")
+            {
+                return puntosKo.Clasificacion > 0
+                    ? "Acertó el equipo que clasificó a la siguiente fase."
+                    : "";
+            }
+
+            if (!gruposPorUsuario.TryGetValue(
+                    (prediccion.UsuarioId, prediccion.PollaId, grupo),
+                    out var predGrupo) ||
+                !tablasGrupo.TryGetValue(grupo, out var tabla) ||
+                tabla.Count < 3)
+            {
+                return $"Puntos por clasificación del grupo {grupo}.";
+            }
+
+            var primero = tabla[0].EquipoId;
+            var segundo = tabla[1].EquipoId;
+            var tercero = tabla[2].EquipoId;
+            var clasificados = new[] { primero, segundo, tercero };
+            var partes = new List<string>();
+
+            AgregarDetalleGrupo(partes, predGrupo.PrimeroId, primero, clasificados, tabla, 15, 10, "primero");
+            AgregarDetalleGrupo(partes, predGrupo.SegundoId, segundo, clasificados, tabla, 10, 5, "segundo");
+            AgregarDetalleGrupo(partes, predGrupo.TerceroId, tercero, clasificados, tabla, 5, 3, "tercero");
+
+            return partes.Any()
+                ? string.Join("; ", partes)
+                : $"Puntos por clasificación del grupo {grupo}.";
+        }
+
+        private static void AgregarDetalleGrupo(
+            List<string> partes,
+            int predichoId,
+            int realId,
+            int[] clasificados,
+            List<TablaPosicionDTO> tabla,
+            int puntosExactos,
+            int puntosClasifico,
+            string posicion)
+        {
+            var equipo = NombreEquipoTabla(predichoId, tabla);
+
+            if (predichoId == realId)
+            {
+                partes.Add($"+{puntosExactos}: {equipo} quedó de {posicion}");
+            }
+            else if (clasificados.Contains(predichoId))
+            {
+                partes.Add($"+{puntosClasifico}: {equipo} clasificó, aunque en otra posición");
+            }
+        }
+
+        private static string NombreEquipoTabla(int equipoId, List<TablaPosicionDTO> tabla)
+        {
+            return tabla.FirstOrDefault(t => t.EquipoId == equipoId)?.Equipo ?? $"Equipo {equipoId}";
+        }
+
+        private static string DescribirExtras(Prediccion prediccion, PuntosKoDetalle puntosKo)
+        {
+            if (puntosKo.Extras <= 0)
+            {
+                return "";
+            }
+
+            var partes = new List<string>();
+            var partido = prediccion.Partido;
+
+            if (partido.GolesLocal == partido.GolesVisitante)
+            {
+                if (prediccion.PrediceTiempoExtra)
+                {
+                    partes.Add("+5: acertó tiempo extra");
+                }
+
+                if (prediccion.PredicePenales &&
+                    partido.PenalesLocal.HasValue &&
+                    partido.PenalesVisitante.HasValue)
+                {
+                    partes.Add("+5: acertó definición por penales");
+                }
+            }
+
+            return string.Join("; ", partes);
+        }
+
+        private static string DescribirPodio(
+            Prediccion prediccion,
+            Dictionary<(int UsuarioId, int PollaId), PrediccionPodio> podiosPorUsuario,
+            Partido? final,
+            Partido? tercerPuesto)
+        {
+            if (prediccion.PuntosPodio <= 0 ||
+                final == null ||
+                tercerPuesto == null ||
+                !podiosPorUsuario.TryGetValue(
+                    (prediccion.UsuarioId, prediccion.PollaId),
+                    out var podio))
+            {
+                return "";
+            }
+
+            var campeon = ObtenerGanadorId(final);
+            var subcampeon = ObtenerPerdedorId(final);
+            var tercero = ObtenerGanadorId(tercerPuesto);
+            var partes = new List<string>();
+
+            if (campeon.HasValue && podio.CampeonId == campeon.Value)
+            {
+                partes.Add($"+20: campeón {NombreEquipoPartido(campeon.Value, final, tercerPuesto)}");
+            }
+
+            if (subcampeon.HasValue && podio.SubcampeonId == subcampeon.Value)
+            {
+                partes.Add($"+10: subcampeón {NombreEquipoPartido(subcampeon.Value, final, tercerPuesto)}");
+            }
+
+            if (tercero.HasValue && podio.TerceroId == tercero.Value)
+            {
+                partes.Add($"+5: tercer puesto {NombreEquipoPartido(tercero.Value, final, tercerPuesto)}");
+            }
+
+            return string.Join("; ", partes);
+        }
+
+        private static string NombreEquipoPartido(int equipoId, Partido final, Partido tercerPuesto)
+        {
+            var equipos = new[]
+            {
+                final.Local,
+                final.Visitante,
+                tercerPuesto.Local,
+                tercerPuesto.Visitante
+            };
+
+            return equipos.FirstOrDefault(e => e.Id == equipoId)?.Nombre ?? $"Equipo {equipoId}";
         }
 
         private static PuntosMarcadorDetalle DesglosarMarcador(Prediccion prediccion)
@@ -395,6 +607,98 @@ namespace WorldCup.Api.Controllers
             return partido.PenalesLocal > partido.PenalesVisitante
                 ? partido.LocalId
                 : partido.VisitanteId;
+        }
+
+        private static int? ObtenerPerdedorId(Partido partido)
+        {
+            var ganador = ObtenerGanadorId(partido);
+
+            if (!ganador.HasValue)
+            {
+                return null;
+            }
+
+            return ganador.Value == partido.LocalId
+                ? partido.VisitanteId
+                : partido.LocalId;
+        }
+
+        private async Task<List<TablaPosicionDTO>> ObtenerTablaGrupo(string grupo)
+        {
+            var grupoNormalizado = grupo.ToUpperInvariant();
+
+            var equipos = await _context.Equipos
+                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupoNormalizado)
+                .ToListAsync();
+
+            if (!equipos.Any())
+            {
+                return new List<TablaPosicionDTO>();
+            }
+
+            var equiposIds = equipos.Select(e => e.Id).ToList();
+            var partidos = await _context.Partidos
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    p.Finalizado &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId))
+                .ToListAsync();
+
+            var tabla = equipos.Select(e => new TablaPosicionDTO
+            {
+                EquipoId = e.Id,
+                Equipo = e.Nombre,
+                PJ = 0,
+                PG = 0,
+                PE = 0,
+                PP = 0,
+                GF = 0,
+                GC = 0,
+                Puntos = 0
+            }).ToList();
+
+            foreach (var partido in partidos)
+            {
+                var local = tabla.First(t => t.EquipoId == partido.LocalId);
+                var visitante = tabla.First(t => t.EquipoId == partido.VisitanteId);
+                var gl = partido.GolesLocal ?? 0;
+                var gv = partido.GolesVisitante ?? 0;
+
+                local.PJ++;
+                visitante.PJ++;
+                local.GF += gl;
+                local.GC += gv;
+                visitante.GF += gv;
+                visitante.GC += gl;
+
+                if (gl > gv)
+                {
+                    local.PG++;
+                    local.Puntos += 3;
+                    visitante.PP++;
+                }
+                else if (gl < gv)
+                {
+                    visitante.PG++;
+                    visitante.Puntos += 3;
+                    local.PP++;
+                }
+                else
+                {
+                    local.PE++;
+                    visitante.PE++;
+                    local.Puntos += 1;
+                    visitante.Puntos += 1;
+                }
+            }
+
+            return tabla
+                .OrderByDescending(t => t.Puntos)
+                .ThenByDescending(t => t.DG)
+                .ThenByDescending(t => t.GF)
+                .ThenBy(t => t.Equipo)
+                .ToList();
         }
 
         private static int OrdenFase(string fase) => fase switch

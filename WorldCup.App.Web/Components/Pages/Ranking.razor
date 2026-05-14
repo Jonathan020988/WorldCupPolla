@@ -162,7 +162,7 @@
                                                 <span>@r.Usuario</span>
                                             </div>
 
-                                            <div class="table-responsive">
+                                            <div class="table-responsive detail-scroll">
                                                 <table class="detail-table">
                                                     <thead>
                                                         <tr>
@@ -192,9 +192,9 @@
                                                                 <td>@Puntos(d.PuntosGanador, "points-blue")</td>
                                                                 <td>@Puntos(d.PuntosDiferencia, "points-slate")</td>
                                                                 <td>@Puntos(d.PuntosGoles, "points-indigo")</td>
-                                                                <td>@Puntos(d.PuntosClasificacion, "points-gold")</td>
-                                                                <td>@Puntos(d.PuntosExtras, "points-dark")</td>
-                                                                <td>@Puntos(d.PuntosPodio, "points-red")</td>
+                                                                <td>@PuntosConDetalle(d.PuntosClasificacion, "points-gold", d.DetalleClasificacion)</td>
+                                                                <td>@PuntosConDetalle(d.PuntosExtras, "points-dark", d.DetalleExtras)</td>
+                                                                <td>@PuntosConDetalle(d.PuntosPodio, "points-red", d.DetallePodio)</td>
                                                                 <td><strong>@d.Total</strong></td>
                                                             </tr>
                                                         }
@@ -437,6 +437,26 @@
         background: #f7faf8;
     }
 
+    .detail-scroll {
+        max-height: 520px;
+        overflow: auto;
+    }
+
+    .detail-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+    }
+
+    .points-detail {
+        max-width: 210px;
+        margin-top: .28rem;
+        color: var(--muted);
+        font-size: .72rem;
+        line-height: 1.2;
+        white-space: normal;
+    }
+
     .ranking-row.open {
         background: #f3fbf7;
     }
@@ -659,5 +679,19 @@
         return puntos > 0
             ? new MarkupString($"<span class=\"points-pill {clase}\">+{puntos}</span>")
             : new MarkupString("<span class=\"text-muted\">0</span>");
+    }
+
+    private MarkupString PuntosConDetalle(int puntos, string clase, string detalle)
+    {
+        if (puntos <= 0)
+        {
+            return new MarkupString("<span class=\"text-muted\">0</span>");
+        }
+
+        var detalleHtml = string.IsNullOrWhiteSpace(detalle)
+            ? ""
+            : $"<div class=\"points-detail\">{System.Net.WebUtility.HtmlEncode(detalle)}</div>";
+
+        return new MarkupString($"<span class=\"points-pill {clase}\">+{puntos}</span>{detalleHtml}");
     }
 }

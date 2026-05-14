@@ -144,9 +144,9 @@ else
                                         <tr>
                                             <td colspan="4">
 
-                                                <div class="table-responsive mt-2 mb-3">
+                                                <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
 
-                                                    <table class="table table-bordered table-hover table-sm align-middle">
+                                                    <table class="table table-bordered table-hover table-sm align-middle detalle-ranking-table">
 
                                                         <thead class="table-dark">
                                                             <tr>
@@ -264,6 +264,12 @@ else
                                                                             <span class="badge bg-warning text-dark">
                                                                                 +@d.PuntosClasificacion
                                                                             </span>
+                                                                            @if (!string.IsNullOrWhiteSpace(d.DetalleClasificacion))
+                                                                            {
+                                                                                <div class="detalle-puntos">
+                                                                                    @d.DetalleClasificacion
+                                                                                </div>
+                                                                            }
                                                                         }
                                                                         else
                                                                         {
@@ -279,6 +285,12 @@ else
                                                                             <span class="badge bg-dark">
                                                                                 +@d.PuntosExtras
                                                                             </span>
+                                                                            @if (!string.IsNullOrWhiteSpace(d.DetalleExtras))
+                                                                            {
+                                                                                <div class="detalle-puntos">
+                                                                                    @d.DetalleExtras
+                                                                                </div>
+                                                                            }
                                                                         }
                                                                         else
                                                                         {
@@ -294,6 +306,12 @@ else
                                                                             <span class="badge bg-danger">
                                                                                 +@d.PuntosPodio
                                                                             </span>
+                                                                            @if (!string.IsNullOrWhiteSpace(d.DetallePodio))
+                                                                            {
+                                                                                <div class="detalle-puntos">
+                                                                                    @d.DetallePodio
+                                                                                </div>
+                                                                            }
                                                                         }
                                                                         else
                                                                         {
@@ -392,6 +410,30 @@ else
     }
 
 }
+
+<style>
+    .detalle-ranking-scroll {
+        max-height: 520px;
+        overflow: auto;
+    }
+
+    .detalle-ranking-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #212529;
+        color: #fff;
+    }
+
+    .detalle-puntos {
+        max-width: 220px;
+        margin: .25rem auto 0;
+        color: #5f6b7a;
+        font-size: .72rem;
+        line-height: 1.2;
+        white-space: normal;
+    }
+</style>
 
 @code {
 

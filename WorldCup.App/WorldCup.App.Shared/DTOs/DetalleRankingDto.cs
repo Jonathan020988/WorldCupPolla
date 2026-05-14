@@ -24,6 +24,9 @@
         public int PuntosClasificacion { get; set; }
         public int PuntosExtras { get; set; }
         public int PuntosPodio { get; set; }
+        public string DetalleClasificacion { get; set; } = "";
+        public string DetalleExtras { get; set; } = "";
+        public string DetallePodio { get; set; } = "";
 
         public int Total { get; set; }
     }

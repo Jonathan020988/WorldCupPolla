@@ -88,12 +88,38 @@
         gap: .35rem;
     }
 
+    .admin-test-tools {
+        background: #fff;
+        border: 1px solid #d9e5df;
+        border-left: 5px solid #ffc107;
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    }
+
+    .admin-test-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+
     @@media (max-width: 576px) {
         .admin-result {
             grid-template-columns: 1fr 1fr;
         }
 
         .team-filter {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .admin-test-tools {
             align-items: stretch;
             flex-direction: column;
         }
@@ -155,6 +181,40 @@
                 </button>
             }
         </div>
+
+        @if (Sesion.EsAdmin)
+        {
+            <div class="admin-test-tools">
+                <label class="form-check mb-0">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           @bind="herramientasPruebaHabilitadas" />
+                    <span class="form-check-label fw-bold">
+                        Habilitar herramientas de prueba para partidos visibles
+                    </span>
+                </label>
+
+                <div class="admin-test-actions">
+                    <button class="btn btn-sm btn-outline-warning"
+                            disabled="@(!herramientasPruebaHabilitadas || procesandoMasivo)"
+                            @onclick="LlenarAleatorioVisible">
+                        Llenado aleatorio
+                    </button>
+                    <button class="btn btn-sm btn-outline-success"
+                            disabled="@(!herramientasPruebaHabilitadas || procesandoMasivo)"
+                            @onclick="FinalizarVisibles">
+                        Finalizar visibles
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(mensajeAdminMasivo))
+        {
+            <div class="alert @(errorAdminMasivo ? "alert-danger" : "alert-success")">
+                @mensajeAdminMasivo
+            </div>
+        }
 
         <!-- PARTIDOS -->
         @if (!partidosFiltrados.Any())
@@ -295,10 +355,15 @@
     private List<PartidoDto> partidosFiltrados = new();
     private Dictionary<int, string> erroresPartido = new();
     private HashSet<int> resultadosEnEdicion = new();
+    private HashSet<int> resultadosPersistidos = new();
 
     private string? faseSeleccionada;
     private string? paisFiltro;
     private DateTime? fechaFiltro;
+    private bool herramientasPruebaHabilitadas;
+    private bool procesandoMasivo;
+    private string? mensajeAdminMasivo;
+    private bool errorAdminMasivo;
 
     private readonly List<string> fasesOrdenadas = new()
     {
@@ -314,8 +379,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        partidos = await PartidosService.GetPartidosAsync();
-        AplicarFiltros();
+        await CargarPartidosAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -425,18 +489,33 @@
 
     private bool TieneResultadoReal(PartidoDto partido)
     {
-        return partido.GolesLocal.HasValue ||
-               partido.GolesVisitante.HasValue ||
-               partido.PenalesLocal.HasValue ||
-               partido.PenalesVisitante.HasValue ||
-               partido.Finalizado ||
-               partido.Estado != "Pendiente";
+        return resultadosPersistidos.Contains(partido.Id);
     }
 
     private bool ResultadoEditable(PartidoDto partido)
     {
         return !TieneResultadoReal(partido) ||
                resultadosEnEdicion.Contains(partido.Id);
+    }
+
+    private async Task CargarPartidosAsync()
+    {
+        partidos = await PartidosService.GetPartidosAsync();
+        resultadosPersistidos = partidos
+            .Where(TieneResultadoRealPersistido)
+            .Select(p => p.Id)
+            .ToHashSet();
+        AplicarFiltros();
+    }
+
+    private static bool TieneResultadoRealPersistido(PartidoDto partido)
+    {
+        return partido.GolesLocal.HasValue ||
+               partido.GolesVisitante.HasValue ||
+               partido.PenalesLocal.HasValue ||
+               partido.PenalesVisitante.HasValue ||
+               partido.Finalizado ||
+               partido.Estado != "Pendiente";
     }
 
     private void EditarResultadoAdmin(PartidoDto partido)
@@ -475,9 +554,8 @@
             return;
         }
 
-        partidos = await PartidosService.GetPartidosAsync();
+        await CargarPartidosAsync();
         resultadosEnEdicion.Remove(partido.Id);
-        AplicarFiltros();
     }
 
     private async Task EliminarMarcadorAdmin(PartidoDto partido)
@@ -512,8 +590,120 @@
         }
 
         resultadosEnEdicion.Remove(partido.Id);
-        partidos = await PartidosService.GetPartidosAsync();
-        AplicarFiltros();
+        await CargarPartidosAsync();
+    }
+
+    private async Task LlenarAleatorioVisible()
+    {
+        if (!PuedeUsarHerramientasMasivas())
+        {
+            return;
+        }
+
+        procesandoMasivo = true;
+        mensajeAdminMasivo = null;
+        errorAdminMasivo = false;
+
+        var objetivo = PartidosObjetivoAdmin().ToList();
+
+        foreach (var partido in objetivo)
+        {
+            AplicarMarcadorAleatorio(partido);
+            resultadosEnEdicion.Add(partido.Id);
+            await GuardarResultadoAdmin(partido);
+        }
+
+        mensajeAdminMasivo = $"Se llenaron aleatoriamente {objetivo.Count} partidos visibles.";
+        procesandoMasivo = false;
+    }
+
+    private async Task FinalizarVisibles()
+    {
+        if (!PuedeUsarHerramientasMasivas())
+        {
+            return;
+        }
+
+        procesandoMasivo = true;
+        mensajeAdminMasivo = null;
+        errorAdminMasivo = false;
+
+        var objetivo = PartidosObjetivoAdmin().ToList();
+
+        foreach (var partido in objetivo)
+        {
+            if (!partido.GolesLocal.HasValue || !partido.GolesVisitante.HasValue)
+            {
+                AplicarMarcadorAleatorio(partido);
+            }
+
+            if (partido.Fase != "Grupos" &&
+                partido.GolesLocal == partido.GolesVisitante &&
+                (!partido.PenalesLocal.HasValue ||
+                 !partido.PenalesVisitante.HasValue ||
+                 partido.PenalesLocal == partido.PenalesVisitante))
+            {
+                AplicarPenalesAleatorios(partido);
+            }
+
+            partido.Estado = "Finalizado";
+            resultadosEnEdicion.Add(partido.Id);
+            await GuardarResultadoAdmin(partido);
+        }
+
+        mensajeAdminMasivo = $"Se finalizaron {objetivo.Count} partidos visibles.";
+        procesandoMasivo = false;
+    }
+
+    private bool PuedeUsarHerramientasMasivas()
+    {
+        if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin || !herramientasPruebaHabilitadas)
+        {
+            return false;
+        }
+
+        if (!partidosFiltrados.Any())
+        {
+            mensajeAdminMasivo = "No hay partidos visibles para procesar.";
+            errorAdminMasivo = true;
+            return false;
+        }
+
+        return true;
+    }
+
+    private IEnumerable<PartidoDto> PartidosObjetivoAdmin()
+    {
+        return partidosFiltrados
+            .Where(p => p.Estado != "Postergado")
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.Id);
+    }
+
+    private static void AplicarMarcadorAleatorio(PartidoDto partido)
+    {
+        partido.GolesLocal = Random.Shared.Next(0, 5);
+        partido.GolesVisitante = Random.Shared.Next(0, 5);
+
+        if (partido.Fase == "Grupos" || partido.GolesLocal != partido.GolesVisitante)
+        {
+            partido.PenalesLocal = null;
+            partido.PenalesVisitante = null;
+            return;
+        }
+
+        AplicarPenalesAleatorios(partido);
+    }
+
+    private static void AplicarPenalesAleatorios(PartidoDto partido)
+    {
+        partido.PenalesLocal = Random.Shared.Next(3, 7);
+        partido.PenalesVisitante = Random.Shared.Next(3, 7);
+
+        if (partido.PenalesLocal == partido.PenalesVisitante)
+        {
+            partido.PenalesVisitante++;
+        }
     }
 
     private class AdminResultadoDto
