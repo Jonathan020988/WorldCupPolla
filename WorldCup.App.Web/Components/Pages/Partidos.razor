@@ -109,6 +109,56 @@
         gap: .5rem;
     }
 
+    .partidos-phase-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        margin: 1.3rem 0 .75rem;
+        padding: .8rem 1rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .92);
+        box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    }
+
+    .partidos-phase-title strong {
+        display: block;
+        color: #173b2f;
+        font-size: 1.05rem;
+    }
+
+    .partidos-phase-title small {
+        color: #667085;
+        font-weight: 700;
+    }
+
+    .phase-collapse-btn {
+        border: 1px solid #cfd8e3;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #344054;
+        padding: .28rem .7rem;
+        font-size: .82rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .phase-collapse-btn:hover,
+    .phase-collapse-btn:focus-visible {
+        background: #f2f4f7;
+    }
+
+    .phase-collapsed-summary {
+        margin-bottom: .9rem;
+        padding: .75rem .9rem;
+        border: 1px dashed #cfd8e3;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .92);
+        color: #667085;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(0,0,0,.08);
+    }
+
     @@media (max-width: 576px) {
         .admin-result {
             grid-template-columns: 1fr 1fr;
@@ -121,6 +171,11 @@
 
         .admin-test-tools {
             align-items: stretch;
+            flex-direction: column;
+        }
+
+        .partidos-phase-title {
+            align-items: flex-start;
             flex-direction: column;
         }
     }
@@ -225,125 +280,159 @@
         }
         else
         {
-            @foreach (var p in partidosFiltrados)
+            @foreach (var fase in partidosFiltrados
+                    .GroupBy(p => p.Fase)
+                    .OrderBy(g => OrdenFase(g.Key)))
             {
-                <div class="match-card">
-                    <span class="badge bg-success mb-2">@p.Fase</span>
+                var faseNombre = fase.Key;
+                var faseFinalizada = FaseFinalizada(faseNombre);
+                var faseMinimizada = FaseMinimizada(faseNombre);
 
-                    <div class="row align-items-center text-center">
-                        <div class="col-5 fw-bold text-end">@p.Local</div>
+                <div class="partidos-phase-title">
+                    <div>
+                        <strong>@NombreFase(faseNombre)</strong>
+                        <small>@fase.Count() partidos visibles</small>
+                    </div>
 
-                        <div class="col-2 score">
-                            @if (p.Finalizado)
+                    @if (faseFinalizada)
+                    {
+                        <button type="button"
+                                class="phase-collapse-btn"
+                                @onclick="() => ToggleFaseMinimizada(faseNombre)">
+                            @(faseMinimizada ? "Mostrar fase" : "Minimizar fase")
+                        </button>
+                    }
+                </div>
+
+                @if (faseMinimizada)
+                {
+                    <div class="phase-collapsed-summary">
+                        @NombreFase(faseNombre) finalizada. @fase.Count() partidos ocultos para navegar más rápido.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
+                    {
+                        <div class="match-card">
+                            <span class="badge bg-success mb-2">@p.Fase</span>
+
+                            <div class="row align-items-center text-center">
+                                <div class="col-5 fw-bold text-end">@p.Local</div>
+
+                                <div class="col-2 score">
+                                    @if (p.Finalizado)
+                                    {
+                                        @($"{p.GolesLocal} - {p.GolesVisitante}")
+                                        @if (p.Fase != "Grupos" &&
+                                       p.GolesLocal == p.GolesVisitante &&
+                                       p.PenalesLocal.HasValue &&
+                                       p.PenalesVisitante.HasValue)
+                                        {
+                                            <div class="small text-muted">
+                                                Pen. @p.PenalesLocal - @p.PenalesVisitante
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">–</span>
+                                    }
+
+                                </div>
+
+
+                                <div class="col-5 fw-bold text-start">@p.Visitante</div>
+                            </div>
+
+                            <div class="text-center text-muted mt-1" style="font-size: 0.9rem;">
+                                @p.Fecha.ToString(
+                                         "dddd dd 'de' MMMM 'de' yyyy · HH:mm",
+                                         new CultureInfo("es-CO")
+                                         )
+                            </div>
+
+                            <div class="text-center mt-2">
+                                <span class="@GetEstadoBadgeClass(p.Estado)">
+                                    @p.Estado
+                                </span>
+                            </div>
+
+                            @if (Sesion.EsAdmin)
                             {
-                                @($"{p.GolesLocal} - {p.GolesVisitante}")
-                                @if (p.Fase != "Grupos" &&
-                               p.GolesLocal == p.GolesVisitante &&
-                               p.PenalesLocal.HasValue &&
-                               p.PenalesVisitante.HasValue)
+                                var resultadoEditable = ResultadoEditable(p);
+                                var tieneResultado = TieneResultadoReal(p);
+
+                                <div class="admin-result mt-3">
+                                    <select class="form-select form-select-sm"
+                                            disabled="@(!resultadoEditable)"
+                                            @bind="p.Estado">
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="EnJuego">En juego</option>
+                                        <option value="Postergado">Postergado</option>
+                                        <option value="Finalizado">Finalizado</option>
+                                    </select>
+
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           placeholder="Local"
+                                           disabled="@(!resultadoEditable)"
+                                           @bind="p.GolesLocal" />
+
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           placeholder="Visitante"
+                                           disabled="@(!resultadoEditable)"
+                                           @bind="p.GolesVisitante" />
+
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           placeholder="Pen. local"
+                                           disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
+                                           @bind="p.PenalesLocal" />
+
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           placeholder="Pen. visit."
+                                           disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
+                                           @bind="p.PenalesVisitante" />
+
+                                    <div class="resultado-actions">
+                                        <button class="btn btn-sm btn-primary"
+                                                disabled="@(!resultadoEditable)"
+                                                @onclick="() => GuardarResultadoAdmin(p)">
+                                            Guardar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                disabled="@(resultadoEditable || !tieneResultado)"
+                                                @onclick="() => EditarResultadoAdmin(p)">
+                                            Editar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                disabled="@(!tieneResultado)"
+                                                @onclick="() => EliminarMarcadorAdmin(p)">
+                                            Eliminar marcador
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @if (erroresPartido.ContainsKey(p.Id))
                                 {
-                                    <div class="small text-muted">
-                                        Pen. @p.PenalesLocal - @p.PenalesVisitante
+                                    <div class="alert alert-danger mt-2 mb-0 py-2">
+                                        @erroresPartido[p.Id]
                                     </div>
                                 }
                             }
-                            else
-                            {
-                                <span class="text-muted">–</span>
-                            }
 
                         </div>
-
-
-                        <div class="col-5 fw-bold text-start">@p.Visitante</div>
-                    </div>
-
-                    <div class="text-center text-muted mt-1" style="font-size: 0.9rem;">
-                        @p.Fecha.ToString(
-                                 "dddd dd 'de' MMMM 'de' yyyy · HH:mm",
-                                 new CultureInfo("es-CO")
-                                 )
-                    </div>
-
-                    <div class="text-center mt-2">
-                        <span class="@GetEstadoBadgeClass(p.Estado)">
-                            @p.Estado
-                        </span>
-                    </div>
-
-                    @if (Sesion.EsAdmin)
-                    {
-                        var resultadoEditable = ResultadoEditable(p);
-                        var tieneResultado = TieneResultadoReal(p);
-
-                        <div class="admin-result mt-3">
-                            <select class="form-select form-select-sm"
-                                    disabled="@(!resultadoEditable)"
-                                    @bind="p.Estado">
-                                <option value="Pendiente">Pendiente</option>
-                                <option value="EnJuego">En juego</option>
-                                <option value="Postergado">Postergado</option>
-                                <option value="Finalizado">Finalizado</option>
-                            </select>
-
-                            <input type="number"
-                                   class="form-control form-control-sm"
-                                   min="0"
-                                   placeholder="Local"
-                                   disabled="@(!resultadoEditable)"
-                                   @bind="p.GolesLocal" />
-
-                            <input type="number"
-                                   class="form-control form-control-sm"
-                                   min="0"
-                                   placeholder="Visitante"
-                                   disabled="@(!resultadoEditable)"
-                                   @bind="p.GolesVisitante" />
-
-                            <input type="number"
-                                   class="form-control form-control-sm"
-                                   min="0"
-                                   placeholder="Pen. local"
-                                   disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
-                                   @bind="p.PenalesLocal" />
-
-                            <input type="number"
-                                   class="form-control form-control-sm"
-                                   min="0"
-                                   placeholder="Pen. visit."
-                                   disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
-                                   @bind="p.PenalesVisitante" />
-
-                            <div class="resultado-actions">
-                                <button class="btn btn-sm btn-primary"
-                                        disabled="@(!resultadoEditable)"
-                                        @onclick="() => GuardarResultadoAdmin(p)">
-                                    Guardar
-                                </button>
-
-                                <button class="btn btn-sm btn-outline-secondary"
-                                        disabled="@(resultadoEditable || !tieneResultado)"
-                                        @onclick="() => EditarResultadoAdmin(p)">
-                                    Editar
-                                </button>
-
-                                <button class="btn btn-sm btn-outline-danger"
-                                        disabled="@(!tieneResultado)"
-                                        @onclick="() => EliminarMarcadorAdmin(p)">
-                                    Eliminar marcador
-                                </button>
-                            </div>
-                        </div>
-
-                        @if (erroresPartido.ContainsKey(p.Id))
-                        {
-                            <div class="alert alert-danger mt-2 mb-0 py-2">
-                                @erroresPartido[p.Id]
-                            </div>
-                        }
                     }
-                                       
-                </div>
+                }
             }
         }
     </div>
@@ -356,6 +445,7 @@
     private Dictionary<int, string> erroresPartido = new();
     private HashSet<int> resultadosEnEdicion = new();
     private HashSet<int> resultadosPersistidos = new();
+    private HashSet<string> fasesMinimizadas = new(StringComparer.OrdinalIgnoreCase);
 
     private string? faseSeleccionada;
     private string? paisFiltro;
@@ -466,6 +556,46 @@
     private string? GetFaseValue(string fase)
     {
         return fase == "Todas" ? null : fase;
+    }
+
+    private int OrdenFase(string fase)
+    {
+        var index = fasesOrdenadas.IndexOf(fase);
+        return index < 0 ? 99 : index;
+    }
+
+    private string NombreFase(string fase)
+    {
+        return fase switch
+        {
+            "TercerPuesto" => "Tercer puesto",
+            _ => fase
+        };
+    }
+
+    private bool FaseFinalizada(string fase)
+    {
+        return partidos.Any(p => p.Fase == fase) &&
+               partidos.Where(p => p.Fase == fase).All(p => p.Finalizado);
+    }
+
+    private bool FaseMinimizada(string fase)
+    {
+        return FaseFinalizada(fase) && fasesMinimizadas.Contains(fase);
+    }
+
+    private void ToggleFaseMinimizada(string fase)
+    {
+        if (!FaseFinalizada(fase))
+        {
+            fasesMinimizadas.Remove(fase);
+            return;
+        }
+
+        if (!fasesMinimizadas.Add(fase))
+        {
+            fasesMinimizadas.Remove(fase);
+        }
     }
 
     private string GetEstadoBadgeClass(string? estado)
