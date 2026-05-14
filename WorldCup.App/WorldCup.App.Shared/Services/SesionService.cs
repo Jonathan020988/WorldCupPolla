@@ -14,6 +14,7 @@ namespace WorldCup.App.Shared.Services
         public string? Nombre { get; private set; }
         public int? PollaActivaId { get; private set; }
         public string? PollaActivaNombre { get; private set; }
+        public bool EsAdmin { get; private set; }
 
         public bool EstaLogueado => UsuarioId.HasValue;
 
@@ -25,10 +26,11 @@ namespace WorldCup.App.Shared.Services
             _storage = storage;
         }
 
-        public async Task LoginAsync(int usuarioId, string nombre)
+        public async Task LoginAsync(int usuarioId, string nombre, bool esAdmin = false)
         {
             UsuarioId = usuarioId;
             Nombre = nombre;
+            EsAdmin = esAdmin;
             PollaActivaId = null;
             PollaActivaNombre = null;
 
@@ -43,6 +45,7 @@ namespace WorldCup.App.Shared.Services
             {
                 UsuarioId = data.UsuarioId;
                 Nombre = data.Nombre;
+                EsAdmin = data.EsAdmin;
                 PollaActivaId = data.PollaActivaId;
                 PollaActivaNombre = data.PollaActivaNombre;
                 NotifyStateChanged();
@@ -80,6 +83,7 @@ namespace WorldCup.App.Shared.Services
         {
             UsuarioId = null;
             Nombre = null;
+            EsAdmin = false;
             PollaActivaId = null;
             PollaActivaNombre = null;
             await _storage.RemoveAsync(KEY);
@@ -98,6 +102,7 @@ namespace WorldCup.App.Shared.Services
             {
                 UsuarioId,
                 Nombre,
+                EsAdmin,
                 PollaActivaId,
                 PollaActivaNombre
             });
@@ -107,6 +112,7 @@ namespace WorldCup.App.Shared.Services
         {
             public int UsuarioId { get; set; }
             public string? Nombre { get; set; }
+            public bool EsAdmin { get; set; }
             public int? PollaActivaId { get; set; }
             public string? PollaActivaNombre { get; set; }
         }

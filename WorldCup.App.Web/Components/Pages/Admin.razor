@@ -1,0 +1,435 @@
+@page "/admin"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject WorldCup.App.Shared.Services.SesionService Sesion
+@inject NavigationManager Navigation
+
+<h2 class="mb-4">Panel administrador</h2>
+
+@if (cargando)
+{
+    <p>Cargando panel...</p>
+}
+else if (!Sesion.EsAdmin)
+{
+    <div class="alert alert-danger">
+        No tienes permisos para entrar al panel administrador.
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <small class="text-muted">Usuarios</small>
+                    <h3>@resumen?.Usuarios</h3>
+                    <small class="text-muted">@resumen?.UsuariosActivos activos / @resumen?.UsuariosInactivos inactivos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <small class="text-muted">Pollas</small>
+                    <h3>@resumen?.Pollas</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <small class="text-muted">Finalizados</small>
+                    <h3>@resumen?.PartidosFinalizados</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <small class="text-muted">Pendientes</small>
+                    <h3>@resumen?.PartidosPendientes</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="alert alert-info">@mensaje</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header fw-bold">Usuarios</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>Estado</th>
+                                <th class="text-end">Pollas</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var usuario in usuarios)
+                            {
+                                <tr>
+                                    <td>@usuario.Nombre</td>
+                                    <td>@usuario.Email</td>
+                                    <td>
+                                        <span class="badge @(usuario.Activo ? "bg-success" : "bg-secondary")">
+                                            @(usuario.Activo ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+                                    <td class="text-end">@usuario.Pollas</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm @(usuario.Activo ? "btn-outline-warning" : "btn-outline-success")"
+                                                @onclick="() => CambiarEstadoUsuario(usuario.Id, usuario.Nombre, !usuario.Activo)">
+                                            @(usuario.Activo ? "Inactivar" : "Activar")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header fw-bold">Pollas</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Polla</th>
+                                <th>Creador</th>
+                                <th class="text-end">Miembros</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var polla in pollas)
+                            {
+                                <tr>
+                                    <td>@polla.Nombre</td>
+                                    <td>@polla.Creador</td>
+                                    <td class="text-end">
+                                        @polla.Miembros
+                                        @if (polla.MiembrosInactivos > 0)
+                                        {
+                                            <small class="text-muted">(+@polla.MiembrosInactivos inact.)</small>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => CargarMiembros(polla)">
+                                            Ver
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => EliminarPolla(polla)">
+                                            Eliminar
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (pollaSeleccionada != null)
+    {
+        <div class="card mt-4">
+            <div class="card-header fw-bold">
+                Miembros de @pollaSeleccionada.Nombre
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var miembro in miembros)
+                        {
+                            <tr>
+                                <td>@miembro.Nombre</td>
+                                <td>@miembro.Email</td>
+                                <td>
+                                    <span class="badge @(miembro.Activo ? "bg-success" : "bg-secondary")">
+                                        @(miembro.Activo ? "Activo" : "Inactivo")
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => CargarPredicciones(miembro)">
+                                        Predicciones
+                                    </button>
+                                    <button class="btn btn-sm @(miembro.Activo ? "btn-outline-warning" : "btn-outline-success")"
+                                            @onclick="() => CambiarEstadoUsuario(miembro.UsuarioId, miembro.Nombre, !miembro.Activo)">
+                                        @(miembro.Activo ? "Inactivar" : "Activar")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (usuarioPredicciones != null)
+    {
+        <div class="card mt-4">
+            <div class="card-header fw-bold">
+                Predicciones de @usuarioPredicciones.Nombre
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Partido</th>
+                            <th>Pronóstico</th>
+                            <th>Resultado real</th>
+                            <th>Puntos</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var prediccion in prediccionesUsuario)
+                        {
+                            <tr>
+                                <td>@prediccion.Partido</td>
+                                <td>
+                                    <input class="form-control form-control-sm d-inline-block marcador-admin"
+                                           type="number"
+                                           min="0"
+                                           @bind="prediccion.GolesLocal" />
+                                    -
+                                    <input class="form-control form-control-sm d-inline-block marcador-admin"
+                                           type="number"
+                                           min="0"
+                                           @bind="prediccion.GolesVisitante" />
+                                </td>
+                                <td>@prediccion.ResultadoLocal - @prediccion.ResultadoVisitante</td>
+                                <td>@prediccion.PuntosTotales</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => GuardarPrediccion(prediccion)">
+                                        Guardar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .marcador-admin {
+        width: 70px;
+    }
+</style>
+
+@code {
+    private bool cargando = true;
+    private string? mensaje;
+    private ResumenAdminDto? resumen;
+    private List<UsuarioAdminDto> usuarios = new();
+    private List<PollaAdminDto> pollas = new();
+    private List<MiembroAdminDto> miembros = new();
+    private List<PrediccionAdminDto> prediccionesUsuario = new();
+    private PollaAdminDto? pollaSeleccionada;
+    private MiembroAdminDto? usuarioPredicciones;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+
+        if (!Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/admin", true);
+            return;
+        }
+
+        if (Sesion.EsAdmin)
+        {
+            await CargarPanel();
+        }
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task CargarPanel()
+    {
+        var adminId = Sesion.UsuarioId!.Value;
+
+        resumen = await Http.GetFromJsonAsync<ResumenAdminDto>(
+            $"api/Admin/resumen?adminUsuarioId={adminId}");
+        usuarios = await Http.GetFromJsonAsync<List<UsuarioAdminDto>>(
+            $"api/Admin/usuarios?adminUsuarioId={adminId}") ?? new();
+        pollas = await Http.GetFromJsonAsync<List<PollaAdminDto>>(
+            $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
+    }
+
+    private async Task CargarMiembros(PollaAdminDto polla)
+    {
+        pollaSeleccionada = polla;
+        usuarioPredicciones = null;
+        prediccionesUsuario.Clear();
+
+        miembros = await Http.GetFromJsonAsync<List<MiembroAdminDto>>(
+            $"api/Admin/pollas/{polla.Id}/miembros?adminUsuarioId={Sesion.UsuarioId!.Value}") ?? new();
+    }
+
+    private async Task EliminarMiembro(MiembroAdminDto miembro)
+    {
+        if (pollaSeleccionada == null)
+            return;
+
+        var response = await Http.DeleteAsync(
+            $"api/Admin/pollas/{pollaSeleccionada.Id}/miembros/{miembro.UsuarioId}?adminUsuarioId={Sesion.UsuarioId!.Value}");
+
+        mensaje = response.IsSuccessStatusCode
+            ? $"{miembro.Nombre} fue retirado de la polla."
+            : await response.Content.ReadAsStringAsync();
+
+        await CargarMiembros(pollaSeleccionada);
+        await CargarPanel();
+    }
+
+    private async Task CambiarEstadoUsuario(int usuarioId, string nombre, bool activo)
+    {
+        var response = await Http.PutAsJsonAsync(
+            $"api/Admin/usuarios/{usuarioId}/estado",
+            new
+            {
+                AdminUsuarioId = Sesion.UsuarioId!.Value,
+                Activo = activo
+            });
+
+        mensaje = response.IsSuccessStatusCode
+            ? $"{nombre} quedó {(activo ? "activo" : "inactivo")}."
+            : await response.Content.ReadAsStringAsync();
+
+        await CargarPanel();
+
+        if (pollaSeleccionada != null)
+        {
+            await CargarMiembros(pollaSeleccionada);
+        }
+    }
+
+    private async Task EliminarPolla(PollaAdminDto polla)
+    {
+        var response = await Http.DeleteAsync(
+            $"api/Admin/pollas/{polla.Id}?adminUsuarioId={Sesion.UsuarioId!.Value}");
+
+        mensaje = response.IsSuccessStatusCode
+            ? $"La polla {polla.Nombre} fue eliminada."
+            : await response.Content.ReadAsStringAsync();
+
+        pollaSeleccionada = null;
+        miembros.Clear();
+        await CargarPanel();
+    }
+
+    private async Task CargarPredicciones(MiembroAdminDto miembro)
+    {
+        if (pollaSeleccionada == null)
+            return;
+
+        usuarioPredicciones = miembro;
+        prediccionesUsuario = await Http.GetFromJsonAsync<List<PrediccionAdminDto>>(
+            $"api/Admin/predicciones?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={miembro.UsuarioId}") ?? new();
+    }
+
+    private async Task GuardarPrediccion(PrediccionAdminDto prediccion)
+    {
+        var response = await Http.PutAsJsonAsync(
+            $"api/Admin/predicciones/{prediccion.Id}",
+            new
+            {
+                AdminUsuarioId = Sesion.UsuarioId!.Value,
+                prediccion.GolesLocal,
+                prediccion.GolesVisitante
+            });
+
+        mensaje = response.IsSuccessStatusCode
+            ? "Predicción actualizada."
+            : await response.Content.ReadAsStringAsync();
+
+        if (usuarioPredicciones != null)
+        {
+            await CargarPredicciones(usuarioPredicciones);
+        }
+    }
+
+    private class ResumenAdminDto
+    {
+        public int Usuarios { get; set; }
+        public int UsuariosActivos { get; set; }
+        public int UsuariosInactivos { get; set; }
+        public int Pollas { get; set; }
+        public int PartidosFinalizados { get; set; }
+        public int PartidosPendientes { get; set; }
+    }
+
+    private class UsuarioAdminDto
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+        public string Email { get; set; } = "";
+        public bool Activo { get; set; }
+        public int Pollas { get; set; }
+    }
+
+    private class PollaAdminDto
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+        public string Creador { get; set; } = "";
+        public int Miembros { get; set; }
+        public int MiembrosInactivos { get; set; }
+    }
+
+    private class MiembroAdminDto
+    {
+        public int UsuarioId { get; set; }
+        public string Nombre { get; set; } = "";
+        public string Email { get; set; } = "";
+        public bool Activo { get; set; }
+    }
+
+    private class PrediccionAdminDto
+    {
+        public int Id { get; set; }
+        public string Partido { get; set; } = "";
+        public int? GolesLocal { get; set; }
+        public int? GolesVisitante { get; set; }
+        public int? ResultadoLocal { get; set; }
+        public int? ResultadoVisitante { get; set; }
+        public int PuntosTotales { get; set; }
+    }
+}

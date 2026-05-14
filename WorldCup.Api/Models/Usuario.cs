@@ -18,6 +18,8 @@ namespace WorldCup.Api.Models
         [Required]
         public string PasswordHash { get; set; } = null!;
 
+        public bool Activo { get; set; } = true;
+
         // Relaciones
         public List<Polla> PollasCreadas { get; set; } = new();
         public List<PollaMiembro> PollaMiembros { get; set; } = new();

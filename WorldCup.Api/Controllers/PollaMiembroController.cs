@@ -26,7 +26,7 @@ namespace WorldCup.Api.Controllers
         public async Task<ActionResult<IEnumerable<PollaMiembroDTO>>> GetMiembros(int pollaId)
         {
             var miembros = await _context.PollaMiembros
-                .Where(m => m.PollaId == pollaId)
+                .Where(m => m.PollaId == pollaId && m.Usuario.Activo)
                 .Select(m => new PollaMiembroDTO
                 {
                     Id = m.Id,
@@ -48,14 +48,21 @@ namespace WorldCup.Api.Controllers
         {
             var polla = await _context.Pollas
                 .Include(p => p.Miembros)
+                    .ThenInclude(m => m.Usuario)
                 .FirstOrDefaultAsync(p => p.Id == dto.PollaId);
 
             if (polla == null)
                 return NotFound("La polla no existe.");
 
+            var usuarioActivo = await _context.Usuarios
+                .AnyAsync(u => u.Id == dto.UsuarioId && u.Activo);
+
+            if (!usuarioActivo)
+                return BadRequest("El usuario no existe o está inactivo.");
+
             // Validar si está lleno
             if (polla.MaximoMiembros.HasValue &&
-                polla.Miembros.Count >= polla.MaximoMiembros)
+                polla.Miembros.Count(m => m.Usuario.Activo) >= polla.MaximoMiembros)
             {
                 return BadRequest("La polla ya alcanzó el número máximo de miembros.");
             }

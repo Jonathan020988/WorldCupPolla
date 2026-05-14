@@ -87,7 +87,10 @@ else
 
                         <!-- LOCAL -->
                         <div class="col-4 text-end fw-semibold text-truncate">
-                            ⚽ @p.Local
+                            <span>@p.Local</span>
+                            <img class="team-flag ms-1"
+                                 src="@GetBandera(p.Local)"
+                                 alt="@p.Local" />
                         </div>
 
                         <!-- MARCADOR -->
@@ -112,7 +115,10 @@ else
 
                         <!-- VISITANTE -->
                         <div class="col-4 text-start fw-semibold text-truncate">
-                            @p.Visitante ⚽
+                            <img class="team-flag me-1"
+                                 src="@GetBandera(p.Visitante)"
+                                 alt="@p.Visitante" />
+                            <span>@p.Visitante</span>
                         </div>
 
                         <!-- GUARDAR -->
@@ -156,6 +162,14 @@ else
         text-align: center;
         padding: 2px 4px;
         font-weight: 600;
+    }
+
+    .team-flag {
+        width: 28px;
+        height: 20px;
+        object-fit: cover;
+        border-radius: 3px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
     }
 </style>
 
@@ -300,6 +314,81 @@ else
         {
             Console.WriteLine($"❌ Error al guardar: {ex.Message}");
         }
+    }
+
+    private string GetBandera(string equipo)
+    {
+        return equipo.ToLower() switch
+        {
+            "méxico" => "https://flagcdn.com/w40/mx.png",
+            "canadá" => "https://flagcdn.com/w40/ca.png",
+            "estados unidos" => "https://flagcdn.com/w40/us.png",
+
+            "argentina" => "https://flagcdn.com/w40/ar.png",
+            "brasil" => "https://flagcdn.com/w40/br.png",
+            "uruguay" => "https://flagcdn.com/w40/uy.png",
+            "colombia" => "https://flagcdn.com/w40/co.png",
+            "ecuador" => "https://flagcdn.com/w40/ec.png",
+            "perú" => "https://flagcdn.com/w40/pe.png",
+            "paraguay" => "https://flagcdn.com/w40/py.png",
+            "chile" => "https://flagcdn.com/w40/cl.png",
+            "bolivia" => "https://flagcdn.com/w40/bo.png",
+            "venezuela" => "https://flagcdn.com/w40/ve.png",
+
+            "alemania" => "https://flagcdn.com/w40/de.png",
+            "francia" => "https://flagcdn.com/w40/fr.png",
+            "españa" => "https://flagcdn.com/w40/es.png",
+            "italia" => "https://flagcdn.com/w40/it.png",
+            "inglaterra" => "https://flagcdn.com/w40/gb-eng.png",
+            "escocia" => "https://flagcdn.com/w40/gb-sct.png",
+            "gales" => "https://flagcdn.com/w40/gb-wls.png",
+            "portugal" => "https://flagcdn.com/w40/pt.png",
+            "países bajos" => "https://flagcdn.com/w40/nl.png",
+            "bélgica" => "https://flagcdn.com/w40/be.png",
+            "suiza" => "https://flagcdn.com/w40/ch.png",
+            "dinamarca" => "https://flagcdn.com/w40/dk.png",
+            "suecia" => "https://flagcdn.com/w40/se.png",
+            "noruega" => "https://flagcdn.com/w40/no.png",
+            "croacia" => "https://flagcdn.com/w40/hr.png",
+            "serbia" => "https://flagcdn.com/w40/rs.png",
+            "polonia" => "https://flagcdn.com/w40/pl.png",
+            "ucrania" => "https://flagcdn.com/w40/ua.png",
+
+            "japón" => "https://flagcdn.com/w40/jp.png",
+            "corea del sur" => "https://flagcdn.com/w40/kr.png",
+            "australia" => "https://flagcdn.com/w40/au.png",
+            "irán" => "https://flagcdn.com/w40/ir.png",
+            "arabia saudita" => "https://flagcdn.com/w40/sa.png",
+            "qatar" => "https://flagcdn.com/w40/qa.png",
+            "emiratos árabes unidos" => "https://flagcdn.com/w40/ae.png",
+
+            "marruecos" => "https://flagcdn.com/w40/ma.png",
+            "senegal" => "https://flagcdn.com/w40/sn.png",
+            "ghana" => "https://flagcdn.com/w40/gh.png",
+            "nigeria" => "https://flagcdn.com/w40/ng.png",
+            "camerún" => "https://flagcdn.com/w40/cm.png",
+            "túnez" => "https://flagcdn.com/w40/tn.png",
+            "egipto" => "https://flagcdn.com/w40/eg.png",
+            "sudáfrica" => "https://flagcdn.com/w40/za.png",
+            "haití" => "https://flagcdn.com/w40/ht.png",
+            "costa de marfil" => "https://flagcdn.com/w40/ci.png",
+
+            "curazao" => "https://flagcdn.com/w40/cw.png",
+            "nueva zelanda" => "https://flagcdn.com/w40/nz.png",
+            "cabo verde" => "https://flagcdn.com/w40/cv.png",
+            "argelia" => "https://flagcdn.com/w40/dz.png",
+            "austria" => "https://flagcdn.com/w40/at.png",
+            "jordania" => "https://flagcdn.com/w40/jo.png",
+            "uzbekistán" => "https://flagcdn.com/w40/uz.png",
+            "panamá" => "https://flagcdn.com/w40/pa.png",
+            "república checa" => "https://flagcdn.com/w40/cz.png",
+            "bosnia y herzegovina" => "https://flagcdn.com/w40/ba.png",
+            "turquía" => "https://flagcdn.com/w40/tr.png",
+            "irak" => "https://flagcdn.com/w40/iq.png",
+            "rd congo" => "https://flagcdn.com/w40/cg.png",
+
+            _ => "https://flagcdn.com/w40/un.png"
+        };
     }
 
 }

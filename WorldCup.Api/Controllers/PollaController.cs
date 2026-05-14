@@ -71,10 +71,10 @@ namespace WorldCup.Api.Controllers
         {
             // ✅ Validar creador
             var usuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.Id == dto.CreadorId);
+                .AnyAsync(u => u.Id == dto.CreadorId && u.Activo);
 
             if (!usuarioExiste)
-                return BadRequest("Usuario creador no existe");
+                return BadRequest("Usuario creador no existe o está inactivo");
 
             if (string.IsNullOrWhiteSpace(dto.Nombre))
                 return BadRequest("Nombre obligatorio");
@@ -168,7 +168,7 @@ namespace WorldCup.Api.Controllers
         {
             var ranking = await _context.Predicciones
                 .Include(p => p.Usuario)
-                .Where(p => p.PollaId == pollaId)
+                .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
                 .GroupBy(p => new
                 {
                     p.UsuarioId,
@@ -195,7 +195,7 @@ namespace WorldCup.Api.Controllers
                     .ThenInclude(x => x.Local)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Visitante)
-                .Where(p => p.PollaId == pollaId)
+                .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
                 .Select(p => new DetalleRankingDto
                 {
                     Usuario = p.Usuario.Nombre,
@@ -256,7 +256,7 @@ namespace WorldCup.Api.Controllers
         {
             var participantes = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
-                .Where(pm => pm.PollaId == pollaId)
+                .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
                 .Select(pm => new
                 {
                     Id = pm.UsuarioId,       // ✅ ESTE ES EL CORRECTO
@@ -336,6 +336,12 @@ namespace WorldCup.Api.Controllers
             if (existe)
                 return BadRequest("El usuario ya pertenece a la polla");
 
+            var usuarioActivo = await _context.Usuarios
+                .AnyAsync(u => u.Id == usuarioId && u.Activo);
+
+            if (!usuarioActivo)
+                return BadRequest("El usuario no existe o está inactivo");
+
             _context.PollaMiembros.Add(new PollaMiembro
             {
                 PollaId = pollaId,
@@ -376,6 +382,12 @@ namespace WorldCup.Api.Controllers
             var polla = await _context.Pollas.FindAsync(pollaId);
             if (polla == null)
                 return NotFound("La polla no existe");
+
+            var usuarioActivo = await _context.Usuarios
+                .AnyAsync(u => u.Id == dto.UsuarioId && u.Activo);
+
+            if (!usuarioActivo)
+                return BadRequest("El usuario no existe o está inactivo");
 
             // ¿Ya es miembro?
             var yaEsMiembro = await _context.PollaMiembros
@@ -430,7 +442,7 @@ namespace WorldCup.Api.Controllers
             var solicitudes = await _context.SolicitudesIngresoPolla
                 .Include(s => s.Usuario)
                 .Include(s => s.Polla)
-                .Where(s => s.Polla.CreadorId == creadorId)
+                .Where(s => s.Polla.CreadorId == creadorId && s.Usuario.Activo)
                 .Select(s => new
                 {
                     s.Id,
@@ -452,6 +464,7 @@ namespace WorldCup.Api.Controllers
         public async Task<IActionResult> AprobarSolicitud(int solicitudId)
         {
             var solicitud = await _context.SolicitudesIngresoPolla
+                .Include(s => s.Usuario)
                 .Include(s => s.Polla)
                 .FirstOrDefaultAsync(s => s.Id == solicitudId);
 
@@ -460,6 +473,9 @@ namespace WorldCup.Api.Controllers
 
             if (solicitud.Estado != "Pendiente")
                 return BadRequest("La solicitud ya fue procesada");
+
+            if (!solicitud.Usuario.Activo)
+                return BadRequest("El usuario está inactivo");
 
             // agregar como miembro
             _context.PollaMiembros.Add(new PollaMiembro

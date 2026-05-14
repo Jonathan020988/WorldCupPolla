@@ -9,6 +9,7 @@ namespace WorldCup.App.Shared.DTOs
     {
         public int UsuarioId { get; set; }
         public string Nombre { get; set; } = "";
+        public bool EsAdmin { get; set; }
         public int? PollaActivaId { get; set; }
         public string? PollaActivaNombre { get; set; }
     }

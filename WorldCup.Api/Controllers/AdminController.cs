@@ -30,6 +30,8 @@ namespace WorldCup.Api.Controllers
             return Ok(new
             {
                 usuarios = await _context.Usuarios.CountAsync(),
+                usuariosActivos = await _context.Usuarios.CountAsync(u => u.Activo),
+                usuariosInactivos = await _context.Usuarios.CountAsync(u => !u.Activo),
                 pollas = await _context.Pollas.CountAsync(),
                 partidosFinalizados = await _context.Partidos.CountAsync(p => p.Finalizado),
                 partidosPendientes = await _context.Partidos.CountAsync(p => !p.Finalizado)
@@ -48,6 +50,7 @@ namespace WorldCup.Api.Controllers
                     u.Id,
                     u.Nombre,
                     u.Email,
+                    u.Activo,
                     Pollas = _context.PollaMiembros.Count(pm => pm.UsuarioId == u.Id)
                 })
                 .OrderBy(u => u.Nombre)
@@ -72,7 +75,8 @@ namespace WorldCup.Api.Controllers
                     Creador = p.Creador.Nombre,
                     p.CreadorId,
                     p.FechaCreacion,
-                    Miembros = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id)
+                    Miembros = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && pm.Usuario.Activo),
+                    MiembrosInactivos = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && !pm.Usuario.Activo)
                 })
                 .OrderBy(p => p.Nombre)
                 .ToListAsync();
@@ -96,6 +100,7 @@ namespace WorldCup.Api.Controllers
                     pm.UsuarioId,
                     pm.Usuario.Nombre,
                     pm.Usuario.Email,
+                    pm.Usuario.Activo,
                     pm.FechaIngreso
                 })
                 .OrderBy(pm => pm.Nombre)
@@ -193,6 +198,27 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             return Ok(predicciones);
+        }
+
+        [HttpPut("usuarios/{usuarioId:int}/estado")]
+        public async Task<IActionResult> ActualizarEstadoUsuario(
+            int usuarioId,
+            [FromBody] AdminActualizarUsuarioEstadoDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            if (usuarioId == dto.AdminUsuarioId && !dto.Activo)
+                return BadRequest("No puedes inactivar tu propio usuario administrador.");
+
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null)
+                return NotFound("El usuario no existe");
+
+            usuario.Activo = dto.Activo;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
         [HttpPut("predicciones/{prediccionId:int}")]

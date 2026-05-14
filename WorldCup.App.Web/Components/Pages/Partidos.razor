@@ -3,6 +3,9 @@
 @using WorldCup.App.Shared.Models
 @using System.Globalization
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
+@inject WorldCup.App.Shared.Services.SesionService Sesion
+@inject HttpClient Http
+@inject NavigationManager Navigation
 
 <style>
     body {
@@ -54,6 +57,19 @@
     .score {
         font-size: 1.25rem;
         font-weight: bold;
+    }
+
+    .admin-result {
+        display: grid;
+        grid-template-columns: minmax(130px, 1fr) 90px 90px auto;
+        gap: .5rem;
+        align-items: center;
+    }
+
+    @@media (max-width: 576px) {
+        .admin-result {
+            grid-template-columns: 1fr 1fr;
+        }
     }
 </style>
 
@@ -121,6 +137,49 @@
                                  new CultureInfo("es-CO")
                                  )
                     </div>
+
+                    <div class="text-center mt-2">
+                        <span class="@GetEstadoBadgeClass(p.Estado)">
+                            @p.Estado
+                        </span>
+                    </div>
+
+                    @if (Sesion.EsAdmin)
+                    {
+                        <div class="admin-result mt-3">
+                            <select class="form-select form-select-sm"
+                                    @bind="p.Estado">
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="EnJuego">En juego</option>
+                                <option value="Postergado">Postergado</option>
+                                <option value="Finalizado">Finalizado</option>
+                            </select>
+
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   min="0"
+                                   placeholder="Local"
+                                   @bind="p.GolesLocal" />
+
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   min="0"
+                                   placeholder="Visitante"
+                                   @bind="p.GolesVisitante" />
+
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick="() => GuardarResultadoAdmin(p)">
+                                Guardar
+                            </button>
+                        </div>
+
+                        @if (erroresPartido.ContainsKey(p.Id))
+                        {
+                            <div class="alert alert-danger mt-2 mb-0 py-2">
+                                @erroresPartido[p.Id]
+                            </div>
+                        }
+                    }
                                        
                 </div>
             }
@@ -132,6 +191,7 @@
 
     private List<PartidoDto> partidos = new();
     private List<PartidoDto> partidosFiltrados = new();
+    private Dictionary<int, string> erroresPartido = new();
 
     private string? faseSeleccionada;
 
@@ -151,6 +211,17 @@
     {
         partidos = await PartidosService.GetPartidosAsync();
         partidosFiltrados = partidos;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+        StateHasChanged();
     }
 
     private void FiltrarPorFase(string? fase)
@@ -178,6 +249,57 @@
         return fase == "Todas" ? null : fase;
     }
 
+    private string GetEstadoBadgeClass(string? estado)
+    {
+        return estado switch
+        {
+            "Finalizado" => "badge bg-success",
+            "EnJuego" => "badge bg-warning text-dark",
+            "Postergado" => "badge bg-secondary",
+            _ => "badge bg-light text-dark"
+        };
+    }
+
+    private async Task GuardarResultadoAdmin(PartidoDto partido)
+    {
+        if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        erroresPartido.Remove(partido.Id);
+
+        var dto = new AdminResultadoDto
+        {
+            AdminUsuarioId = Sesion.UsuarioId.Value,
+            Estado = partido.Estado,
+            GolesLocal = partido.GolesLocal,
+            GolesVisitante = partido.GolesVisitante
+        };
+
+        var response = await Http.PutAsJsonAsync(
+            $"api/Partidos/{partido.Id}/admin-resultado",
+            dto);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            erroresPartido[partido.Id] =
+                await response.Content.ReadAsStringAsync();
+            return;
+        }
+
+        partidos = await PartidosService.GetPartidosAsync();
+        FiltrarPorFase(faseSeleccionada);
+    }
+
+    private class AdminResultadoDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public string Estado { get; set; } = "Pendiente";
+        public int? GolesLocal { get; set; }
+        public int? GolesVisitante { get; set; }
+    }
 
 }
 

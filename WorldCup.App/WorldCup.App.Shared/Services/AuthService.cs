@@ -27,5 +27,25 @@ namespace WorldCup.App.Shared.Services
 
             return await response.Content.ReadFromJsonAsync<UsuarioDto>();
         }
+
+        public async Task<string?> SolicitarResetPasswordAsync(SolicitarResetPasswordDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/auth/olvide-password", dto);
+
+            if (response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task<string?> RestablecerPasswordAsync(RestablecerPasswordDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/auth/restablecer-password", dto);
+
+            if (response.IsSuccessStatusCode)
+                return null;
+
+            return await response.Content.ReadAsStringAsync();
+        }
     }
 }

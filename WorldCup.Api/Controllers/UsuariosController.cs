@@ -34,6 +34,7 @@ namespace WorldCup.Api.Controllers
             {
                 Nombre = dto.Nombre,
                 Email = dto.Email,
+                Activo = true,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 

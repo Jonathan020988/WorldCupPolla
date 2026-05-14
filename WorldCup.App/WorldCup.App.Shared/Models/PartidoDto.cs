@@ -15,6 +15,7 @@ namespace WorldCup.App.Shared.Models
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
         public bool Finalizado { get; set; }
+        public string Estado { get; set; } = "Pendiente";
         public DateTime Fecha { get; set; }
         public string? Grupo { get; set; }
 

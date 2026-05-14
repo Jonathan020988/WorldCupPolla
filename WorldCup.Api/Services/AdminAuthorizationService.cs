@@ -18,6 +18,16 @@ namespace WorldCup.Api.Services
 
         public async Task<bool> EsAdminAsync(int usuarioId)
         {
+            var usuario = await _context.Usuarios
+                .Where(u => u.Id == usuarioId)
+                .Select(u => new { u.Email, u.Activo })
+                .FirstOrDefaultAsync();
+
+            if (usuario == null || !usuario.Activo)
+            {
+                return false;
+            }
+
             var adminIds = _configuration
                 .GetSection("AdminSettings:UserIds")
                 .Get<int[]>() ?? Array.Empty<int>();
@@ -36,14 +46,8 @@ namespace WorldCup.Api.Services
                 return false;
             }
 
-            var email = await _context.Usuarios
-                .Where(u => u.Id == usuarioId)
-                .Select(u => u.Email)
-                .FirstOrDefaultAsync();
-
-            return email != null &&
-                adminEmails.Any(e =>
-                    string.Equals(e, email, StringComparison.OrdinalIgnoreCase));
+            return adminEmails.Any(e =>
+                string.Equals(e, usuario.Email, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

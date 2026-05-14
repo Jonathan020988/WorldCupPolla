@@ -528,10 +528,12 @@ else
             return;
         }
 
-        await Http.PostAsJsonAsync(
+        var response = await Http.PostAsJsonAsync(
             $"api/Predicciones/guardar-terceros?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}",
             gruposTercero.ToList()
         );
+
+        response.EnsureSuccessStatusCode();
     }
 
     private HashSet<string> gruposTercero = new();
@@ -624,9 +626,11 @@ else
         {
             erroresGrupo[grupoNombre] = null;
 
-            await Http.PostAsJsonAsync(
+            var response = await Http.PostAsJsonAsync(
                 "api/Predicciones/guardar-clasificacion",
                 dto);
+
+            response.EnsureSuccessStatusCode();
 
             Console.WriteLine($"✅ Grupo {grupoNombre} guardado");
 
@@ -640,6 +644,8 @@ else
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
+            erroresGrupo[grupoNombre] = $"No se pudo guardar: {ex.Message}";
+            StateHasChanged();
         }
     }
 
@@ -789,12 +795,11 @@ else
             "jordania" => "https://flagcdn.com/w40/jo.png",
             "uzbekistán" => "https://flagcdn.com/w40/uz.png",
             "panamá" => "https://flagcdn.com/w40/pa.png",
-            "República Checa" => "https://flagcdn.com/w40/cz.png",
-            "Bosnia y Herzegovina" => "https://flagcdn.com/w40/ba.png",
-            "Turquía" => "https://flagcdn.com/w40/tr.png",
-            "Irak" => "https://flagcdn.com/w40/iq.png",
-            "RD Congo" => "https://flagcdn.com/w40/cg.png",
-            "Suecia" => "https://flagcdn.com/w40/se.png",
+            "república checa" => "https://flagcdn.com/w40/cz.png",
+            "bosnia y herzegovina" => "https://flagcdn.com/w40/ba.png",
+            "turquía" => "https://flagcdn.com/w40/tr.png",
+            "irak" => "https://flagcdn.com/w40/iq.png",
+            "rd congo" => "https://flagcdn.com/w40/cg.png",
 
             _ => "https://flagcdn.com/w40/un.png"
         

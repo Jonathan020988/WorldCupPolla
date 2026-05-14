@@ -14,6 +14,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<AdminAuthorizationService>();
+builder.Services.AddScoped<EmailService>();
 
 // JWT
 var jwt = builder.Configuration.GetSection("Jwt");

@@ -28,6 +28,8 @@ namespace WorldCup.Api.Data
 
         public DbSet<PrediccionTercero> PrediccionesTerceros { get; set; }
 
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -89,6 +91,14 @@ namespace WorldCup.Api.Data
                 entity.Ignore(e => e.PartidosVisitante);
             });
 
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasOne(t => t.Usuario)
+                .WithMany()
+                .HasForeignKey(t => t.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(t => t.TokenHash);
 
         }
     }

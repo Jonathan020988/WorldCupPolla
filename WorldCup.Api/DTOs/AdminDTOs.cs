@@ -14,4 +14,10 @@ namespace WorldCup.Api.DTOs
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
     }
+
+    public class AdminActualizarUsuarioEstadoDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public bool Activo { get; set; }
+    }
 }
