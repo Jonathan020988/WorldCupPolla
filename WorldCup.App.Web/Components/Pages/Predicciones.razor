@@ -1,6 +1,7 @@
 ﻿@page "/predicciones"
 @rendermode InteractiveServer
 
+@using System.Net.Http.Json
 @using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
 @using WorldCup.App.Shared.Models
@@ -9,6 +10,7 @@
 @inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 
 <h1 class="mb-1">🎯 Mis Predicciones</h1>
@@ -75,85 +77,177 @@ else
         </div>
     }
 
+    @if (podioEstado?.disponible == true)
+    {
+        <div class="card shadow-sm mb-3 border-warning">
+            <div class="card-header bg-warning fw-bold">
+                Podio del Mundial
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">Campeón</label>
+                        <select class="form-select" @bind="podio.CampeonId">
+                            <option value="0">Selecciona equipo</option>
+                            @foreach (var equipo in podioEstado.equipos)
+                            {
+                                <option value="@equipo.id">@equipo.nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Subcampeón</label>
+                        <select class="form-select" @bind="podio.SubcampeonId">
+                            <option value="0">Selecciona equipo</option>
+                            @foreach (var equipo in podioEstado.equipos)
+                            {
+                                <option value="@equipo.id">@equipo.nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Tercer puesto</label>
+                        <select class="form-select" @bind="podio.TerceroId">
+                            <option value="0">Selecciona equipo</option>
+                            @foreach (var equipo in podioEstado.equipos)
+                            {
+                                <option value="@equipo.id">@equipo.nombre</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn btn-warning mt-3"
+                        @onclick="GuardarPodio">
+                    Guardar podio
+                </button>
+            </div>
+        </div>
+    }
+    else if (podioEstado?.gruposTerminados == true && podioEstado.cerrado)
+    {
+        <div class="alert alert-secondary">
+            El podio ya se cerró porque empezó la fase de dieciseisavos.
+        </div>
+    }
+
     @if (partidos == null)
     {
         <p>Cargando partidos...</p>
     }
     else
     {
-        @foreach (var p in partidos)
+        @foreach (var fase in partidos.GroupBy(p => p.Fase).OrderBy(g => OrdenFase(g.Key)))
         {
-            var bloqueado = EstaBloqueado(p);
+            <h4 class="mt-4 mb-2">@fase.Key</h4>
 
-            <div class="card mb-2 partido-card">
+            @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
+            {
+                var bloqueado = EstaBloqueado(p);
 
-                <div class="card-body py-2 px-3">
+                <div class="card mb-2 partido-card">
 
-                    <!-- FILA PARTIDO -->
-                    <div class="row align-items-center text-center">
+                    <div class="card-body py-2 px-3">
 
-                        <!-- LOCAL -->
-                        <div class="col-4 text-end fw-semibold text-truncate">
-                            <span>@p.Local</span>
-                            <img class="team-flag ms-1"
-                                 src="@GetBandera(p.Local)"
-                                 alt="@p.Local" />
+                        <!-- FILA PARTIDO -->
+                        <div class="row align-items-center text-center">
+
+                            <!-- LOCAL -->
+                            <div class="col-4 text-end fw-semibold text-truncate">
+                                <span>@p.Local</span>
+                                <img class="team-flag ms-1"
+                                     src="@GetBandera(p.Local)"
+                                     alt="@p.Local" />
+                            </div>
+
+                            <!-- MARCADOR -->
+                            <div class="col-3 d-flex justify-content-center align-items-center gap-1">
+
+                                <input type="number"
+                                       class="form-control form-control-sm marcador-input"
+                                       min="0"
+                                       disabled="@bloqueado"
+                                       @bind="predicciones[p.Id].GolesLocal"
+                                       @bind:event="oninput" />
+
+                                <span class="fw-bold text-muted">:</span>
+
+                                <input type="number"
+                                       class="form-control form-control-sm marcador-input"
+                                       min="0"
+                                       disabled="@bloqueado"
+                                       @bind="predicciones[p.Id].GolesVisitante"
+                                       @bind:event="oninput" />
+                            </div>
+
+                            <!-- VISITANTE -->
+                            <div class="col-4 text-start fw-semibold text-truncate">
+                                <img class="team-flag me-1"
+                                     src="@GetBandera(p.Visitante)"
+                                     alt="@p.Visitante" />
+                                <span>@p.Visitante</span>
+                            </div>
+
+                            <!-- GUARDAR -->
+                            <div class="col-1 text-end">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        disabled="@bloqueado"
+                                        title="Guardar predicción"
+                                        @onclick="() => GuardarPartido(p)">
+                                    💾
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- MARCADOR -->
-                        <div class="col-3 d-flex justify-content-center align-items-center gap-1">
-
-                            <input type="number"
-                                   class="form-control form-control-sm marcador-input"
-                                   min="0"
-                                   disabled="@bloqueado"
-                                   @bind="predicciones[p.Id].GolesLocal"
-                                   @bind:event="oninput" />
-
-                            <span class="fw-bold text-muted">:</span>
-
-                            <input type="number"
-                                   class="form-control form-control-sm marcador-input"
-                                   min="0"
-                                   disabled="@bloqueado"
-                                   @bind="predicciones[p.Id].GolesVisitante"
-                                   @bind:event="oninput" />
-                        </div>
-
-                        <!-- VISITANTE -->
-                        <div class="col-4 text-start fw-semibold text-truncate">
-                            <img class="team-flag me-1"
-                                 src="@GetBandera(p.Visitante)"
-                                 alt="@p.Visitante" />
-                            <span>@p.Visitante</span>
-                        </div>
-
-                        <!-- GUARDAR -->
-                        <div class="col-1 text-end">
-                            <button class="btn btn-sm btn-outline-primary"
-                                    disabled="@bloqueado"
-                                    title="Guardar predicción"
-                                    @onclick="() => GuardarPartido(p)">
-                                💾
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- INFO -->
-                    <div class="mt-1 text-center small text-muted">
-                        🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
-                        .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
-
-                        · 🏆 @p.Fase
-
-                        @if (bloqueado)
+                        @if (p.Fase != "Grupos")
                         {
-                            <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
-                        }
-                    </div>
+                            <div class="row g-2 mt-2 align-items-center">
+                                <div class="col-md-4">
+                                    <select class="form-select form-select-sm"
+                                            disabled="@bloqueado"
+                                            @bind="predicciones[p.Id].PrediceClasificadoId">
+                                        <option value="">Equipo que clasifica</option>
+                                        <option value="@p.LocalId">@p.Local</option>
+                                        <option value="@p.VisitanteId">@p.Visitante</option>
+                                    </select>
+                                </div>
 
+                                <div class="col-md-4">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               disabled="@bloqueado"
+                                               @bind="predicciones[p.Id].PrediceTiempoExtra" />
+                                        <label class="form-check-label">Tiempo extra</label>
+                                    </div>
+
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               disabled="@bloqueado"
+                                               @bind="predicciones[p.Id].PredicePenales" />
+                                        <label class="form-check-label">Penales</label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- INFO -->
+                        <div class="mt-1 text-center small text-muted">
+                            🗓️ @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                            .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
+
+                            · 🏆 @p.Fase
+
+                            @if (bloqueado)
+                            {
+                                <span class="badge bg-danger ms-2">🔒 Bloqueado</span>
+                            }
+                        </div>
+
+                    </div>
                 </div>
-            </div>
+            }
         }
     }
 }
@@ -185,6 +279,8 @@ else
     private List<PartidoDto>? partidos;
     private Dictionary<int, GuardarPrediccionItemDto> predicciones = new();
     private List<PollaDto> pollas = new();
+    private PodioEstadoDto? podioEstado;
+    private GuardarPodioDto podio = new();
     private bool cargando = true;
     private string? mensajeGuardado;
     private bool guardadoConError;
@@ -215,6 +311,7 @@ else
         if (Sesion.PollaActivaId.HasValue)
         {
             await CargarPrediccionesAsync();
+            await CargarPodioAsync();
         }
 
         cargando = false;
@@ -228,6 +325,7 @@ else
 
         await Sesion.SeleccionarPollaAsync(polla.Id, polla.Nombre);
         await CargarPrediccionesAsync();
+        await CargarPodioAsync();
 
         cargando = false;
         StateHasChanged();
@@ -238,6 +336,8 @@ else
         await Sesion.LimpiarPollaActivaAsync();
         partidos = null;
         predicciones.Clear();
+        podioEstado = null;
+        podio = new();
     }
 
     private async Task CargarPrediccionesAsync()
@@ -247,7 +347,11 @@ else
             return;
         }
 
-        partidos = await PartidosService.GetPartidosAsync();
+        partidos = (await PartidosService.GetPartidosAsync())
+            .OrderBy(p => OrdenFase(p.Fase))
+            .ThenBy(p => p.Fecha)
+            .ThenBy(p => p.Id)
+            .ToList();
 
         var existentes = await PrediccionesService.GetPrediccionesAsync(
             Sesion.PollaActivaId.Value,
@@ -267,7 +371,10 @@ else
                     {
                         PartidoId = p.Id,
                         GolesLocal = e.GolesLocal,
-                        GolesVisitante = e.GolesVisitante
+                        GolesVisitante = e.GolesVisitante,
+                        PrediceTiempoExtra = e.PrediceTiempoExtra,
+                        PredicePenales = e.PredicePenales,
+                        PrediceClasificadoId = e.PrediceClasificadoId
                     };
             }
             else
@@ -298,6 +405,33 @@ else
             return;
         }
 
+        var item = predicciones[partido.Id];
+
+        if (partido.Fase != "Grupos")
+        {
+            if (item.PredicePenales)
+            {
+                item.PrediceTiempoExtra = true;
+            }
+
+            if (!item.PrediceClasificadoId.HasValue &&
+                item.GolesLocal.HasValue &&
+                item.GolesVisitante.HasValue &&
+                item.GolesLocal != item.GolesVisitante)
+            {
+                item.PrediceClasificadoId = item.GolesLocal > item.GolesVisitante
+                    ? partido.LocalId
+                    : partido.VisitanteId;
+            }
+
+            if (!item.PrediceClasificadoId.HasValue)
+            {
+                mensajeGuardado = "En eliminatorias debes indicar qué equipo clasifica.";
+                guardadoConError = true;
+                return;
+            }
+        }
+
         var dto = new GuardarPrediccionGrupoDto
             {
                 PollaId = Sesion.PollaActivaId.Value,
@@ -310,7 +444,7 @@ else
 
                 Predicciones = new List<GuardarPrediccionItemDto>
             {
-                predicciones[partido.Id]
+                item
             }
             };
 
@@ -325,6 +459,112 @@ else
             mensajeGuardado = $"No se pudo guardar la predicción: {ex.Message}";
             guardadoConError = true;
         }
+    }
+
+    private async Task CargarPodioAsync()
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            podioEstado = await Http.GetFromJsonAsync<PodioEstadoDto>(
+                $"api/Podio/estado?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}");
+
+            if (podioEstado?.prediccion != null)
+            {
+                podio = new GuardarPodioDto
+                {
+                    CampeonId = podioEstado.prediccion.campeonId,
+                    SubcampeonId = podioEstado.prediccion.subcampeonId,
+                    TerceroId = podioEstado.prediccion.terceroId
+                };
+            }
+        }
+        catch
+        {
+            podioEstado = null;
+        }
+    }
+
+    private async Task GuardarPodio()
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        if (podio.CampeonId == 0 ||
+            podio.SubcampeonId == 0 ||
+            podio.TerceroId == 0 ||
+            podio.CampeonId == podio.SubcampeonId ||
+            podio.CampeonId == podio.TerceroId ||
+            podio.SubcampeonId == podio.TerceroId)
+        {
+            mensajeGuardado = "Debes elegir tres equipos distintos para el podio.";
+            guardadoConError = true;
+            return;
+        }
+
+        podio.PollaId = Sesion.PollaActivaId.Value;
+        podio.UsuarioId = Sesion.UsuarioId.Value;
+
+        var response = await Http.PostAsJsonAsync("api/Podio/guardar", podio);
+        if (!response.IsSuccessStatusCode)
+        {
+            mensajeGuardado = await response.Content.ReadAsStringAsync();
+            guardadoConError = true;
+            return;
+        }
+
+        mensajeGuardado = "Podio guardado correctamente.";
+        guardadoConError = false;
+        await CargarPodioAsync();
+    }
+
+    private int OrdenFase(string fase) => fase switch
+    {
+        "Grupos" => 1,
+        "Dieciseisavos" => 2,
+        "Octavos" => 3,
+        "Cuartos" => 4,
+        "Semifinales" => 5,
+        "TercerPuesto" => 6,
+        "Final" => 7,
+        _ => 99
+    };
+
+    private class PodioEstadoDto
+    {
+        public bool gruposTerminados { get; set; }
+        public bool cerrado { get; set; }
+        public bool disponible { get; set; }
+        public List<EquipoPodioDto> equipos { get; set; } = new();
+        public PodioGuardadoDto? prediccion { get; set; }
+    }
+
+    private class EquipoPodioDto
+    {
+        public int id { get; set; }
+        public string nombre { get; set; } = "";
+    }
+
+    private class PodioGuardadoDto
+    {
+        public int campeonId { get; set; }
+        public int subcampeonId { get; set; }
+        public int terceroId { get; set; }
+    }
+
+    private class GuardarPodioDto
+    {
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public int CampeonId { get; set; }
+        public int SubcampeonId { get; set; }
+        public int TerceroId { get; set; }
     }
 
     private string GetBandera(string equipo)

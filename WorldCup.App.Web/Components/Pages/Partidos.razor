@@ -61,7 +61,7 @@
 
     .admin-result {
         display: grid;
-        grid-template-columns: minmax(130px, 1fr) 90px 90px auto;
+        grid-template-columns: minmax(130px, 1fr) 90px 90px 90px 90px auto;
         gap: .5rem;
         align-items: center;
     }
@@ -119,6 +119,15 @@
                             @if (p.Finalizado)
                             {
                                 @($"{p.GolesLocal} - {p.GolesVisitante}")
+                                @if (p.Fase != "Grupos" &&
+                               p.GolesLocal == p.GolesVisitante &&
+                               p.PenalesLocal.HasValue &&
+                               p.PenalesVisitante.HasValue)
+                                {
+                                    <div class="small text-muted">
+                                        Pen. @p.PenalesLocal - @p.PenalesVisitante
+                                    </div>
+                                }
                             }
                             else
                             {
@@ -166,6 +175,20 @@
                                    min="0"
                                    placeholder="Visitante"
                                    @bind="p.GolesVisitante" />
+
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   min="0"
+                                   placeholder="Pen. local"
+                                   disabled="@PenalesDeshabilitados(p)"
+                                   @bind="p.PenalesLocal" />
+
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   min="0"
+                                   placeholder="Pen. visit."
+                                   disabled="@PenalesDeshabilitados(p)"
+                                   @bind="p.PenalesVisitante" />
 
                             <button class="btn btn-sm btn-primary"
                                     @onclick="() => GuardarResultadoAdmin(p)">
@@ -260,6 +283,14 @@
         };
     }
 
+    private bool PenalesDeshabilitados(PartidoDto partido)
+    {
+        return partido.Fase == "Grupos" ||
+               !partido.GolesLocal.HasValue ||
+               !partido.GolesVisitante.HasValue ||
+               partido.GolesLocal != partido.GolesVisitante;
+    }
+
     private async Task GuardarResultadoAdmin(PartidoDto partido)
     {
         if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin)
@@ -275,7 +306,9 @@
             AdminUsuarioId = Sesion.UsuarioId.Value,
             Estado = partido.Estado,
             GolesLocal = partido.GolesLocal,
-            GolesVisitante = partido.GolesVisitante
+            GolesVisitante = partido.GolesVisitante,
+            PenalesLocal = partido.PenalesLocal,
+            PenalesVisitante = partido.PenalesVisitante
         };
 
         var response = await Http.PutAsJsonAsync(
@@ -299,6 +332,8 @@
         public string Estado { get; set; } = "Pendiente";
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
+        public int? PenalesLocal { get; set; }
+        public int? PenalesVisitante { get; set; }
     }
 
 }

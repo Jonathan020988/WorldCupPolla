@@ -17,34 +17,24 @@ namespace WorldCup.Api.Controllers
             _context = context;
         }
 
-        private int UserIdActual() => 1; // luego JWT
-
         [HttpPost("guardar")]
         public async Task<IActionResult> GuardarPodio(GuardarPodioDTO dto)
         {
-            int usuarioId = UserIdActual();
+            int usuarioId = dto.UsuarioId;
 
-            // 🔒 1️⃣ Validar que terminó la fase de grupos
-            bool gruposTerminados = !await _context.Partidos
-                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            bool gruposTerminados = await GruposTerminados();
 
             if (!gruposTerminados)
                 return Conflict("El podio solo se puede definir tras terminar la fase de grupos");
 
-            // 🔒 2️⃣ Bloquear si ya empezaron octavos
-            bool octavosIniciados = await _context.Partidos
-                .AnyAsync(p => p.Fase == "Octavos");
+            if (await DieciseisavosIniciados())
+                return Conflict("El podio se cerró al iniciar los dieciseisavos");
 
-            if (octavosIniciados)
-                return Conflict("El podio se cerró al iniciar los octavos");
-
-            // 🔒 3️⃣ Validar que los equipos sean distintos
             if (dto.CampeonId == dto.SubcampeonId ||
                 dto.CampeonId == dto.TerceroId ||
                 dto.SubcampeonId == dto.TerceroId)
                 return BadRequest("Los equipos del podio deben ser distintos");
 
-            // 🔎 4️⃣ Buscar predicción existente
             var existente = await _context.PrediccionesPodio
                 .FirstOrDefaultAsync(p =>
                     p.PollaId == dto.PollaId &&
@@ -73,6 +63,38 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
             return Ok("✅ Podio guardado correctamente");
+        }
+
+        [HttpGet("estado")]
+        public async Task<IActionResult> GetEstado(
+            [FromQuery] int pollaId,
+            [FromQuery] int usuarioId)
+        {
+            var gruposTerminados = await GruposTerminados();
+            var cerrado = await DieciseisavosIniciados();
+            var equipos = gruposTerminados
+                ? await ObtenerEquiposPodioDisponibles()
+                : new List<object>();
+
+            var prediccion = await _context.PrediccionesPodio
+                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .Select(p => new
+                {
+                    p.CampeonId,
+                    p.SubcampeonId,
+                    p.TerceroId,
+                    p.Bloqueada
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                gruposTerminados,
+                cerrado,
+                disponible = gruposTerminados && !cerrado,
+                equipos,
+                prediccion
+            });
         }
 
         [HttpGet("real")]
@@ -120,6 +142,157 @@ namespace WorldCup.Api.Controllers
             return p.PenalesLocal > p.PenalesVisitante
                 ? p.LocalId
                 : p.VisitanteId;
+        }
+
+        private async Task<bool> GruposTerminados()
+        {
+            return !await _context.Partidos
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+        }
+
+        private async Task<bool> DieciseisavosIniciados()
+        {
+            return await _context.Partidos
+                .AnyAsync(p =>
+                    p.Fase == "Dieciseisavos" &&
+                    (p.Finalizado ||
+                     p.Estado == "EnJuego" ||
+                     p.Fecha <= DateTime.UtcNow));
+        }
+
+        private async Task<List<object>> ObtenerEquiposPodioDisponibles()
+        {
+            var dieciseisavos = await _context.Partidos
+                .Where(p => p.Fase == "Dieciseisavos")
+                .ToListAsync();
+
+            if (dieciseisavos.Any())
+            {
+                var ids = dieciseisavos
+                    .SelectMany(p => new[] { p.LocalId, p.VisitanteId })
+                    .Distinct()
+                    .ToList();
+
+                var equiposDieciseisavos = await _context.Equipos
+                    .Where(e => ids.Contains(e.Id))
+                    .OrderBy(e => e.Nombre)
+                    .Select(e => new { id = e.Id, nombre = e.Nombre })
+                    .ToListAsync();
+
+                return equiposDieciseisavos.Cast<object>().ToList();
+            }
+
+            var clasificados = new List<(int EquipoId, int Orden)>();
+            var terceros = new List<TablaGrupoPodio>();
+            var grupos = await _context.Equipos
+                .Where(e => e.Grupo != null)
+                .Select(e => e.Grupo)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var grupo in grupos)
+            {
+                var tabla = await ObtenerTablaGrupo(grupo);
+                if (tabla.Count < 4)
+                {
+                    continue;
+                }
+
+                clasificados.Add((tabla[0].EquipoId, 1));
+                clasificados.Add((tabla[1].EquipoId, 2));
+                terceros.Add(tabla[2]);
+            }
+
+            clasificados.AddRange(terceros
+                .OrderByDescending(t => t.Puntos)
+                .ThenByDescending(t => t.DG)
+                .ThenByDescending(t => t.GF)
+                .Take(8)
+                .Select(t => (t.EquipoId, 3)));
+
+            var clasificadosIds = clasificados
+                .Select(c => c.EquipoId)
+                .Distinct()
+                .ToList();
+
+            var equiposClasificados = await _context.Equipos
+                .Where(e => clasificadosIds.Contains(e.Id))
+                .OrderBy(e => e.Nombre)
+                .Select(e => new { id = e.Id, nombre = e.Nombre })
+                .ToListAsync();
+
+            return equiposClasificados.Cast<object>().ToList();
+        }
+
+        private async Task<List<TablaGrupoPodio>> ObtenerTablaGrupo(string grupo)
+        {
+            var equipos = await _context.Equipos
+                .Where(e => e.Grupo == grupo)
+                .Select(e => new TablaGrupoPodio
+                {
+                    EquipoId = e.Id,
+                    Equipo = e.Nombre
+                })
+                .ToListAsync();
+
+            var equiposIds = equipos.Select(e => e.EquipoId).ToList();
+
+            var partidos = await _context.Partidos
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    p.Finalizado &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId))
+                .ToListAsync();
+
+            foreach (var partido in partidos)
+            {
+                if (!partido.GolesLocal.HasValue || !partido.GolesVisitante.HasValue)
+                {
+                    continue;
+                }
+
+                var local = equipos.First(e => e.EquipoId == partido.LocalId);
+                var visitante = equipos.First(e => e.EquipoId == partido.VisitanteId);
+                var gl = partido.GolesLocal.Value;
+                var gv = partido.GolesVisitante.Value;
+
+                local.GF += gl;
+                local.GC += gv;
+                visitante.GF += gv;
+                visitante.GC += gl;
+
+                if (gl > gv)
+                {
+                    local.Puntos += 3;
+                }
+                else if (gl < gv)
+                {
+                    visitante.Puntos += 3;
+                }
+                else
+                {
+                    local.Puntos++;
+                    visitante.Puntos++;
+                }
+            }
+
+            return equipos
+                .OrderByDescending(e => e.Puntos)
+                .ThenByDescending(e => e.DG)
+                .ThenByDescending(e => e.GF)
+                .ThenBy(e => e.Equipo)
+                .ToList();
+        }
+
+        private sealed class TablaGrupoPodio
+        {
+            public int EquipoId { get; set; }
+            public string Equipo { get; set; } = "";
+            public int Puntos { get; set; }
+            public int GF { get; set; }
+            public int GC { get; set; }
+            public int DG => GF - GC;
         }
     }
 }

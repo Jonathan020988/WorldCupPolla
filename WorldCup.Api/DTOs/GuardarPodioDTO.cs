@@ -8,6 +8,9 @@ namespace WorldCup.Api.DTOs
         public int PollaId { get; set; }
 
         [Required]
+        public int UsuarioId { get; set; }
+
+        [Required]
         public int CampeonId { get; set; }
 
         [Required]

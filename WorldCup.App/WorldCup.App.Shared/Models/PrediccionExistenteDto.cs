@@ -11,6 +11,9 @@ namespace WorldCup.App.Shared.Models
         public int PartidoId { get; set; }
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
+        public bool PrediceTiempoExtra { get; set; }
+        public bool PredicePenales { get; set; }
+        public int? PrediceClasificadoId { get; set; }
         public int PuntosMarcador { get; set; }
         public int PuntosTotales { get; set; }
     }

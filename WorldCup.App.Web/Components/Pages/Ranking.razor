@@ -1,0 +1,663 @@
+@page "/ranking"
+@rendermode InteractiveServer
+
+@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+@inject PollasService PollasService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+
+<section class="ranking-page">
+    <div class="ranking-hero">
+        <div>
+            <div class="eyebrow">&#x1F3C5; Ranking</div>
+            <h1>Tabla de posiciones</h1>
+            <p>
+                @if (Sesion.PollaActivaId.HasValue)
+                {
+                    <span>@Sesion.PollaActivaNombre</span>
+                }
+                else
+                {
+                    <span>Selecciona una polla para ver la competencia.</span>
+                }
+            </p>
+        </div>
+
+        @if (Sesion.PollaActivaId.HasValue)
+        {
+            <button class="switch-btn" @onclick="CambiarPolla">
+                Cambiar polla
+            </button>
+        }
+    </div>
+
+    @if (cargando)
+    {
+        <div class="ranking-panel loading-panel">
+            Cargando ranking...
+        </div>
+    }
+    else if (!Sesion.PollaActivaId.HasValue)
+    {
+        <div class="ranking-panel selector-panel">
+            <h2>Selecciona la polla</h2>
+
+            @if (!pollas.Any())
+            {
+                <div class="empty-state">
+                    No tienes pollas disponibles todavia.
+                </div>
+            }
+            else
+            {
+                <div class="polla-grid">
+                    @foreach (var polla in pollas)
+                    {
+                        <button class="polla-option"
+                                @onclick="() => SeleccionarPolla(polla)">
+                            <span class="polla-icon">&#x1F3C6;</span>
+                            <span>
+                                <strong>@polla.Nombre</strong>
+                                <small>Ver ranking y detalle</small>
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (!ranking.Any())
+    {
+        <div class="ranking-panel empty-state">
+            Aun no hay participantes activos en esta polla.
+        </div>
+    }
+    else
+    {
+        <div class="summary-grid">
+            <div class="summary-item leader">
+                <span class="summary-label">Lider</span>
+                <strong>@ranking.First().Usuario</strong>
+                <small>@ranking.First().Puntos puntos</small>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">Participantes</span>
+                <strong>@ranking.Count</strong>
+                <small>usuarios activos</small>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">Puntaje promedio</span>
+                <strong>@PromedioPuntos()</strong>
+                <small>puntos</small>
+            </div>
+        </div>
+
+        <div class="podium-strip">
+            @foreach (var r in ranking.Take(3))
+            {
+                var posicion = ranking.IndexOf(r) + 1;
+                <button class="podium-item podium-@posicion"
+                        @onclick="() => ToggleDetalleUsuario(r.Usuario)">
+                    <span class="position-medal">@posicion</span>
+                    <span class="podium-name">@r.Usuario</span>
+                    <strong>@r.Puntos</strong>
+                </button>
+            }
+        </div>
+
+        <div class="ranking-panel table-panel">
+            <div class="panel-title">
+                <h2>Ranking general</h2>
+                <span>@ranking.Count participantes</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Usuario</th>
+                            <th class="text-end">Puntos</th>
+                            <th class="text-end">Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in ranking)
+                        {
+                            var posicion = ranking.IndexOf(r) + 1;
+                            <tr class="ranking-row @(usuarioDetalleAbierto == r.Usuario ? "open" : "")">
+                                <td>
+                                    <span class="rank-number">@posicion</span>
+                                </td>
+                                <td>
+                                    <div class="user-cell">
+                                        <span class="avatar">@Iniciales(r.Usuario)</span>
+                                        <span>
+                                            <strong>@r.Usuario</strong>
+                                            <small>@ResumenUsuario(r.Usuario)</small>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <span class="score-pill">@r.Puntos</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="detail-btn"
+                                            @onclick="() => ToggleDetalleUsuario(r.Usuario)">
+                                        @(usuarioDetalleAbierto == r.Usuario ? "Ocultar" : "Ver")
+                                    </button>
+                                </td>
+                            </tr>
+
+                            @if (usuarioDetalleAbierto == r.Usuario)
+                            {
+                                <tr>
+                                    <td colspan="4" class="detail-cell">
+                                        <div class="detail-wrapper">
+                                            <div class="detail-title">
+                                                <strong>Detalle de puntos</strong>
+                                                <span>@r.Usuario</span>
+                                            </div>
+
+                                            <div class="table-responsive">
+                                                <table class="detail-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Partido</th>
+                                                            <th>Fase</th>
+                                                            <th>Pronostico</th>
+                                                            <th>Resultado</th>
+                                                            <th>Exacto</th>
+                                                            <th>Ganador</th>
+                                                            <th>Dif.</th>
+                                                            <th>Goles</th>
+                                                            <th>Clas.</th>
+                                                            <th>Extras</th>
+                                                            <th>Podio</th>
+                                                            <th>Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var d in rankingDetalle.Where(x => x.Usuario == r.Usuario))
+                                                        {
+                                                            <tr>
+                                                                <td><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
+                                                                <td><span class="phase-pill">@d.Fase</span></td>
+                                                                <td>@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
+                                                                <td>@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                                                <td>@Puntos(d.PuntosExacto, "points-green")</td>
+                                                                <td>@Puntos(d.PuntosGanador, "points-blue")</td>
+                                                                <td>@Puntos(d.PuntosDiferencia, "points-slate")</td>
+                                                                <td>@Puntos(d.PuntosGoles, "points-indigo")</td>
+                                                                <td>@Puntos(d.PuntosClasificacion, "points-gold")</td>
+                                                                <td>@Puntos(d.PuntosExtras, "points-dark")</td>
+                                                                <td>@Puntos(d.PuntosPodio, "points-red")</td>
+                                                                <td><strong>@d.Total</strong></td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</section>
+
+<style>
+    .ranking-page {
+        --ink: #13201c;
+        --muted: #617067;
+        --line: #d9e5df;
+        --panel: #ffffff;
+        --soft: #f4f8f6;
+        --green: #116b4f;
+        --gold: #d7a21a;
+        color: var(--ink);
+    }
+
+    .ranking-hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        background: linear-gradient(135deg, #0c513b, #137457 58%, #c79b20);
+        color: white;
+        padding: 1.35rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        box-shadow: 0 14px 32px rgba(15, 64, 48, .18);
+    }
+
+    .ranking-hero h1 {
+        margin: 0;
+        font-size: 1.85rem;
+        font-weight: 800;
+    }
+
+    .ranking-hero p {
+        margin: .25rem 0 0;
+        opacity: .92;
+    }
+
+    .eyebrow {
+        font-size: .8rem;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0;
+        opacity: .9;
+    }
+
+    .switch-btn,
+    .detail-btn {
+        border: 1px solid rgba(255, 255, 255, .65);
+        background: rgba(255, 255, 255, .14);
+        color: white;
+        border-radius: 6px;
+        padding: .45rem .75rem;
+        font-weight: 700;
+    }
+
+    .detail-btn {
+        border-color: #b8d2c7;
+        background: white;
+        color: var(--green);
+    }
+
+    .ranking-panel,
+    .summary-item,
+    .podium-item {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 10px 24px rgba(27, 58, 45, .08);
+    }
+
+    .selector-panel,
+    .loading-panel,
+    .empty-state {
+        padding: 1.25rem;
+    }
+
+    .selector-panel h2,
+    .panel-title h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .polla-grid {
+        display: grid;
+        gap: .7rem;
+        margin-top: 1rem;
+    }
+
+    .polla-option {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        width: 100%;
+        text-align: left;
+        border: 1px solid var(--line);
+        background: var(--soft);
+        border-radius: 8px;
+        padding: .8rem;
+    }
+
+    .polla-icon {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: #e7f4ef;
+    }
+
+    .polla-option small,
+    .summary-item small,
+    .user-cell small {
+        display: block;
+        color: var(--muted);
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .8rem;
+        margin-bottom: .9rem;
+    }
+
+    .summary-item {
+        padding: 1rem;
+    }
+
+    .summary-item strong {
+        display: block;
+        font-size: 1.45rem;
+        line-height: 1.2;
+    }
+
+    .summary-label {
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .summary-item.leader {
+        border-left: 5px solid var(--gold);
+    }
+
+    .podium-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .8rem;
+        margin-bottom: .9rem;
+    }
+
+    .podium-item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: .7rem;
+        align-items: center;
+        text-align: left;
+        padding: .85rem;
+        border: 0;
+    }
+
+    .position-medal {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #f2d878;
+        font-weight: 800;
+    }
+
+    .podium-name {
+        font-weight: 800;
+    }
+
+    .podium-2 .position-medal {
+        background: #d9e0e7;
+    }
+
+    .podium-3 .position-medal {
+        background: #d6a987;
+    }
+
+    .table-panel {
+        overflow: hidden;
+    }
+
+    .panel-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title span {
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .ranking-table,
+    .detail-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .ranking-table th,
+    .ranking-table td,
+    .detail-table th,
+    .detail-table td {
+        padding: .72rem .8rem;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+    }
+
+    .ranking-table th,
+    .detail-table th {
+        color: var(--muted);
+        font-size: .78rem;
+        text-transform: uppercase;
+        font-weight: 800;
+        background: #f7faf8;
+    }
+
+    .ranking-row.open {
+        background: #f3fbf7;
+    }
+
+    .rank-number {
+        display: inline-grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #edf4f1;
+        font-weight: 800;
+    }
+
+    .user-cell {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+    }
+
+    .avatar {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        background: #dff1e9;
+        color: var(--green);
+        font-weight: 900;
+    }
+
+    .score-pill {
+        display: inline-block;
+        min-width: 58px;
+        padding: .35rem .55rem;
+        border-radius: 6px;
+        background: #10251e;
+        color: white;
+        text-align: center;
+        font-weight: 800;
+    }
+
+    .detail-cell {
+        background: #f8fbfa;
+        padding: 0 !important;
+    }
+
+    .detail-wrapper {
+        padding: 1rem;
+    }
+
+    .detail-title {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        margin-bottom: .7rem;
+    }
+
+    .phase-pill,
+    .prediction-pill,
+    .result-pill,
+    .points-pill {
+        display: inline-block;
+        border-radius: 6px;
+        padding: .22rem .45rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .phase-pill {
+        background: #e9f1ed;
+        color: #24443a;
+    }
+
+    .prediction-pill {
+        background: #dbeafe;
+        color: #123d7a;
+    }
+
+    .result-pill {
+        background: #16251f;
+        color: white;
+    }
+
+    .points-green { background: #d9f4e8; color: #0d6b43; }
+    .points-blue { background: #dbeafe; color: #174ea6; }
+    .points-slate { background: #e7ebef; color: #34404a; }
+    .points-indigo { background: #e4e7ff; color: #3343a8; }
+    .points-gold { background: #fff0be; color: #886103; }
+    .points-dark { background: #1d2a24; color: white; }
+    .points-red { background: #ffe1e1; color: #9a1f1f; }
+
+    @@media (max-width: 800px) {
+        .ranking-hero,
+        .panel-title {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .summary-grid,
+        .podium-strip {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private List<PollaDto> pollas = new();
+    private List<RankingPollaDto> ranking = new();
+    private List<DetalleRankingDto> rankingDetalle = new();
+    private string? usuarioDetalleAbierto;
+    private bool cargando = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+
+        if (!Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/ranking", true);
+            return;
+        }
+
+        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+
+        if (Sesion.PollaActivaId.HasValue &&
+            !pollas.Any(p => p.Id == Sesion.PollaActivaId.Value))
+        {
+            await Sesion.LimpiarPollaActivaAsync();
+        }
+
+        if (Sesion.PollaActivaId.HasValue)
+        {
+            await CargarRankingAsync();
+        }
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task SeleccionarPolla(PollaDto polla)
+    {
+        cargando = true;
+        StateHasChanged();
+
+        await Sesion.SeleccionarPollaAsync(polla.Id, polla.Nombre);
+        await CargarRankingAsync();
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task CambiarPolla()
+    {
+        await Sesion.LimpiarPollaActivaAsync();
+        ranking.Clear();
+        rankingDetalle.Clear();
+        usuarioDetalleAbierto = null;
+    }
+
+    private async Task CargarRankingAsync()
+    {
+        if (!Sesion.PollaActivaId.HasValue)
+        {
+            return;
+        }
+
+        ranking = await PollasService.GetRankingAsync(Sesion.PollaActivaId.Value);
+        rankingDetalle = await PollasService.GetRankingDetalleAsync(Sesion.PollaActivaId.Value);
+    }
+
+    private void ToggleDetalleUsuario(string usuario)
+    {
+        usuarioDetalleAbierto = usuarioDetalleAbierto == usuario
+            ? null
+            : usuario;
+    }
+
+    private int PromedioPuntos()
+    {
+        return ranking.Any()
+            ? (int)Math.Round(ranking.Average(r => r.Puntos))
+            : 0;
+    }
+
+    private string Iniciales(string nombre)
+    {
+        var partes = nombre
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(p => p[0].ToString().ToUpperInvariant());
+
+        var iniciales = string.Concat(partes);
+        return string.IsNullOrWhiteSpace(iniciales) ? "?" : iniciales;
+    }
+
+    private string ResumenUsuario(string usuario)
+    {
+        var detalles = rankingDetalle.Where(x => x.Usuario == usuario).ToList();
+        var conPuntos = detalles.Count(x => x.Total > 0);
+        return $"{conPuntos} jugadas con puntos";
+    }
+
+    private MarkupString Marcador(int? local, int? visitante, string clase)
+    {
+        var texto = local.HasValue && visitante.HasValue
+            ? $"{local} - {visitante}"
+            : "--";
+
+        return new MarkupString($"<span class=\"{clase}\">{texto}</span>");
+    }
+
+    private MarkupString Puntos(int puntos, string clase)
+    {
+        return puntos > 0
+            ? new MarkupString($"<span class=\"points-pill {clase}\">+{puntos}</span>")
+            : new MarkupString("<span class=\"text-muted\">0</span>");
+    }
+}

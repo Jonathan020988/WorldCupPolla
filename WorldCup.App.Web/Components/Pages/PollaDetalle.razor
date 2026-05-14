@@ -151,6 +151,7 @@ else
                                                         <thead class="table-dark">
                                                             <tr>
                                                                 <th>Partido</th>
+                                                                <th>Fase</th>
                                                                 <th>Pronóstico</th>
                                                                 <th>Resultado</th>
 
@@ -176,6 +177,12 @@ else
                                                                         <strong>@d.Local</strong>
                                                                         vs
                                                                         <strong>@d.Visitante</strong>
+                                                                    </td>
+
+                                                                    <td>
+                                                                        <span class="badge bg-light text-dark">
+                                                                            @d.Fase
+                                                                        </span>
                                                                     </td>
 
                                                                     <td>

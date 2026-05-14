@@ -30,12 +30,17 @@ namespace WorldCup.Api.Controllers
                 .Select(p => new
                 {
                     p.Id,
-                    p.Fecha, // ✅ ESTA ES LA CLAVE
+                    p.Fecha,
                     p.Fase,
+                    p.LocalId,
+                    p.VisitanteId,
+                    Grupo = p.Local.Grupo,
                     Local = p.Local.Nombre,
                     Visitante = p.Visitante.Nombre,
                     p.GolesLocal,
                     p.GolesVisitante,
+                    p.PenalesLocal,
+                    p.PenalesVisitante,
                     p.Finalizado,
                     p.Estado
                 })
@@ -49,7 +54,9 @@ namespace WorldCup.Api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<PartidoDTO>> GetPartido(int id)
         {
-            var p = await _context.Partidos.FindAsync(id);
+            var p = await _context.Partidos
+                .Include(x => x.Local)
+                .FirstOrDefaultAsync(x => x.Id == id);
             if (p == null) return NotFound();
 
             return new PartidoDTO
@@ -59,8 +66,11 @@ namespace WorldCup.Api.Controllers
                 Fase = p.Fase,
                 LocalId = p.LocalId,
                 VisitanteId = p.VisitanteId,
+                Grupo = p.Local?.Grupo,
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
+                PenalesLocal = p.PenalesLocal,
+                PenalesVisitante = p.PenalesVisitante,
                 Finalizado = p.Finalizado,
                 Estado = p.Estado
             };
@@ -174,6 +184,7 @@ namespace WorldCup.Api.Controllers
 
             var partido = await _context.Partidos
                 .Include(p => p.Local)
+                .Include(p => p.Visitante)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (partido == null)
@@ -187,16 +198,44 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Para finalizar el partido debes ingresar ambos marcadores.");
             }
 
+            if (estado == "Finalizado" &&
+                partido.Fase != "Grupos" &&
+                dto.GolesLocal == dto.GolesVisitante)
+            {
+                if (!dto.PenalesLocal.HasValue || !dto.PenalesVisitante.HasValue)
+                {
+                    return BadRequest("Un empate en eliminatorias debe tener penales para definir el clasificado real.");
+                }
+
+                if (dto.PenalesLocal == dto.PenalesVisitante)
+                {
+                    return BadRequest("Los penales no pueden terminar empatados.");
+                }
+            }
+
             partido.Estado = estado;
             partido.Finalizado = estado == "Finalizado";
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
+            partido.PenalesLocal =
+                partido.Fase != "Grupos" && dto.GolesLocal == dto.GolesVisitante
+                    ? dto.PenalesLocal
+                    : null;
+            partido.PenalesVisitante =
+                partido.Fase != "Grupos" && dto.GolesLocal == dto.GolesVisitante
+                    ? dto.PenalesVisitante
+                    : null;
 
             await RecalcularPuntosPartidoAsync(partido);
 
-            if (partido.Finalizado && partido.Fase == "Grupos")
+            if (partido.Fase == "Grupos")
             {
                 await CalcularPuntosClasificacionGrupo(partido.Local.Grupo!);
+            }
+
+            if (partido.Fase == "Final" || partido.Fase == "TercerPuesto")
+            {
+                await CalcularPuntosPodio();
             }
 
             await _context.SaveChangesAsync();
@@ -1240,14 +1279,17 @@ namespace WorldCup.Api.Controllers
                 if (pred.PrediceClasificadoId == ganadorReal)
                     puntosClasificacion += 10;
 
-                // 👉 Bonus solo si hubo empate
                 if (partido.GolesLocal == partido.GolesVisitante)
                 {
                     if (pred.PrediceTiempoExtra)
                         puntosClasificacion += 5;
 
-                    if (pred.PredicePenales)
+                    if (pred.PredicePenales &&
+                        partido.PenalesLocal.HasValue &&
+                        partido.PenalesVisitante.HasValue)
+                    {
                         puntosClasificacion += 5;
+                    }
                 }
 
                 pred.PuntosMarcador = puntosMarcador;
@@ -1356,16 +1398,44 @@ namespace WorldCup.Api.Controllers
             if (equiposIds.Count != 4)
                 return;
 
-            // 2️⃣ Verificar que los 6 partidos del grupo estén finalizados
-            bool grupoTerminado = !await _context.Partidos
-                .AnyAsync(p =>
+            var partidosGrupoIds = await _context.Partidos
+                .Where(p =>
                     p.Fase == "Grupos" &&
                     equiposIds.Contains(p.LocalId) &&
-                    equiposIds.Contains(p.VisitanteId) &&
-                    !p.Finalizado);
+                    equiposIds.Contains(p.VisitanteId))
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            var prediccionesPartidosGrupo = await _context.Predicciones
+                .Where(p => partidosGrupoIds.Contains(p.PartidoId))
+                .ToListAsync();
+
+            foreach (var p in prediccionesPartidosGrupo)
+            {
+                p.PuntosClasificacion = 0;
+                p.PuntosTotales =
+                    p.PuntosMarcador +
+                    p.PuntosClasificacion +
+                    p.PuntosPodio;
+            }
+
+            bool grupoTerminado = !await _context.Partidos
+                .AnyAsync(p => partidosGrupoIds.Contains(p.Id) && !p.Finalizado);
+
+            var prediccionesGrupo = await _context.PrediccionesGrupo
+                .Where(p => p.Grupo == grupoNorm)
+                .ToListAsync();
 
             if (!grupoTerminado)
+            {
+                foreach (var pred in prediccionesGrupo)
+                {
+                    pred.Bloqueada = false;
+                }
+
+                await _context.SaveChangesAsync();
                 return;
+            }
 
             // 3️⃣ Obtener tabla real
             var tablaReal = await ObtenerTablaGrupo(grupoNorm);
@@ -1376,44 +1446,41 @@ namespace WorldCup.Api.Controllers
             int segundoReal = tablaReal[1].EquipoId;
             int terceroReal = tablaReal[2].EquipoId;
 
-            // 4️⃣ Predicciones de clasificación
-            var prediccionesGrupo = await _context.PrediccionesGrupo
-                .Where(p => p.Grupo == grupoNorm && !p.Bloqueada)
-                .ToListAsync();
-
             foreach (var pred in prediccionesGrupo)
             {
                 int puntos = 0;
 
-                // ORDEN EXACTO
-                if (pred.PrimeroId == primeroReal) puntos += 15;
-                if (pred.SegundoId == segundoReal) puntos += 10;
-                if (pred.TerceroId == terceroReal) puntos += 5;
+                var realesClasificados = new[] { primeroReal, segundoReal, terceroReal };
 
-                // EQUIPOS CORRECTOS, ORDEN INCORRECTO
-                var realesTop2 = new[] { primeroReal, segundoReal };
-                var predTop2 = new[] { pred.PrimeroId, pred.SegundoId };
+                if (pred.PrimeroId == primeroReal)
+                    puntos += 15;
+                else if (realesClasificados.Contains(pred.PrimeroId))
+                    puntos += 10;
 
-                if (realesTop2.All(r => predTop2.Contains(r)) &&
-                    pred.PrimeroId != primeroReal)
-                {
-                    puntos += 10; // bonus por clasificados correctos sin orden
-                }
+                if (pred.SegundoId == segundoReal)
+                    puntos += 10;
+                else if (realesClasificados.Contains(pred.SegundoId))
+                    puntos += 5;
 
-                if (pred.TerceroId == terceroReal && pred.TerceroId != pred.PrimeroId && pred.TerceroId != pred.SegundoId)
+                if (pred.TerceroId == terceroReal)
+                    puntos += 5;
+                else if (realesClasificados.Contains(pred.TerceroId))
                     puntos += 3;
 
-                // 👉 APLICAR SOLO UNA VEZ AL USUARIO
-                var usuarioPredicciones = await _context.Predicciones
+                var prediccionRepresentativa = prediccionesPartidosGrupo
                     .Where(p =>
                         p.UsuarioId == pred.UsuarioId &&
                         p.PollaId == pred.PollaId)
-                    .ToListAsync();
+                    .OrderBy(p => p.PartidoId)
+                    .FirstOrDefault();
 
-                foreach (var p in usuarioPredicciones)
+                if (prediccionRepresentativa != null)
                 {
-                    p.PuntosClasificacion += puntos;
-                    p.PuntosTotales += puntos;
+                    prediccionRepresentativa.PuntosClasificacion = puntos;
+                    prediccionRepresentativa.PuntosTotales =
+                        prediccionRepresentativa.PuntosMarcador +
+                        prediccionRepresentativa.PuntosClasificacion +
+                        prediccionRepresentativa.PuntosPodio;
                 }
 
                 pred.Bloqueada = true;
@@ -1536,24 +1603,41 @@ namespace WorldCup.Api.Controllers
 
         private async Task CalcularPuntosPodio()
         {
-            // FINAL
             var final = await _context.Partidos
                 .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
 
-            // TERCER PUESTO
             var tercerPuesto = await _context.Partidos
                 .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
 
+            var prediccionesConPodio = await _context.Predicciones
+                .Where(p => p.PuntosPodio != 0)
+                .ToListAsync();
+
+            foreach (var prediccion in prediccionesConPodio)
+            {
+                prediccion.PuntosPodio = 0;
+                prediccion.PuntosTotales =
+                    prediccion.PuntosMarcador +
+                    prediccion.PuntosClasificacion;
+            }
+
+            var prediccionesPodio = await _context.PrediccionesPodio
+                .ToListAsync();
+
             if (final == null || tercerPuesto == null)
+            {
+                foreach (var pred in prediccionesPodio)
+                {
+                    pred.Bloqueada = false;
+                }
+
+                await _context.SaveChangesAsync();
                 return;
+            }
 
             int campeon = ObtenerGanadorId(final);
             int subcampeon = ObtenerPerdedorId(final);
             int tercero = ObtenerGanadorId(tercerPuesto);
-
-            var prediccionesPodio = await _context.PrediccionesPodio
-                .Where(p => !p.Bloqueada)
-                .ToListAsync();
 
             foreach (var pred in prediccionesPodio)
             {
@@ -1563,16 +1647,22 @@ namespace WorldCup.Api.Controllers
                 if (pred.SubcampeonId == subcampeon) puntos += 10;
                 if (pred.TerceroId == tercero) puntos += 5;
 
-                var predUsuario = await _context.Predicciones
+                var prediccionRepresentativa = await _context.Predicciones
                     .Where(p =>
                         p.UsuarioId == pred.UsuarioId &&
                         p.PollaId == pred.PollaId)
-                    .ToListAsync();
+                    .OrderByDescending(p => p.Partido.Fase == "Final")
+                    .ThenByDescending(p => p.Partido.Fase == "TercerPuesto")
+                    .ThenBy(p => p.PartidoId)
+                    .FirstOrDefaultAsync();
 
-                foreach (var p in predUsuario)
+                if (prediccionRepresentativa != null)
                 {
-                    p.PuntosPodio += puntos;
-                    p.PuntosTotales += puntos;
+                    prediccionRepresentativa.PuntosPodio = puntos;
+                    prediccionRepresentativa.PuntosTotales =
+                        prediccionRepresentativa.PuntosMarcador +
+                        prediccionRepresentativa.PuntosClasificacion +
+                        prediccionRepresentativa.PuntosPodio;
                 }
 
                 pred.Bloqueada = true;
@@ -1587,6 +1677,7 @@ namespace WorldCup.Api.Controllers
             var partidos = await _context.Partidos
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
+                .Where(p => p.Fase == "Grupos")
                 .Select(p => new SimuladorPartidoDto
                 {
                     Id = p.Id,

@@ -57,11 +57,19 @@ namespace WorldCup.Api.Controllers
                 // 🔴 VALIDACIÓN EXTRA SOLO PARA ELIMINATORIAS
                 if (partido.Fase != "Grupos")
                 {
+                    if (item.PredicePenales)
+                    {
+                        item.PrediceTiempoExtra = true;
+                    }
+
                     // Si hay empate → debe indicar clasificado
                     if (item.GolesLocal == item.GolesVisitante)
                     {
                         if (item.PrediceClasificadoId == null)
                             return BadRequest("Debe indicar el clasificado en eliminatorias");
+
+                        if (!item.PrediceTiempoExtra && !item.PredicePenales)
+                            return BadRequest("Si predices empate en eliminatorias debes indicar tiempo extra o penales");
                     }
 
                     // El clasificado debe pertenecer al partido
@@ -143,6 +151,9 @@ namespace WorldCup.Api.Controllers
                     p.PartidoId,
                     p.GolesLocal,
                     p.GolesVisitante,
+                    p.PrediceTiempoExtra,
+                    p.PredicePenales,
+                    p.PrediceClasificadoId,
                     p.PuntosMarcador,
                     p.PuntosTotales
                 })

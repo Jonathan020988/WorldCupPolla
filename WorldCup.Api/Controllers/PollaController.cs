@@ -166,22 +166,57 @@ namespace WorldCup.Api.Controllers
         [HttpGet("{pollaId:int}/ranking")]
         public async Task<IActionResult> GetRanking(int pollaId)
         {
-            var ranking = await _context.Predicciones
-                .Include(p => p.Usuario)
-                .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
-                .GroupBy(p => new
+            var miembros = await _context.PollaMiembros
+                .Include(pm => pm.Usuario)
+                .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
+                .Select(pm => new
                 {
-                    p.UsuarioId,
-                    p.Usuario.Nombre
+                    UsuarioId = pm.UsuarioId,
+                    Usuario = pm.Usuario.Nombre
                 })
-                .Select(g => new RankingPollaDTO
-                {
-                    UsuarioId = g.Key.UsuarioId,
-                    Usuario = g.Key.Nombre,
-                    Puntos = g.Sum(x => x.PuntosTotales)
-                })
-                .OrderByDescending(r => r.Puntos)
                 .ToListAsync();
+
+            var detalles = await ObtenerDetalleRanking(pollaId);
+
+            var ranking = miembros
+                .Select(m =>
+                {
+                    var detalleUsuario = detalles
+                        .Where(d => d.UsuarioId == m.UsuarioId)
+                        .ToList();
+
+                    return new
+                    {
+                        Ranking = new RankingPollaDTO
+                        {
+                            UsuarioId = m.UsuarioId,
+                            Usuario = m.Usuario,
+                            Puntos = detalleUsuario.Sum(d => d.Total)
+                        },
+                        Exactos = detalleUsuario.Count(d => d.PuntosExacto > 0),
+                        Ganadores = detalleUsuario.Count(d => d.PuntosGanador > 0),
+                        Goles = detalleUsuario.Count(d => d.PuntosGoles > 0),
+                        Diferencias = detalleUsuario.Count(d => d.PuntosDiferencia > 0),
+                        ClasificacionGrupos = detalleUsuario
+                            .Where(d => d.Fase == "Grupos")
+                            .Sum(d => d.PuntosClasificacion),
+                        ClasificacionKo = detalleUsuario
+                            .Where(d => d.Fase != "Grupos")
+                            .Sum(d => d.PuntosClasificacion),
+                        Podio = detalleUsuario.Sum(d => d.PuntosPodio)
+                    };
+                })
+                .OrderByDescending(r => r.Ranking.Puntos)
+                .ThenByDescending(r => r.Exactos)
+                .ThenByDescending(r => r.Ganadores)
+                .ThenByDescending(r => r.Goles)
+                .ThenByDescending(r => r.Diferencias)
+                .ThenByDescending(r => r.ClasificacionGrupos)
+                .ThenByDescending(r => r.ClasificacionKo)
+                .ThenByDescending(r => r.Podio)
+                .ThenBy(r => r.Ranking.Usuario)
+                .Select(r => r.Ranking)
+                .ToList();
 
             return Ok(ranking);
         }
@@ -189,36 +224,199 @@ namespace WorldCup.Api.Controllers
         [HttpGet("{pollaId:int}/ranking-detalle")]
         public async Task<IActionResult> GetRankingDetalle(int pollaId)
         {
-            var detalle = await _context.Predicciones
+            var detalle = await ObtenerDetalleRanking(pollaId);
+
+            return Ok(detalle
+                .OrderBy(x => x.Usuario)
+                .ThenBy(x => OrdenFase(x.Fase))
+                .ThenBy(x => x.Local)
+                .ToList());
+        }
+
+        private async Task<List<DetalleRankingDto>> ObtenerDetalleRanking(int pollaId)
+        {
+            var predicciones = await _context.Predicciones
                 .Include(p => p.Usuario)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Local)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Visitante)
                 .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
-                .Select(p => new DetalleRankingDto
-                {
-                    Usuario = p.Usuario.Nombre,
-
-                    Local = p.Partido.Local.Nombre,
-                    Visitante = p.Partido.Visitante.Nombre,
-
-                    PronosticoLocal = p.GolesLocal,
-                    PronosticoVisitante = p.GolesVisitante,
-
-                    ResultadoLocal = p.Partido.GolesLocal,
-                    ResultadoVisitante = p.Partido.GolesVisitante,
-
-                    PuntosMarcador = p.PuntosMarcador,
-                    PuntosClasificacion = p.PuntosClasificacion,
-                    PuntosPodio = p.PuntosPodio,
-
-                    Total = p.PuntosTotales
-                })
-                .OrderByDescending(x => x.Total)
                 .ToListAsync();
 
-            return Ok(detalle);
+            return predicciones
+                .Select(CrearDetalleRanking)
+                .ToList();
+        }
+
+        private static DetalleRankingDto CrearDetalleRanking(Prediccion prediccion)
+        {
+            var puntosMarcador = DesglosarMarcador(prediccion);
+            var puntosKo = DesglosarClasificacionKo(prediccion);
+
+            return new DetalleRankingDto
+            {
+                UsuarioId = prediccion.UsuarioId,
+                Usuario = prediccion.Usuario.Nombre,
+                Fase = prediccion.Partido.Fase,
+                Local = prediccion.Partido.Local.Nombre,
+                Visitante = prediccion.Partido.Visitante.Nombre,
+                PronosticoLocal = prediccion.GolesLocal,
+                PronosticoVisitante = prediccion.GolesVisitante,
+                ResultadoLocal = prediccion.Partido.GolesLocal,
+                ResultadoVisitante = prediccion.Partido.GolesVisitante,
+                PuntosMarcador = puntosMarcador.Total,
+                PuntosExacto = puntosMarcador.Exacto,
+                PuntosGanador = puntosMarcador.Ganador,
+                PuntosDiferencia = puntosMarcador.Diferencia,
+                PuntosGoles = puntosMarcador.Goles,
+                PuntosClasificacion = prediccion.Partido.Fase == "Grupos"
+                    ? prediccion.PuntosClasificacion
+                    : puntosKo.Clasificacion,
+                PuntosExtras = puntosKo.Extras,
+                PuntosPodio = prediccion.PuntosPodio,
+                Total = prediccion.PuntosTotales
+            };
+        }
+
+        private static PuntosMarcadorDetalle DesglosarMarcador(Prediccion prediccion)
+        {
+            if (!prediccion.Partido.Finalizado ||
+                !prediccion.Partido.GolesLocal.HasValue ||
+                !prediccion.Partido.GolesVisitante.HasValue ||
+                !prediccion.GolesLocal.HasValue ||
+                !prediccion.GolesVisitante.HasValue)
+            {
+                return new PuntosMarcadorDetalle();
+            }
+
+            var esGrupo = prediccion.Partido.Fase == "Grupos";
+            var exacto = esGrupo ? 10 : 20;
+            var ganador = esGrupo ? 4 : 8;
+            var goles = esGrupo ? 2 : 4;
+            var diferencia = esGrupo ? 1 : 2;
+
+            var realLocal = prediccion.Partido.GolesLocal.Value;
+            var realVisitante = prediccion.Partido.GolesVisitante.Value;
+            var predLocal = prediccion.GolesLocal.Value;
+            var predVisitante = prediccion.GolesVisitante.Value;
+
+            if (realLocal == predLocal && realVisitante == predVisitante)
+            {
+                return new PuntosMarcadorDetalle { Exacto = exacto };
+            }
+
+            var detalle = new PuntosMarcadorDetalle();
+            var resultadoReal = Math.Sign(realLocal - realVisitante);
+            var resultadoPred = Math.Sign(predLocal - predVisitante);
+
+            if (resultadoReal == resultadoPred)
+            {
+                detalle.Ganador = ganador;
+            }
+
+            if (realLocal == predLocal || realVisitante == predVisitante)
+            {
+                detalle.Goles = goles;
+            }
+            else if ((realLocal - realVisitante) == (predLocal - predVisitante))
+            {
+                detalle.Diferencia = diferencia;
+            }
+
+            return detalle;
+        }
+
+        private static PuntosKoDetalle DesglosarClasificacionKo(Prediccion prediccion)
+        {
+            var partido = prediccion.Partido;
+
+            if (partido.Fase == "Grupos" ||
+                !partido.Finalizado ||
+                !partido.GolesLocal.HasValue ||
+                !partido.GolesVisitante.HasValue)
+            {
+                return new PuntosKoDetalle();
+            }
+
+            var detalle = new PuntosKoDetalle();
+            var ganador = ObtenerGanadorId(partido);
+
+            if (ganador.HasValue && prediccion.PrediceClasificadoId == ganador.Value)
+            {
+                detalle.Clasificacion = 10;
+            }
+
+            if (partido.GolesLocal == partido.GolesVisitante)
+            {
+                if (prediccion.PrediceTiempoExtra)
+                {
+                    detalle.Extras += 5;
+                }
+
+                if (prediccion.PredicePenales &&
+                    partido.PenalesLocal.HasValue &&
+                    partido.PenalesVisitante.HasValue)
+                {
+                    detalle.Extras += 5;
+                }
+            }
+
+            return detalle;
+        }
+
+        private static int? ObtenerGanadorId(Partido partido)
+        {
+            if (!partido.GolesLocal.HasValue || !partido.GolesVisitante.HasValue)
+            {
+                return null;
+            }
+
+            if (partido.GolesLocal > partido.GolesVisitante)
+            {
+                return partido.LocalId;
+            }
+
+            if (partido.GolesVisitante > partido.GolesLocal)
+            {
+                return partido.VisitanteId;
+            }
+
+            if (!partido.PenalesLocal.HasValue || !partido.PenalesVisitante.HasValue)
+            {
+                return null;
+            }
+
+            return partido.PenalesLocal > partido.PenalesVisitante
+                ? partido.LocalId
+                : partido.VisitanteId;
+        }
+
+        private static int OrdenFase(string fase) => fase switch
+        {
+            "Grupos" => 1,
+            "Dieciseisavos" => 2,
+            "Octavos" => 3,
+            "Cuartos" => 4,
+            "Semifinales" => 5,
+            "TercerPuesto" => 6,
+            "Final" => 7,
+            _ => 99
+        };
+
+        private sealed class PuntosMarcadorDetalle
+        {
+            public int Exacto { get; set; }
+            public int Ganador { get; set; }
+            public int Diferencia { get; set; }
+            public int Goles { get; set; }
+            public int Total => Exacto + Ganador + Diferencia + Goles;
+        }
+
+        private sealed class PuntosKoDetalle
+        {
+            public int Clasificacion { get; set; }
+            public int Extras { get; set; }
         }
 
         [HttpGet("usuario/{usuarioId}")]
