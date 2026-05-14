@@ -59,6 +59,26 @@ else
         <div class="alert alert-info">@mensaje</div>
     }
 
+    <div class="card mb-4">
+        <div class="card-header fw-bold">Prueba de correo SMTP</div>
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label">Correo destino</label>
+                    <input class="form-control"
+                           placeholder="correo@ejemplo.com"
+                           @bind="correoPrueba" />
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary w-100"
+                            @onclick="EnviarCorreoPrueba">
+                        Enviar prueba
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card mb-4 phase-control">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>Control del torneo por fases</span>
@@ -344,6 +364,7 @@ else
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
+    private string correoPrueba = "";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -381,6 +402,23 @@ else
             $"api/Admin/usuarios?adminUsuarioId={adminId}") ?? new();
         pollas = await Http.GetFromJsonAsync<List<PollaAdminDto>>(
             $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
+    }
+
+    private async Task EnviarCorreoPrueba()
+    {
+        if (string.IsNullOrWhiteSpace(correoPrueba))
+        {
+            mensaje = "Debes indicar un correo destino.";
+            return;
+        }
+
+        var response = await Http.PostAsync(
+            $"api/Admin/probar-correo?adminUsuarioId={Sesion.UsuarioId!.Value}&destino={Uri.EscapeDataString(correoPrueba)}",
+            null);
+
+        mensaje = response.IsSuccessStatusCode
+            ? "Correo de prueba solicitado. Revisa la bandeja de entrada y spam."
+            : await response.Content.ReadAsStringAsync();
     }
 
     private async Task FinalizarFase(FaseAdminDto fase)

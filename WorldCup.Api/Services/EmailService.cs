@@ -21,57 +21,14 @@ namespace WorldCup.Api.Services
             string nombre,
             string resetLink)
         {
-            var smtp = _configuration.GetSection("SmtpSettings");
-            var host = smtp["Host"];
-            var fromEmail = smtp["FromEmail"];
-
-            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(fromEmail))
-            {
-                _logger.LogWarning(
-                    "SMTP no configurado. Enlace de recuperacion para {Email}: {ResetLink}",
-                    destino,
-                    resetLink);
-                return;
-            }
-
-            var port = int.TryParse(smtp["Port"], out var configuredPort)
-                ? configuredPort
-                : 587;
-
-            var enableSsl = !bool.TryParse(smtp["EnableSsl"], out var configuredSsl) ||
-                configuredSsl;
-
-            var user = smtp["User"];
-            var password = smtp["Password"];
-            var fromName = string.IsNullOrWhiteSpace(smtp["FromName"])
-                ? "WorldCup Polla"
-                : smtp["FromName"];
-
-            using var message = new MailMessage
-            {
-                From = new MailAddress(fromEmail, fromName),
-                Subject = "Restablecer contrasena - WorldCup Polla",
-                Body =
-                    $"Hola {nombre},\n\n" +
-                    "Recibimos una solicitud para restablecer tu contrasena.\n\n" +
-                    $"Abre este enlace para crear una nueva contrasena:\n{resetLink}\n\n" +
-                    "Este enlace vence en 1 hora. Si no solicitaste este cambio, puedes ignorar este correo.",
-                IsBodyHtml = false
-            };
-
-            message.To.Add(destino);
-
-            using var client = new SmtpClient(host, port)
-            {
-                EnableSsl = enableSsl
-            };
-
-            if (!string.IsNullOrWhiteSpace(user))
-            {
-                client.Credentials = new NetworkCredential(user, password);
-            }
-
-            await client.SendMailAsync(message);
+            await EnviarCorreoAsync(
+                destino,
+                "Restablecer contrasena - WorldCup Polla",
+                $"Hola {nombre},\n\n" +
+                "Recibimos una solicitud para restablecer tu contrasena.\n\n" +
+                $"Abre este enlace para crear una nueva contrasena:\n{resetLink}\n\n" +
+                "Este enlace vence en 1 hora. Si no solicitaste este cambio, puedes ignorar este correo.",
+                resetLink);
         }
 
         public async Task EnviarInvitacionPollaAsync(
@@ -91,6 +48,15 @@ namespace WorldCup.Api.Services
             await EnviarCorreoAsync(destino, asunto, cuerpo, linkInvitacion);
         }
 
+        public async Task EnviarCorreoPruebaAsync(string destino)
+        {
+            await EnviarCorreoAsync(
+                destino,
+                "Prueba de correo - WorldCup Polla",
+                "Hola,\n\nEl correo SMTP de WorldCup Polla quedó configurado correctamente.",
+                "correo-prueba");
+        }
+
         private async Task EnviarCorreoAsync(
             string destino,
             string asunto,
@@ -99,12 +65,19 @@ namespace WorldCup.Api.Services
         {
             var smtp = _configuration.GetSection("SmtpSettings");
             var host = smtp["Host"];
-            var fromEmail = smtp["FromEmail"];
+            var user = smtp["User"];
+            var password = smtp["Password"];
+            var fromEmail = string.IsNullOrWhiteSpace(smtp["FromEmail"])
+                ? user
+                : smtp["FromEmail"];
 
-            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(fromEmail))
+            if (string.IsNullOrWhiteSpace(host) ||
+                string.IsNullOrWhiteSpace(user) ||
+                string.IsNullOrWhiteSpace(password) ||
+                string.IsNullOrWhiteSpace(fromEmail))
             {
                 _logger.LogWarning(
-                    "SMTP no configurado. Correo para {Email}: {Referencia}",
+                    "SMTP no configurado completamente. Correo para {Email}: {Referencia}",
                     destino,
                     logReferencia);
                 return;
@@ -117,8 +90,6 @@ namespace WorldCup.Api.Services
             var enableSsl = !bool.TryParse(smtp["EnableSsl"], out var configuredSsl) ||
                 configuredSsl;
 
-            var user = smtp["User"];
-            var password = smtp["Password"];
             var fromName = string.IsNullOrWhiteSpace(smtp["FromName"])
                 ? "WorldCup Polla"
                 : smtp["FromName"];
@@ -135,13 +106,10 @@ namespace WorldCup.Api.Services
 
             using var client = new SmtpClient(host, port)
             {
-                EnableSsl = enableSsl
+                EnableSsl = enableSsl,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(user, password)
             };
-
-            if (!string.IsNullOrWhiteSpace(user))
-            {
-                client.Credentials = new NetworkCredential(user, password);
-            }
 
             await client.SendMailAsync(message);
         }

@@ -12,13 +12,16 @@ namespace WorldCup.Api.Controllers
     {
         private readonly AppDbContext _context;
         private readonly AdminAuthorizationService _adminAuthorization;
+        private readonly EmailService _emailService;
 
         public AdminController(
             AppDbContext context,
-            AdminAuthorizationService adminAuthorization)
+            AdminAuthorizationService adminAuthorization,
+            EmailService emailService)
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
+            _emailService = emailService;
         }
 
         [HttpGet("resumen")]
@@ -36,6 +39,22 @@ namespace WorldCup.Api.Controllers
                 partidosFinalizados = await _context.Partidos.CountAsync(p => p.Finalizado),
                 partidosPendientes = await _context.Partidos.CountAsync(p => !p.Finalizado)
             });
+        }
+
+        [HttpPost("probar-correo")]
+        public async Task<IActionResult> ProbarCorreo(
+            [FromQuery] int adminUsuarioId,
+            [FromQuery] string destino)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            if (string.IsNullOrWhiteSpace(destino))
+                return BadRequest("Debes indicar un correo destino");
+
+            await _emailService.EnviarCorreoPruebaAsync(destino);
+
+            return Ok("Correo de prueba enviado. Si SMTP no está completo, revisa los logs de la API.");
         }
 
         [HttpGet("usuarios")]
