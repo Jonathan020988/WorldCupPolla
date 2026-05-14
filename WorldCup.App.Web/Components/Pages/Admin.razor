@@ -155,6 +155,82 @@ else
         </div>
     </div>
 
+    <div class="card mb-4 calendario-admin">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Calendario de partidos</span>
+            <small class="text-muted">Fechas y horas en Colombia</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Filtrar fase</label>
+                    <select class="form-select"
+                            value="@faseCalendario"
+                            @onchange="CambiarFaseCalendario">
+                        <option value="">Todas</option>
+                        @foreach (var fase in fasesCalendario)
+                        {
+                            <option value="@fase">@NombreFase(fase)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <small class="text-muted">
+                        Usa este control para ajustar horarios oficiales, partidos generados o cambios de sede/fecha.
+                    </small>
+                </div>
+            </div>
+
+            @if (!partidosCalendarioVista.Any())
+            {
+                <div class="alert alert-light mb-0">
+                    No hay partidos para esta fase.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive calendario-scroll">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Fase</th>
+                                <th>Partido</th>
+                                <th>Fecha y hora Colombia</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var partido in partidosCalendarioVista)
+                            {
+                                <tr>
+                                    <td>@NombreFase(partido.Fase)</td>
+                                    <td class="fw-semibold">@partido.Local vs @partido.Visitante</td>
+                                    <td>
+                                        <input type="datetime-local"
+                                               class="form-control form-control-sm calendario-fecha"
+                                               @bind="partido.Fecha"
+                                               @bind:format="yyyy-MM-ddTHH:mm" />
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">@partido.Estado</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-primary"
+                                                disabled="@(procesandoPartidoFecha == partido.Id)"
+                                                @onclick="() => GuardarFechaPartido(partido)">
+                                            Guardar fecha
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
     <div class="row g-4">
         <div class="col-lg-6">
             <div class="card">
@@ -350,6 +426,21 @@ else
     .phase-control td {
         vertical-align: middle;
     }
+
+    .calendario-admin th {
+        color: #5f6b7a;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .calendario-scroll {
+        max-height: 420px;
+        overflow: auto;
+    }
+
+    .calendario-fecha {
+        min-width: 190px;
+    }
 </style>
 
 @code {
@@ -361,10 +452,25 @@ else
     private List<MiembroAdminDto> miembros = new();
     private List<PrediccionAdminDto> prediccionesUsuario = new();
     private List<FaseAdminDto> fasesAdmin = new();
+    private List<PartidoCalendarioAdminDto> partidosCalendario = new();
+    private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
+    private int? procesandoPartidoFecha;
+    private string faseCalendario = "";
     private string correoPrueba = "";
+
+    private readonly List<string> fasesCalendario = new()
+    {
+        "Grupos",
+        "Dieciseisavos",
+        "Octavos",
+        "Cuartos",
+        "Semifinales",
+        "TercerPuesto",
+        "Final"
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -398,10 +504,57 @@ else
             $"api/Admin/resumen?adminUsuarioId={adminId}");
         fasesAdmin = await Http.GetFromJsonAsync<List<FaseAdminDto>>(
             $"api/Partidos/admin-fases?adminUsuarioId={adminId}") ?? new();
+        await CargarCalendario();
         usuarios = await Http.GetFromJsonAsync<List<UsuarioAdminDto>>(
             $"api/Admin/usuarios?adminUsuarioId={adminId}") ?? new();
         pollas = await Http.GetFromJsonAsync<List<PollaAdminDto>>(
             $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
+    }
+
+    private async Task CargarCalendario()
+    {
+        partidosCalendario = await Http.GetFromJsonAsync<List<PartidoCalendarioAdminDto>>(
+            "api/Partidos") ?? new();
+
+        AplicarFiltroCalendario();
+    }
+
+    private void CambiarFaseCalendario(ChangeEventArgs e)
+    {
+        faseCalendario = e.Value?.ToString() ?? "";
+        AplicarFiltroCalendario();
+    }
+
+    private void AplicarFiltroCalendario()
+    {
+        partidosCalendarioVista = partidosCalendario
+            .Where(p => string.IsNullOrWhiteSpace(faseCalendario) || p.Fase == faseCalendario)
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.Id)
+            .ToList();
+    }
+
+    private async Task GuardarFechaPartido(PartidoCalendarioAdminDto partido)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+            return;
+
+        procesandoPartidoFecha = partido.Id;
+
+        var response = await Http.PutAsJsonAsync(
+            $"api/Partidos/{partido.Id}/admin-fecha",
+            new AdminFechaPartidoRequestDto
+            {
+                AdminUsuarioId = Sesion.UsuarioId.Value,
+                Fecha = partido.Fecha
+            });
+
+        mensaje = response.IsSuccessStatusCode
+            ? $"Fecha actualizada: {partido.Local} vs {partido.Visitante}."
+            : await response.Content.ReadAsStringAsync();
+
+        await CargarCalendario();
+        procesandoPartidoFecha = null;
     }
 
     private async Task EnviarCorreoPrueba()
@@ -591,6 +744,22 @@ else
     private class AdminFaseRequestDto
     {
         public int AdminUsuarioId { get; set; }
+    }
+
+    private class AdminFechaPartidoRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public DateTime Fecha { get; set; }
+    }
+
+    private class PartidoCalendarioAdminDto
+    {
+        public int Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Fase { get; set; } = "";
+        public string Local { get; set; } = "";
+        public string Visitante { get; set; } = "";
+        public string Estado { get; set; } = "Pendiente";
     }
 
     private class FaseAdminDto

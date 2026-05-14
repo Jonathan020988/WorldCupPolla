@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 
 
 namespace WorldCup.Api.Controllers
@@ -19,13 +20,12 @@ namespace WorldCup.Api.Controllers
             _context = context;
         }
 
-        private DateTime FechaInicioMundial = new DateTime(2026, 6, 11, 16, 0, 0, DateTimeKind.Utc);
-        // ⚠️ Ajusta la hora real si es necesario
+        private readonly DateTime FechaInicioMundial = new(2026, 6, 11, 14, 0, 0);
 
         private bool EstaCerrado()
         {
-            var cierre = FechaInicioMundial.AddMinutes(-20);
-            return DateTime.UtcNow >= cierre;
+            var cierre = FechaInicioMundial.AddHours(-1);
+            return ColombiaClock.Now() >= cierre;
         }
 
         // =========================================================
@@ -46,9 +46,9 @@ namespace WorldCup.Api.Controllers
                 if (partido == null)
                     return BadRequest("Partido no válido");
 
-                // 2️⃣ BLOQUEO: 20 minutos antes del inicio
-                if (DateTime.UtcNow >= partido.Fecha.AddMinutes(-20))
-                    return Conflict("Las predicciones se cerraron 20 minutos antes del partido");
+                // 2️⃣ BLOQUEO: 1 hora antes del inicio
+                if (ColombiaClock.Now() >= partido.Fecha.AddHours(-1))
+                    return Conflict("Las predicciones se cerraron 1 hora antes del partido");
 
                 // 3️⃣ Seguridad extra
                 if (partido.Finalizado)
@@ -187,7 +187,7 @@ namespace WorldCup.Api.Controllers
 
             if (prediccion.Bloqueada ||
                 prediccion.Partido.Finalizado ||
-                DateTime.UtcNow >= prediccion.Partido.Fecha.AddMinutes(-20))
+                ColombiaClock.Now() >= prediccion.Partido.Fecha.AddHours(-1))
             {
                 return Conflict("La predicción ya está bloqueada y no se puede eliminar");
             }
@@ -481,7 +481,7 @@ namespace WorldCup.Api.Controllers
         {
             if (EstaCerrado())
             {
-                return Conflict("⛔ Las clasificaciones están cerradas (faltan menos de 20 minutos para el inicio del mundial)");
+                return Conflict("⛔ Las clasificaciones están cerradas (falta menos de 1 hora para el inicio del mundial)");
             }
 
             int usuarioId = UserIdActual(dto.UsuarioId);
@@ -495,7 +495,7 @@ namespace WorldCup.Api.Controllers
                     p.Fase == "Grupos" &&
                     p.Local.Grupo != null &&
                     p.Local.Grupo.ToUpper() == grupoNorm &&
-                    p.Fecha <= DateTime.UtcNow
+                    p.Fecha <= ColombiaClock.Now()
                 );
 
 
@@ -984,11 +984,11 @@ namespace WorldCup.Api.Controllers
         [HttpGet("estado-clasificacion")]
         public IActionResult EstadoClasificacion()
         {
-            var cierre = FechaInicioMundial.AddMinutes(-20);
+            var cierre = FechaInicioMundial.AddHours(-1);
 
             return Ok(new
             {
-                cerrado = DateTime.UtcNow >= cierre,
+                cerrado = ColombiaClock.Now() >= cierre,
                 fechaCierre = cierre
             });
         }

@@ -250,6 +250,45 @@ namespace WorldCup.Api.Controllers
             });
         }
 
+        [HttpPut("{id}/admin-fecha")]
+        public async Task<IActionResult> ActualizarFechaAdmin(
+            int id,
+            AdminActualizarFechaPartidoDTO dto)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(dto.AdminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede modificar fechas de partidos");
+            }
+
+            if (dto.Fecha <= DateTime.MinValue.AddDays(1))
+            {
+                return BadRequest("La fecha del partido no es válida.");
+            }
+
+            var partido = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (partido == null)
+            {
+                return NotFound("Partido no encontrado");
+            }
+
+            partido.Fecha = DateTime.SpecifyKind(dto.Fecha, DateTimeKind.Unspecified);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                partido.Id,
+                partido.Fecha,
+                partido.Fase,
+                Local = partido.Local.Nombre,
+                Visitante = partido.Visitante.Nombre
+            });
+        }
+
         [HttpGet("admin-fases")]
         public async Task<IActionResult> GetFasesAdmin([FromQuery] int adminUsuarioId)
         {
@@ -851,35 +890,64 @@ namespace WorldCup.Api.Controllers
         //metoo
         private async Task<List<EliminatoriaDTO>> ConstruirDieciseisavos()
         {
-            var grupos = new[] { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L" };
-            var clasificados = new List<TablaPosicionDTO>();
+            var tablas = await ObtenerTablasPorGrupoAsync();
 
-            foreach (var grupo in grupos)
+            if (tablas.Count != GruposMundial.Length ||
+                tablas.Any(t => t.Value.Count < 3))
             {
-                var tabla = (await GetTablaPosiciones(grupo) as OkObjectResult)?.Value as List<TablaPosicionDTO>;
-                if (tabla != null && tabla.Count >= 2)
-                {
-                    clasificados.Add(tabla[0]);
-                    clasificados.Add(tabla[1]);
-                }
+                return new List<EliminatoriaDTO>();
             }
 
-            var terceros = (await GetMejoresTerceros() as OkObjectResult)?.Value as List<TablaPosicionDTO>;
-            if (terceros != null)
-                clasificados.AddRange(terceros);
-
-            if (clasificados.Count != 32)
+            var terceros = ObtenerMejoresTerceros(tablas);
+            if (terceros.Count != 8)
+            {
                 return new List<EliminatoriaDTO>();
+            }
+
+            var asignacionTerceros = AsignarTercerosDieciseisavos(
+                CrucesDieciseisavos.Where(c => c.UsaTercero),
+                terceros.Select(t => t.Grupo).ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            if (asignacionTerceros == null)
+            {
+                return new List<EliminatoriaDTO>();
+            }
+
+            var tercerosPorGrupo = terceros.ToDictionary(
+                t => t.Grupo,
+                StringComparer.OrdinalIgnoreCase);
 
             var cruces = new List<EliminatoriaDTO>();
 
-            for (int i = 0; i < clasificados.Count; i += 2)
+            foreach (var definicion in CrucesDieciseisavos)
             {
+                var local = tablas[definicion.LocalGrupo][definicion.LocalPosicion - 1];
+                TablaPosicionDTO visitante;
+                string grupoVisitante;
+                string etiquetaVisitante;
+
+                if (definicion.UsaTercero)
+                {
+                    grupoVisitante = asignacionTerceros[definicion.NumeroPartido];
+                    visitante = tercerosPorGrupo[grupoVisitante].Equipo;
+                    etiquetaVisitante = $"3º Grupo {grupoVisitante}";
+                }
+                else
+                {
+                    grupoVisitante = definicion.VisitanteGrupo!;
+                    visitante = tablas[grupoVisitante][definicion.VisitantePosicion!.Value - 1];
+                    etiquetaVisitante = $"{definicion.VisitantePosicion}º Grupo {grupoVisitante}";
+                }
+
                 cruces.Add(new EliminatoriaDTO
                 {
-                    Local = clasificados[i].Equipo,
-                    Visitante = clasificados[i + 1].Equipo,
-                    Fase = "Dieciseisavos"
+                    NumeroPartido = definicion.NumeroPartido,
+                    Local = local.Equipo,
+                    Visitante = visitante.Equipo,
+                    Fase = "Dieciseisavos",
+                    GrupoLocal = $"{definicion.LocalPosicion}º Grupo {definicion.LocalGrupo}",
+                    GrupoVisitante = etiquetaVisitante,
+                    GruposTerceroPermitidos = definicion.GruposTerceroPermitidos.ToList()
                 });
             }
 
@@ -897,15 +965,16 @@ namespace WorldCup.Api.Controllers
 
             var octavos = new List<DieciseisavoDTO>();
 
+            var porNumero = dieciseisavos.ToDictionary(c => c.NumeroPartido);
+
             // Ganador = Local (por ahora)
-            for (int i = 0; i < dieciseisavos.Count; i += 2)
+            for (var i = 0; i < CrucesOctavosDesdeDieciseisavos.Length; i++)
             {
+                var cruce = CrucesOctavosDesdeDieciseisavos[i];
                 octavos.Add(new DieciseisavoDTO
                 {
-                    Local = dieciseisavos[i].Local,
-                    Visitante = dieciseisavos[i + 1].Local
-
-
+                    Local = porNumero[cruce[0]].Local,
+                    Visitante = porNumero[cruce[1]].Local
                 });
             }
 
@@ -921,13 +990,15 @@ namespace WorldCup.Api.Controllers
 
             var octavos = new List<DieciseisavoDTO>();
 
+            var porNumero = dieciseisavos.ToDictionary(c => c.NumeroPartido);
+
             // Ganador = Local (por ahora)
-            for (int i = 0; i < dieciseisavos.Count; i += 2)
+            foreach (var cruce in CrucesOctavosDesdeDieciseisavos)
             {
                 octavos.Add(new DieciseisavoDTO
                 {
-                    Local = dieciseisavos[i].Local,
-                    Visitante = dieciseisavos[i + 1].Local
+                    Local = porNumero[cruce[0]].Local,
+                    Visitante = porNumero[cruce[1]].Local
                 });
             }
 
@@ -1003,6 +1074,270 @@ namespace WorldCup.Api.Controllers
             return $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}";
         }
 
+        private static readonly string[] GruposMundial =
+        {
+            "A", "B", "C", "D", "E", "F",
+            "G", "H", "I", "J", "K", "L"
+        };
+
+        private static readonly List<CruceDieciseisavosDef> CrucesDieciseisavos = new()
+        {
+            new(73, "A", 2, "B", 2),
+            new(74, "E", 1, new[] { "A", "B", "C", "D", "F" }),
+            new(75, "F", 1, "C", 2),
+            new(76, "C", 1, "F", 2),
+            new(77, "I", 1, new[] { "C", "D", "F", "G", "H" }),
+            new(78, "E", 2, "I", 2),
+            new(79, "A", 1, new[] { "C", "E", "F", "H", "I" }),
+            new(80, "L", 1, new[] { "E", "H", "I", "J", "K" }),
+            new(81, "D", 1, new[] { "B", "E", "F", "I", "J" }),
+            new(82, "G", 1, new[] { "A", "E", "H", "I", "J" }),
+            new(83, "K", 2, "L", 2),
+            new(84, "H", 1, "J", 2),
+            new(85, "B", 1, new[] { "E", "F", "G", "I", "J" }),
+            new(86, "J", 1, "H", 2),
+            new(87, "K", 1, new[] { "D", "E", "I", "J", "L" }),
+            new(88, "D", 2, "G", 2)
+        };
+
+        private static readonly int[][] CrucesOctavosDesdeDieciseisavos =
+        {
+            new[] { 74, 77 },
+            new[] { 73, 75 },
+            new[] { 76, 78 },
+            new[] { 79, 80 },
+            new[] { 83, 84 },
+            new[] { 81, 82 },
+            new[] { 86, 88 },
+            new[] { 85, 87 }
+        };
+
+        private static readonly int[][] CrucesCuartosDesdeOctavos =
+        {
+            new[] { 89, 90 },
+            new[] { 93, 94 },
+            new[] { 91, 92 },
+            new[] { 95, 96 }
+        };
+
+        private static readonly Dictionary<int, DateTime> FechasEliminatoriasColombia = new()
+        {
+            [73] = new DateTime(2026, 6, 28, 12, 0, 0),
+            [74] = new DateTime(2026, 6, 29, 12, 0, 0),
+            [75] = new DateTime(2026, 6, 29, 12, 0, 0),
+            [76] = new DateTime(2026, 6, 29, 12, 0, 0),
+            [77] = new DateTime(2026, 6, 30, 12, 0, 0),
+            [78] = new DateTime(2026, 6, 30, 12, 0, 0),
+            [79] = new DateTime(2026, 6, 30, 12, 0, 0),
+            [80] = new DateTime(2026, 7, 1, 12, 0, 0),
+            [81] = new DateTime(2026, 7, 1, 12, 0, 0),
+            [82] = new DateTime(2026, 7, 1, 12, 0, 0),
+            [83] = new DateTime(2026, 7, 2, 12, 0, 0),
+            [84] = new DateTime(2026, 7, 2, 12, 0, 0),
+            [85] = new DateTime(2026, 7, 2, 12, 0, 0),
+            [86] = new DateTime(2026, 7, 3, 12, 0, 0),
+            [87] = new DateTime(2026, 7, 3, 12, 0, 0),
+            [88] = new DateTime(2026, 7, 3, 12, 0, 0),
+            [89] = new DateTime(2026, 7, 4, 12, 0, 0),
+            [90] = new DateTime(2026, 7, 4, 12, 0, 0),
+            [91] = new DateTime(2026, 7, 5, 12, 0, 0),
+            [92] = new DateTime(2026, 7, 5, 12, 0, 0),
+            [93] = new DateTime(2026, 7, 6, 12, 0, 0),
+            [94] = new DateTime(2026, 7, 6, 12, 0, 0),
+            [95] = new DateTime(2026, 7, 7, 12, 0, 0),
+            [96] = new DateTime(2026, 7, 7, 12, 0, 0),
+            [97] = new DateTime(2026, 7, 9, 12, 0, 0),
+            [98] = new DateTime(2026, 7, 10, 12, 0, 0),
+            [99] = new DateTime(2026, 7, 11, 12, 0, 0),
+            [100] = new DateTime(2026, 7, 11, 12, 0, 0),
+            [101] = new DateTime(2026, 7, 14, 12, 0, 0),
+            [102] = new DateTime(2026, 7, 15, 12, 0, 0),
+            [103] = new DateTime(2026, 7, 18, 12, 0, 0),
+            [104] = new DateTime(2026, 7, 19, 12, 0, 0)
+        };
+
+        private async Task<Dictionary<string, List<TablaPosicionDTO>>> ObtenerTablasPorGrupoAsync()
+        {
+            var tablas = new Dictionary<string, List<TablaPosicionDTO>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var grupo in GruposMundial)
+            {
+                var tabla = (await GetTablaPosiciones(grupo) as OkObjectResult)?.Value as List<TablaPosicionDTO>;
+                if (tabla != null)
+                {
+                    tablas[grupo] = tabla;
+                }
+            }
+
+            return tablas;
+        }
+
+        private static List<TerceroClasificado> ObtenerMejoresTerceros(
+            Dictionary<string, List<TablaPosicionDTO>> tablas)
+        {
+            return GruposMundial
+                .Where(g => tablas.ContainsKey(g) && tablas[g].Count >= 3)
+                .Select(g => new TerceroClasificado(g, tablas[g][2]))
+                .OrderByDescending(t => t.Equipo.Puntos)
+                .ThenByDescending(t => t.Equipo.DG)
+                .ThenByDescending(t => t.Equipo.GF)
+                .ThenBy(t => t.Equipo.Equipo)
+                .Take(8)
+                .ToList();
+        }
+
+        private static Dictionary<int, string>? AsignarTercerosDieciseisavos(
+            IEnumerable<CruceDieciseisavosDef> cruces,
+            HashSet<string> gruposDisponibles)
+        {
+            var pendientes = cruces
+                .Select(c => new
+                {
+                    Cruce = c,
+                    Opciones = c.GruposTerceroPermitidos
+                        .Where(gruposDisponibles.Contains)
+                        .OrderBy(g => g)
+                        .ToList()
+                })
+                .OrderBy(x => x.Opciones.Count)
+                .ThenBy(x => x.Cruce.NumeroPartido)
+                .ToList();
+
+            if (pendientes.Any(p => p.Opciones.Count == 0))
+            {
+                return null;
+            }
+
+            var asignacion = new Dictionary<int, string>();
+            var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            bool Resolver(int index)
+            {
+                if (index >= pendientes.Count)
+                {
+                    return true;
+                }
+
+                foreach (var grupo in pendientes[index].Opciones)
+                {
+                    if (!usados.Add(grupo))
+                    {
+                        continue;
+                    }
+
+                    asignacion[pendientes[index].Cruce.NumeroPartido] = grupo;
+
+                    if (Resolver(index + 1))
+                    {
+                        return true;
+                    }
+
+                    usados.Remove(grupo);
+                    asignacion.Remove(pendientes[index].Cruce.NumeroPartido);
+                }
+
+                return false;
+            }
+
+            return Resolver(0) ? asignacion : null;
+        }
+
+        private static DateTime FechaProgramadaEliminatoria(int numeroPartido)
+        {
+            return FechasEliminatoriasColombia.TryGetValue(numeroPartido, out var fecha)
+                ? fecha
+                : ColombiaClock.Now();
+        }
+
+        private static List<CruceIndices> ObtenerCrucesSiguienteFase(string faseAnterior, int cantidadPartidos)
+        {
+            return faseAnterior switch
+            {
+                "Dieciseisavos" => CrucesOctavosDesdeDieciseisavos
+                    .Select(c => new CruceIndices(c[0] - 73, c[1] - 73))
+                    .ToList(),
+                "Octavos" => CrucesCuartosDesdeOctavos
+                    .Select(c => new CruceIndices(c[0] - 89, c[1] - 89))
+                    .ToList(),
+                _ => Enumerable.Range(0, cantidadPartidos)
+                    .Where(i => i % 2 == 0)
+                    .Select(i => new CruceIndices(i, i + 1))
+                    .ToList()
+            };
+        }
+
+        private static int ObtenerNumeroPartidoGenerado(string faseNueva, int index)
+        {
+            return faseNueva switch
+            {
+                "Octavos" => 89 + index,
+                "Cuartos" => 97 + index,
+                "Semifinales" => 101 + index,
+                _ => 0
+            };
+        }
+
+        private sealed class CruceDieciseisavosDef
+        {
+            public CruceDieciseisavosDef(
+                int numeroPartido,
+                string localGrupo,
+                int localPosicion,
+                string visitanteGrupo,
+                int visitantePosicion)
+            {
+                NumeroPartido = numeroPartido;
+                LocalGrupo = localGrupo;
+                LocalPosicion = localPosicion;
+                VisitanteGrupo = visitanteGrupo;
+                VisitantePosicion = visitantePosicion;
+            }
+
+            public CruceDieciseisavosDef(
+                int numeroPartido,
+                string localGrupo,
+                int localPosicion,
+                string[] gruposTerceroPermitidos)
+            {
+                NumeroPartido = numeroPartido;
+                LocalGrupo = localGrupo;
+                LocalPosicion = localPosicion;
+                GruposTerceroPermitidos = gruposTerceroPermitidos;
+            }
+
+            public int NumeroPartido { get; }
+            public string LocalGrupo { get; }
+            public int LocalPosicion { get; }
+            public string? VisitanteGrupo { get; }
+            public int? VisitantePosicion { get; }
+            public string[] GruposTerceroPermitidos { get; } = Array.Empty<string>();
+            public bool UsaTercero => GruposTerceroPermitidos.Length > 0;
+        }
+
+        private sealed class TerceroClasificado
+        {
+            public TerceroClasificado(string grupo, TablaPosicionDTO equipo)
+            {
+                Grupo = grupo;
+                Equipo = equipo;
+            }
+
+            public string Grupo { get; }
+            public TablaPosicionDTO Equipo { get; }
+        }
+
+        private sealed class CruceIndices
+        {
+            public CruceIndices(int localIndex, int visitanteIndex)
+            {
+                LocalIndex = localIndex;
+                VisitanteIndex = visitanteIndex;
+            }
+
+            public int LocalIndex { get; }
+            public int VisitanteIndex { get; }
+        }
+
         //edpoint      
         [HttpGet("cuartos")]
         public async Task<IActionResult> GetCuartos()
@@ -1018,12 +1353,20 @@ namespace WorldCup.Api.Controllers
 
             var cuartos = new List<DieciseisavoDTO>();
 
-            for (int i = 0; i < octavos.Count; i += 2)
+            var partidosOctavos = octavos
+                .Select((partido, index) => new
+                {
+                    Numero = 89 + index,
+                    Partido = partido
+                })
+                .ToDictionary(x => x.Numero, x => x.Partido);
+
+            foreach (var cruce in CrucesCuartosDesdeOctavos)
             {
                 cuartos.Add(new DieciseisavoDTO
                 {
-                    Local = octavos[i].Local,
-                    Visitante = octavos[i + 1].Local
+                    Local = partidosOctavos[cruce[0]].Local,
+                    Visitante = partidosOctavos[cruce[1]].Local
                 });
             }
 
@@ -1218,10 +1561,11 @@ namespace WorldCup.Api.Controllers
 
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = DateTime.UtcNow,
+                    Fecha = FechaProgramadaEliminatoria(c.NumeroPartido),
                     Fase = "Dieciseisavos",
                     LocalId = local.Id,
                     VisitanteId = visitante.Id,
+                    Estado = "Pendiente",
                     Finalizado = false
                 });
             }
@@ -1262,15 +1606,27 @@ namespace WorldCup.Api.Controllers
                 .OrderBy(p => p.Id)
                 .ToListAsync();
 
+            var partidosPorNumero = dieciseisavos
+                .Select((partido, index) => new
+                {
+                    Numero = 73 + index,
+                    Partido = partido
+                })
+                .ToDictionary(x => x.Numero, x => x.Partido);
+
             // 4️⃣ Generar los 8 octavos
-            for (int i = 0; i < dieciseisavos.Count; i += 2)
+            for (var i = 0; i < CrucesOctavosDesdeDieciseisavos.Length; i++)
             {
+                var cruce = CrucesOctavosDesdeDieciseisavos[i];
+                var numeroPartido = 89 + i;
+
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = DateTime.UtcNow,
+                    Fecha = FechaProgramadaEliminatoria(numeroPartido),
                     Fase = "Octavos",
-                    LocalId = ObtenerGanadorId(dieciseisavos[i]),
-                    VisitanteId = ObtenerGanadorId(dieciseisavos[i + 1]),
+                    LocalId = ObtenerGanadorId(partidosPorNumero[cruce[0]]),
+                    VisitanteId = ObtenerGanadorId(partidosPorNumero[cruce[1]]),
+                    Estado = "Pendiente",
                     Finalizado = false
                 });
             }
@@ -1295,14 +1651,26 @@ namespace WorldCup.Api.Controllers
                 .OrderBy(p => p.Id)
                 .ToListAsync();
 
-            for (int i = 0; i < octavos.Count; i += 2)
+            var partidosPorNumero = octavos
+                .Select((partido, index) => new
+                {
+                    Numero = 89 + index,
+                    Partido = partido
+                })
+                .ToDictionary(x => x.Numero, x => x.Partido);
+
+            for (var i = 0; i < CrucesCuartosDesdeOctavos.Length; i++)
             {
+                var cruce = CrucesCuartosDesdeOctavos[i];
+                var numeroPartido = 97 + i;
+
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = DateTime.UtcNow,
+                    Fecha = FechaProgramadaEliminatoria(numeroPartido),
                     Fase = "Cuartos",
-                    LocalId = ObtenerGanadorId(octavos[i]),
-                    VisitanteId = ObtenerGanadorId(octavos[i + 1]),
+                    LocalId = ObtenerGanadorId(partidosPorNumero[cruce[0]]),
+                    VisitanteId = ObtenerGanadorId(partidosPorNumero[cruce[1]]),
+                    Estado = "Pendiente",
                     Finalizado = false
                 });
             }
@@ -1329,12 +1697,15 @@ namespace WorldCup.Api.Controllers
 
             for (int i = 0; i < cuartos.Count; i += 2)
             {
+                var numeroPartido = 101 + (i / 2);
+
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = DateTime.UtcNow,
+                    Fecha = FechaProgramadaEliminatoria(numeroPartido),
                     Fase = "Semifinales",
                     LocalId = ObtenerGanadorId(cuartos[i]),
                     VisitanteId = ObtenerGanadorId(cuartos[i + 1]),
+                    Estado = "Pendiente",
                     Finalizado = false
                 });
             }
@@ -1359,10 +1730,11 @@ namespace WorldCup.Api.Controllers
 
             _context.Partidos.Add(new Partido
             {
-                Fecha = DateTime.UtcNow,
+                Fecha = FechaProgramadaEliminatoria(104),
                 Fase = "Final",
                 LocalId = ObtenerGanadorId(semis[0]),
                 VisitanteId = ObtenerGanadorId(semis[1]),
+                Estado = "Pendiente",
                 Finalizado = false
             });
 
@@ -1386,10 +1758,11 @@ namespace WorldCup.Api.Controllers
 
             _context.Partidos.Add(new Partido
             {
-                Fecha = DateTime.UtcNow,
+                Fecha = FechaProgramadaEliminatoria(103),
                 Fase = "TercerPuesto",
                 LocalId = ObtenerPerdedorId(semis[0]),
                 VisitanteId = ObtenerPerdedorId(semis[1]),
+                Estado = "Pendiente",
                 Finalizado = false
             });
 
@@ -1502,8 +1875,6 @@ namespace WorldCup.Api.Controllers
                 throw new InvalidOperationException("No hay 32 equipos clasificados para dieciseisavos");
             }
 
-            var fecha = await ObtenerFechaSiguienteFaseAsync("Grupos");
-
             foreach (var cruce in cruces)
             {
                 var local = await _context.Equipos.FirstAsync(e => e.Nombre == cruce.Local);
@@ -1511,7 +1882,7 @@ namespace WorldCup.Api.Controllers
 
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = fecha,
+                    Fecha = FechaProgramadaEliminatoria(cruce.NumeroPartido),
                     Fase = "Dieciseisavos",
                     LocalId = local.Id,
                     VisitanteId = visitante.Id,
@@ -1542,16 +1913,20 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.Fase == faseAnterior)
                 .OrderBy(p => p.Id)
                 .ToListAsync();
-            var fecha = await ObtenerFechaSiguienteFaseAsync(faseAnterior);
 
-            for (var i = 0; i < partidosAnteriores.Count; i += 2)
+            var cruces = ObtenerCrucesSiguienteFase(faseAnterior, partidosAnteriores.Count);
+
+            for (var i = 0; i < cruces.Count; i++)
             {
+                var cruce = cruces[i];
+                var numeroPartido = ObtenerNumeroPartidoGenerado(faseNueva, i);
+
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = fecha,
+                    Fecha = FechaProgramadaEliminatoria(numeroPartido),
                     Fase = faseNueva,
-                    LocalId = ObtenerGanadorId(partidosAnteriores[i]),
-                    VisitanteId = ObtenerGanadorId(partidosAnteriores[i + 1]),
+                    LocalId = ObtenerGanadorId(partidosAnteriores[cruce.LocalIndex]),
+                    VisitanteId = ObtenerGanadorId(partidosAnteriores[cruce.VisitanteIndex]),
                     Estado = "Pendiente",
                     Finalizado = false
                 });
@@ -1576,11 +1951,9 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.Fase == "Semifinales")
                 .OrderBy(p => p.Id)
                 .ToListAsync();
-            var fecha = await ObtenerFechaSiguienteFaseAsync("Semifinales", 3);
-
             _context.Partidos.Add(new Partido
             {
-                Fecha = fecha,
+                Fecha = FechaProgramadaEliminatoria(104),
                 Fase = "Final",
                 LocalId = ObtenerGanadorId(semifinales[0]),
                 VisitanteId = ObtenerGanadorId(semifinales[1]),
@@ -1607,11 +1980,9 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.Fase == "Semifinales")
                 .OrderBy(p => p.Id)
                 .ToListAsync();
-            var fecha = await ObtenerFechaSiguienteFaseAsync("Semifinales", 2);
-
             _context.Partidos.Add(new Partido
             {
-                Fecha = fecha,
+                Fecha = FechaProgramadaEliminatoria(103),
                 Fase = "TercerPuesto",
                 LocalId = ObtenerPerdedorId(semifinales[0]),
                 VisitanteId = ObtenerPerdedorId(semifinales[1]),

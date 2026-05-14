@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 
 namespace WorldCup.Api.Controllers
 {
@@ -157,7 +158,7 @@ namespace WorldCup.Api.Controllers
                     p.Fase == "Dieciseisavos" &&
                     (p.Finalizado ||
                      p.Estado == "EnJuego" ||
-                     p.Fecha <= DateTime.UtcNow));
+                    p.Fecha <= ColombiaClock.Now()));
         }
 
         private async Task<List<object>> ObtenerEquiposPodioDisponibles()

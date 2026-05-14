@@ -17,7 +17,7 @@
         <span class="predictions-kicker">Mundial 2026</span>
         <h1>Mis Predicciones</h1>
         <p>
-            Puedes modificar tus marcadores hasta <b>20 minutos</b> antes de cada partido.
+            Puedes modificar tus marcadores hasta <b>1 hora</b> antes de cada partido.
         </p>
     </div>
 </section>
@@ -81,6 +81,31 @@ else
         </div>
     }
 
+    @if (partidos?.Any() == true)
+    {
+        <div class="prediction-filter">
+            <div>
+                <label class="form-label fw-bold mb-1">Filtrar por país</label>
+                <select class="form-select"
+                        @bind="paisFiltro">
+                    <option value="">Todos los países</option>
+                    @foreach (var pais in PaisesDisponibles())
+                    {
+                        <option value="@pais">@pais</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(paisFiltro))
+            {
+                <button class="btn btn-outline-secondary"
+                        @onclick="LimpiarFiltroPais">
+                    Ver todos
+                </button>
+            }
+        </div>
+    }
+
     @if (podioEstado?.disponible == true)
     {
         <div class="card shadow-sm mb-3 border-warning">
@@ -141,130 +166,141 @@ else
     }
     else
     {
-        @foreach (var fase in partidos.GroupBy(p => p.Fase).OrderBy(g => OrdenFase(g.Key)))
+        var partidosVista = PartidosFiltradosPorPais().ToList();
+
+        @if (!partidosVista.Any())
         {
-            <div class="phase-title">
-                <span>@fase.Key</span>
-                <small>@fase.Count() partidos</small>
+            <div class="alert alert-info">
+                No hay partidos para el país seleccionado.
             </div>
-
-            @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
+        }
+        else
+        {
+            @foreach (var fase in partidosVista.GroupBy(p => p.Fase).OrderBy(g => OrdenFase(g.Key)))
             {
-                var bloqueado = EstaBloqueado(p);
-                var guardada = EstaGuardada(p);
-                var editable = EstaEditable(p);
-
-                <div class="prediction-card @(guardada ? "is-saved" : "") @(editable ? "is-editing" : "")">
-                    <div class="prediction-card-main">
-                        <div class="prediction-team prediction-team-local">
-                            <span>@p.Local</span>
-                            <img class="team-flag"
-                                 src="@GetBandera(p.Local)"
-                                 alt="@p.Local" />
-                        </div>
-
-                        <div class="score-panel">
-                            <input type="number"
-                                   class="form-control form-control-sm score-input"
-                                   min="0"
-                                   disabled="@(!editable)"
-                                   @bind="predicciones[p.Id].GolesLocal"
-                                   @bind:event="oninput" />
-
-                            <span class="score-separator">-</span>
-
-                            <input type="number"
-                                   class="form-control form-control-sm score-input"
-                                   min="0"
-                                   disabled="@(!editable)"
-                                   @bind="predicciones[p.Id].GolesVisitante"
-                                   @bind:event="oninput" />
-                        </div>
-
-                        <div class="prediction-team prediction-team-visitor">
-                            <img class="team-flag"
-                                 src="@GetBandera(p.Visitante)"
-                                 alt="@p.Visitante" />
-                            <span>@p.Visitante</span>
-                        </div>
-
-                        <div class="prediction-actions">
-                            <button class="btn btn-sm btn-success"
-                                    disabled="@(!editable)"
-                                    title="Guardar predicción"
-                                    @onclick="() => GuardarPartido(p)">
-                                Guardar
-                            </button>
-
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    disabled="@(bloqueado || !guardada || editable)"
-                                    title="Editar predicción"
-                                    @onclick="() => EditarPartido(p)">
-                                Editar
-                            </button>
-
-                            <button class="btn btn-sm btn-outline-danger"
-                                    disabled="@(bloqueado || !guardada)"
-                                    title="Eliminar predicción"
-                                    @onclick="() => EliminarPartido(p)">
-                                Eliminar
-                            </button>
-                        </div>
-                    </div>
-
-                    @if (p.Fase != "Grupos")
-                    {
-                        <div class="prediction-extra">
-                            <select class="form-select form-select-sm"
-                                    disabled="@(!editable)"
-                                    @bind="predicciones[p.Id].PrediceClasificadoId">
-                                <option value="">Equipo que clasifica</option>
-                                <option value="@p.LocalId">@p.Local</option>
-                                <option value="@p.VisitanteId">@p.Visitante</option>
-                            </select>
-
-                            <label class="form-check compact-check">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       disabled="@(!editable)"
-                                       @bind="predicciones[p.Id].PrediceTiempoExtra" />
-                                <span class="form-check-label">Tiempo extra</span>
-                            </label>
-
-                            <label class="form-check compact-check">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       disabled="@(!editable)"
-                                       @bind="predicciones[p.Id].PredicePenales" />
-                                <span class="form-check-label">Penales</span>
-                            </label>
-                        </div>
-                    }
-
-                    <div class="prediction-footer">
-                        <span>
-                            @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
-                                .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
-                        </span>
-
-                        @if (bloqueado)
-                        {
-                            <span class="status-pill locked">Bloqueado</span>
-                        }
-                        else if (editable && guardada)
-                        {
-                            <span class="status-pill editing">Editando</span>
-                        }
-                        else if (guardada)
-                        {
-                            <span class="status-pill saved">Guardada</span>
-                        }
-                        else
-                        {
-                            <span class="status-pill pending">Pendiente</span>
-                        }
-                    </div>
+                <div class="phase-title">
+                    <span>@fase.Key</span>
+                    <small>@fase.Count() partidos</small>
                 </div>
+
+                @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
+                {
+                    var bloqueado = EstaBloqueado(p);
+                    var guardada = EstaGuardada(p);
+                    var editable = EstaEditable(p);
+
+                    <div class="prediction-card @(guardada ? "is-saved" : "") @(editable ? "is-editing" : "")">
+                        <div class="prediction-card-main">
+                            <div class="prediction-team prediction-team-local">
+                                <span>@p.Local</span>
+                                <img class="team-flag"
+                                     src="@GetBandera(p.Local)"
+                                     alt="@p.Local" />
+                            </div>
+
+                            <div class="score-panel">
+                                <input type="number"
+                                       class="form-control form-control-sm score-input"
+                                       min="0"
+                                       disabled="@(!editable)"
+                                       @bind="predicciones[p.Id].GolesLocal"
+                                       @bind:event="oninput" />
+
+                                <span class="score-separator">-</span>
+
+                                <input type="number"
+                                       class="form-control form-control-sm score-input"
+                                       min="0"
+                                       disabled="@(!editable)"
+                                       @bind="predicciones[p.Id].GolesVisitante"
+                                       @bind:event="oninput" />
+                            </div>
+
+                            <div class="prediction-team prediction-team-visitor">
+                                <img class="team-flag"
+                                     src="@GetBandera(p.Visitante)"
+                                     alt="@p.Visitante" />
+                                <span>@p.Visitante</span>
+                            </div>
+
+                            <div class="prediction-actions">
+                                <button class="btn btn-sm btn-success"
+                                        disabled="@(!editable)"
+                                        title="Guardar predicción"
+                                        @onclick="() => GuardarPartido(p)">
+                                    Guardar
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        disabled="@(bloqueado || !guardada || editable)"
+                                        title="Editar predicción"
+                                        @onclick="() => EditarPartido(p)">
+                                    Editar
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-danger"
+                                        disabled="@(bloqueado || !guardada)"
+                                        title="Eliminar predicción"
+                                        @onclick="() => EliminarPartido(p)">
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (p.Fase != "Grupos")
+                        {
+                            <div class="prediction-extra">
+                                <select class="form-select form-select-sm"
+                                        disabled="@(!editable)"
+                                        @bind="predicciones[p.Id].PrediceClasificadoId">
+                                    <option value="">Equipo que clasifica</option>
+                                    <option value="@p.LocalId">@p.Local</option>
+                                    <option value="@p.VisitanteId">@p.Visitante</option>
+                                </select>
+
+                                <label class="form-check compact-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           disabled="@(!editable)"
+                                           @bind="predicciones[p.Id].PrediceTiempoExtra" />
+                                    <span class="form-check-label">Tiempo extra</span>
+                                </label>
+
+                                <label class="form-check compact-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           disabled="@(!editable)"
+                                           @bind="predicciones[p.Id].PredicePenales" />
+                                    <span class="form-check-label">Penales</span>
+                                </label>
+                            </div>
+                        }
+
+                        <div class="prediction-footer">
+                            <span>
+                                @(DateTime.SpecifyKind(p.Fecha, DateTimeKind.Unspecified)
+                                    .ToString("dddd dd 'de' MMMM yyyy HH:mm"))
+                            </span>
+
+                            @if (bloqueado)
+                            {
+                                <span class="status-pill locked">Bloqueado</span>
+                            }
+                            else if (editable && guardada)
+                            {
+                                <span class="status-pill editing">Editando</span>
+                            }
+                            else if (guardada)
+                            {
+                                <span class="status-pill saved">Guardada</span>
+                            }
+                            else
+                            {
+                                <span class="status-pill pending">Pendiente</span>
+                            }
+                        </div>
+                    </div>
+                }
             }
         }
     }
@@ -334,6 +370,21 @@ else
     .phase-title small {
         color: #6b7785;
         font-weight: 600;
+    }
+
+    .prediction-filter {
+        display: flex;
+        align-items: flex-end;
+        gap: .75rem;
+        margin-bottom: 1rem;
+        padding: .85rem 1rem;
+        border: 1px solid #dfe5eb;
+        border-radius: 8px;
+        background: #ffffff;
+    }
+
+    .prediction-filter > div {
+        min-width: min(100%, 320px);
     }
 
     .prediction-card {
@@ -522,6 +573,7 @@ else
     private bool cargando = true;
     private string? mensajeGuardado;
     private bool guardadoConError;
+    private string? paisFiltro;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -576,6 +628,7 @@ else
         predicciones.Clear();
         prediccionesGuardadas.Clear();
         prediccionesEnEdicion.Clear();
+        paisFiltro = null;
         podioEstado = null;
         podio = new();
     }
@@ -635,8 +688,56 @@ else
         if (partido.Fecha <= DateTime.MinValue)
             return false;
 
-        return DateTime.UtcNow >= partido.Fecha.AddMinutes(-20)
+        return HoraColombiaActual() >= partido.Fecha.AddHours(-1)
                || partido.Finalizado;
+    }
+
+    private static DateTime HoraColombiaActual()
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time"));
+        }
+        catch
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("America/Bogota"));
+        }
+    }
+
+    private IEnumerable<PartidoDto> PartidosFiltradosPorPais()
+    {
+        if (partidos == null)
+        {
+            return Enumerable.Empty<PartidoDto>();
+        }
+
+        if (string.IsNullOrWhiteSpace(paisFiltro))
+        {
+            return partidos;
+        }
+
+        return partidos.Where(p =>
+            string.Equals(p.Local, paisFiltro, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Visitante, paisFiltro, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private List<string> PaisesDisponibles()
+    {
+        return partidos?
+            .SelectMany(p => new[] { p.Local, p.Visitante })
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p)
+            .ToList() ?? new List<string>();
+    }
+
+    private void LimpiarFiltroPais()
+    {
+        paisFiltro = null;
     }
 
     private bool EstaGuardada(PartidoDto partido)

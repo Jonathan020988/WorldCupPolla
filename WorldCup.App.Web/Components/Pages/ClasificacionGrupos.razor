@@ -393,7 +393,7 @@ else
     {
         DetenerContador();
 
-        grupos = new();
+        grupos = new(StringComparer.OrdinalIgnoreCase);
         gruposTercero.Clear();
         clasificados.Clear();
         primeros.Clear();
@@ -420,6 +420,7 @@ else
 
         await CargarClasificacionGuardada();
         await CargarTerceros();
+        CalcularClasificados();
         await CargarEstadoClasificacion();
         IniciarContador();
     }
@@ -546,11 +547,13 @@ else
         response.EnsureSuccessStatusCode();
     }
 
-    private HashSet<string> gruposTercero = new();
+    private HashSet<string> gruposTercero = new(StringComparer.OrdinalIgnoreCase);
 
 
     private async void ToggleTercero(string grupo)
     {
+        grupo = NormalizarGrupo(grupo);
+
         if (gruposTercero.Contains(grupo))
         {
             gruposTercero.Remove(grupo);
@@ -568,6 +571,7 @@ else
         }
 
         await GuardarTerceros(); // 🔥 CLAVE
+        CalcularClasificados();
 
         StateHasChanged();
     }
@@ -584,8 +588,18 @@ else
 
         if (grupos != null)
         {
-            gruposTercero = grupos.ToHashSet();
+            gruposTercero = grupos
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .Select(NormalizarGrupo)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            CalcularClasificados();
         }
+    }
+
+    private static string NormalizarGrupo(string grupo)
+    {
+        return grupo.Trim().ToUpperInvariant();
     }
  
 
@@ -694,7 +708,8 @@ else
 
         foreach (var grupoKey in gruposTercero)
         {
-            var grupo = grupos[grupoKey];
+            if (!grupos.TryGetValue(grupoKey, out var grupo))
+                continue;
 
             if (!grupo.First().bloqueado)
                 continue;
@@ -853,7 +868,7 @@ else
         {
             if (!clasificacionCerrada)
             {
-                var restante = fechaCierre - DateTime.UtcNow;
+                var restante = fechaCierre - HoraColombiaActual();
 
                 if (restante.TotalSeconds <= 0)
                 {
@@ -877,6 +892,22 @@ else
         timer?.Stop();
         timer?.Dispose();
         timer = null;
+    }
+
+    private static DateTime HoraColombiaActual()
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time"));
+        }
+        catch
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("America/Bogota"));
+        }
     }
 }
 

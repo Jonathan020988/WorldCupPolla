@@ -39,6 +39,21 @@
         margin-bottom: 2rem;
     }
 
+    .team-filter {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        align-items: end;
+        gap: .75rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    }
+
+    .team-filter > div {
+        min-width: min(100%, 320px);
+    }
+
     .fase-btn {
         border-radius: 20px;
         padding: .45rem 1rem;
@@ -77,6 +92,11 @@
         .admin-result {
             grid-template-columns: 1fr 1fr;
         }
+
+        .team-filter {
+            align-items: stretch;
+            flex-direction: column;
+        }
     }
 </style>
 
@@ -102,6 +122,29 @@
 
 
 
+            }
+        </div>
+
+        <div class="team-filter">
+            <div>
+                <label class="form-label fw-bold mb-1">Filtrar por país</label>
+                <select class="form-select"
+                        value="@paisFiltro"
+                        @onchange="CambiarPais">
+                    <option value="">Todos los países</option>
+                    @foreach (var pais in PaisesDisponibles())
+                    {
+                        <option value="@pais">@pais</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(paisFiltro))
+            {
+                <button class="btn btn-outline-secondary"
+                        @onclick="LimpiarFiltroPais">
+                    Ver todos
+                </button>
             }
         </div>
 
@@ -246,6 +289,7 @@
     private HashSet<int> resultadosEnEdicion = new();
 
     private string? faseSeleccionada;
+    private string? paisFiltro;
 
     private readonly List<string> fasesOrdenadas = new()
     {
@@ -262,7 +306,7 @@
     protected override async Task OnInitializedAsync()
     {
         partidos = await PartidosService.GetPartidosAsync();
-        partidosFiltrados = partidos;
+        AplicarFiltros();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -279,10 +323,47 @@
     private void FiltrarPorFase(string? fase)
     {
         faseSeleccionada = fase;
+        AplicarFiltros();
+    }
 
-        partidosFiltrados = string.IsNullOrEmpty(fase)
+    private void CambiarPais(ChangeEventArgs e)
+    {
+        paisFiltro = e.Value?.ToString();
+        AplicarFiltros();
+    }
+
+    private void LimpiarFiltroPais()
+    {
+        paisFiltro = null;
+        AplicarFiltros();
+    }
+
+    private void AplicarFiltros()
+    {
+        var query = string.IsNullOrEmpty(faseSeleccionada)
             ? partidos
-            : partidos.Where(p => p.Fase == fase).ToList();
+            : partidos.Where(p => p.Fase == faseSeleccionada).ToList();
+
+        if (!string.IsNullOrWhiteSpace(paisFiltro))
+        {
+            query = query
+                .Where(p =>
+                    string.Equals(p.Local, paisFiltro, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.Visitante, paisFiltro, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        partidosFiltrados = query;
+    }
+
+    private List<string> PaisesDisponibles()
+    {
+        return partidos
+            .SelectMany(p => new[] { p.Local, p.Visitante })
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p)
+            .ToList();
     }
 
     private string GetFaseButtonClass(string fase)
@@ -374,7 +455,7 @@
 
         partidos = await PartidosService.GetPartidosAsync();
         resultadosEnEdicion.Remove(partido.Id);
-        FiltrarPorFase(faseSeleccionada);
+        AplicarFiltros();
     }
 
     private async Task EliminarMarcadorAdmin(PartidoDto partido)
@@ -410,7 +491,7 @@
 
         resultadosEnEdicion.Remove(partido.Id);
         partidos = await PartidosService.GetPartidosAsync();
-        FiltrarPorFase(faseSeleccionada);
+        AplicarFiltros();
     }
 
     private class AdminResultadoDto

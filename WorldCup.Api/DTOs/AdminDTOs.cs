@@ -17,6 +17,12 @@ namespace WorldCup.Api.DTOs
         public int? PenalesVisitante { get; set; }
     }
 
+    public class AdminActualizarFechaPartidoDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public DateTime Fecha { get; set; }
+    }
+
     public class AdminActualizarUsuarioEstadoDTO
     {
         public int AdminUsuarioId { get; set; }

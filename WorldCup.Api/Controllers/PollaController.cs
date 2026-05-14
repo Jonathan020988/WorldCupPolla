@@ -860,7 +860,7 @@ namespace WorldCup.Api.Controllers
                 Mensaje = $"{i.Remitente.Nombre} te invitó a la polla {i.Polla.Nombre}"
             }));
 
-            var ahora = DateTime.UtcNow;
+            var ahora = ColombiaClock.Now();
             var limite = ahora.AddHours(2);
             var pollasUsuario = await _context.PollaMiembros
                 .Include(pm => pm.Polla)

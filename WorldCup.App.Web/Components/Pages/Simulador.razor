@@ -275,7 +275,7 @@ else
                             <div class="card shadow-sm border-0 h-100">
 
                                 <div class="card-header bg-dark text-white text-center fw-bold">
-                                    ⚔️ Partido
+                                    ⚔️ Partido @partido.NumeroPartido
                                 </div>
 
                                 <div class="card-body">
@@ -314,10 +314,7 @@ else
                                                         Mejor tercero
                                                     </option>
 
-                                                    @foreach (var tercero in mejoresTerceros
-                                                   .Where(t => !dieciseisavos
-                                                   .Any(d => d != partido &&
-                                                   d.Visitante == t.Nombre)))
+                                                    @foreach (var tercero in TercerosDisponiblesPara(partido))
                                                     {
                                                         <option value="@tercero.Nombre">
                                                             @tercero.Nombre (@tercero.Grupo)
@@ -966,22 +963,42 @@ else
     private List<PartidoEliminacionDto> tercerPuesto = new();
     private List<PartidoEliminacionDto> final = new();
 
+    private static readonly int[][] CrucesOctavosDesdeDieciseisavos =
+    {
+        new[] { 74, 77 },
+        new[] { 73, 75 },
+        new[] { 76, 78 },
+        new[] { 79, 80 },
+        new[] { 83, 84 },
+        new[] { 81, 82 },
+        new[] { 86, 88 },
+        new[] { 85, 87 }
+    };
+
+    private static readonly int[][] CrucesCuartosDesdeOctavos =
+    {
+        new[] { 89, 90 },
+        new[] { 93, 94 },
+        new[] { 91, 92 },
+        new[] { 95, 96 }
+    };
+
     private void GenerarOctavos()
     {
         octavos.Clear();
 
-        var ganadores = ObtenerGanadores(dieciseisavos);
+        var ganadores = ObtenerGanadoresPorNumero(dieciseisavos, 73);
 
-        for (int i = 0; i < ganadores.Count; i += 2)
+        for (var i = 0; i < CrucesOctavosDesdeDieciseisavos.Length; i++)
         {
-            if (i + 1 < ganadores.Count)
-            {
-                octavos.Add(new PartidoEliminacionDto
-                    {
-                        Local = ganadores[i],
-                        Visitante = ganadores[i + 1]
-                    });
-            }
+            var cruce = CrucesOctavosDesdeDieciseisavos[i];
+
+            octavos.Add(new PartidoEliminacionDto
+                {
+                    NumeroPartido = 89 + i,
+                    Local = ganadores[cruce[0]],
+                    Visitante = ganadores[cruce[1]]
+                });
         }
     }
 
@@ -989,19 +1006,34 @@ else
     {
         cuartos.Clear();
 
-        var ganadores = ObtenerGanadores(octavos);
+        var ganadores = ObtenerGanadoresPorNumero(octavos, 89);
 
-        for (int i = 0; i < ganadores.Count; i += 2)
+        for (var i = 0; i < CrucesCuartosDesdeOctavos.Length; i++)
         {
-            if (i + 1 < ganadores.Count)
-            {
-                cuartos.Add(new PartidoEliminacionDto
-                    {
-                        Local = ganadores[i],
-                        Visitante = ganadores[i + 1]
-                    });
-            }
+            var cruce = CrucesCuartosDesdeOctavos[i];
+
+            cuartos.Add(new PartidoEliminacionDto
+                {
+                    NumeroPartido = 97 + i,
+                    Local = ganadores[cruce[0]],
+                    Visitante = ganadores[cruce[1]]
+                });
         }
+    }
+
+    private Dictionary<int, string> ObtenerGanadoresPorNumero(
+        List<PartidoEliminacionDto> partidos,
+        int primerNumero)
+    {
+        return partidos
+            .Select((partido, index) => new
+            {
+                Numero = partido.NumeroPartido > 0
+                    ? partido.NumeroPartido
+                    : primerNumero + index,
+                Ganador = ObtenerGanador(partido)
+            })
+            .ToDictionary(x => x.Numero, x => x.Ganador);
     }
 
     private List<string> ObtenerGanadores(
@@ -1011,21 +1043,21 @@ else
 
         foreach (var partido in partidos)
         {
-            if (partido.GolesLocal > partido.GolesVisitante)
-            {
-                ganadores.Add(partido.Local);
-            }
-            else if (partido.GolesVisitante > partido.GolesLocal)
-            {
-                ganadores.Add(partido.Visitante);
-            }
-            else
-            {
-                ganadores.Add(partido.GanadorPenales!);
-            }
+            ganadores.Add(ObtenerGanador(partido));
         }
 
         return ganadores;
+    }
+
+    private string ObtenerGanador(PartidoEliminacionDto partido)
+    {
+        if (partido.GolesLocal > partido.GolesVisitante)
+            return partido.Local;
+
+        if (partido.GolesVisitante > partido.GolesLocal)
+            return partido.Visitante;
+
+        return partido.GanadorPenales!;
     }
 
     protected override async Task OnInitializedAsync()
@@ -1139,118 +1171,181 @@ else
 
         dieciseisavos = new List<PartidoEliminacionDto>()
     {
-        // 73
         new()
         {
+            NumeroPartido = 73,
             Local = Segundo("A").Nombre,
-            Visitante = Segundo("B").Nombre
+            Visitante = Segundo("B").Nombre,
+            GrupoLocal = "2º Grupo A",
+            GrupoVisitante = "2º Grupo B"
         },
 
-        // 74
         new()
         {
+            NumeroPartido = 74,
             Local = Primero("E").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo E",
+            GrupoVisitante = "3º Grupo A/B/C/D/F",
+            GruposTerceroPermitidos = new() { "A", "B", "C", "D", "F" }
         },
 
-        // 75
         new()
         {
+            NumeroPartido = 75,
             Local = Primero("F").Nombre,
-            Visitante = Segundo("C").Nombre
+            Visitante = Segundo("C").Nombre,
+            GrupoLocal = "1º Grupo F",
+            GrupoVisitante = "2º Grupo C"
         },
 
-        // 76
         new()
         {
+            NumeroPartido = 76,
             Local = Primero("C").Nombre,
-            Visitante = Segundo("F").Nombre
+            Visitante = Segundo("F").Nombre,
+            GrupoLocal = "1º Grupo C",
+            GrupoVisitante = "2º Grupo F"
         },
 
-        // 77
         new()
         {
+            NumeroPartido = 77,
             Local = Primero("I").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo I",
+            GrupoVisitante = "3º Grupo C/D/F/G/H",
+            GruposTerceroPermitidos = new() { "C", "D", "F", "G", "H" }
         },
 
-        // 78
         new()
         {
+            NumeroPartido = 78,
             Local = Segundo("E").Nombre,
-            Visitante = Segundo("I").Nombre
+            Visitante = Segundo("I").Nombre,
+            GrupoLocal = "2º Grupo E",
+            GrupoVisitante = "2º Grupo I"
         },
 
-        // 79
         new()
         {
+            NumeroPartido = 79,
             Local = Primero("A").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo A",
+            GrupoVisitante = "3º Grupo C/E/F/H/I",
+            GruposTerceroPermitidos = new() { "C", "E", "F", "H", "I" }
         },
 
-        // 80
         new()
         {
+            NumeroPartido = 80,
             Local = Primero("L").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo L",
+            GrupoVisitante = "3º Grupo E/H/I/J/K",
+            GruposTerceroPermitidos = new() { "E", "H", "I", "J", "K" }
         },
 
-        // 81
         new()
         {
+            NumeroPartido = 81,
             Local = Primero("D").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo D",
+            GrupoVisitante = "3º Grupo B/E/F/I/J",
+            GruposTerceroPermitidos = new() { "B", "E", "F", "I", "J" }
         },
 
-        // 82
         new()
         {
+            NumeroPartido = 82,
             Local = Primero("G").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo G",
+            GrupoVisitante = "3º Grupo A/E/H/I/J",
+            GruposTerceroPermitidos = new() { "A", "E", "H", "I", "J" }
         },
 
-        // 83
         new()
         {
+            NumeroPartido = 83,
             Local = Segundo("K").Nombre,
-            Visitante = Segundo("L").Nombre
+            Visitante = Segundo("L").Nombre,
+            GrupoLocal = "2º Grupo K",
+            GrupoVisitante = "2º Grupo L"
         },
 
-        // 84
         new()
         {
+            NumeroPartido = 84,
             Local = Primero("H").Nombre,
-            Visitante = Segundo("J").Nombre
+            Visitante = Segundo("J").Nombre,
+            GrupoLocal = "1º Grupo H",
+            GrupoVisitante = "2º Grupo J"
         },
 
-        // 85
         new()
         {
+            NumeroPartido = 85,
             Local = Primero("B").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo B",
+            GrupoVisitante = "3º Grupo E/F/G/I/J",
+            GruposTerceroPermitidos = new() { "E", "F", "G", "I", "J" }
         },
 
-        // 86
         new()
         {
+            NumeroPartido = 86,
             Local = Primero("J").Nombre,
-            Visitante = Segundo("H").Nombre
+            Visitante = Segundo("H").Nombre,
+            GrupoLocal = "1º Grupo J",
+            GrupoVisitante = "2º Grupo H"
         },
 
-        // 87
         new()
         {
+            NumeroPartido = 87,
             Local = Primero("K").Nombre,
-            Visitante = ""
+            Visitante = "",
+            GrupoLocal = "1º Grupo K",
+            GrupoVisitante = "3º Grupo D/E/I/J/L",
+            GruposTerceroPermitidos = new() { "D", "E", "I", "J", "L" }
         },
 
-        // 88
         new()
         {
+            NumeroPartido = 88,
             Local = Segundo("D").Nombre,
-            Visitante = Segundo("G").Nombre
+            Visitante = Segundo("G").Nombre,
+            GrupoLocal = "2º Grupo D",
+            GrupoVisitante = "2º Grupo G"
         }
     };
+    }
+
+    private IEnumerable<EquipoGrupoDto> TercerosDisponiblesPara(
+        PartidoEliminacionDto partido)
+    {
+        var gruposPermitidos = partido.GruposTerceroPermitidos
+            .Select(NormalizarGrupo)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return mejoresTerceros
+            .Where(t => gruposPermitidos.Contains(NormalizarGrupo(t.Grupo)))
+            .Where(t =>
+                partido.Visitante == t.Nombre ||
+                !dieciseisavos.Any(d =>
+                    d != partido &&
+                    string.Equals(d.Visitante, t.Nombre, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string NormalizarGrupo(string grupo)
+    {
+        return grupo.Replace("Grupo", "", StringComparison.OrdinalIgnoreCase)
+            .Trim()
+            .ToUpperInvariant();
     }
 
     private void GenerarSemifinales()
@@ -1265,6 +1360,7 @@ else
             {
                 semifinales.Add(new PartidoEliminacionDto
                     {
+                        NumeroPartido = 101 + (i / 2),
                         Local = ganadores[i],
                         Visitante = ganadores[i + 1]
                     });
@@ -1309,12 +1405,14 @@ else
 
         final.Add(new PartidoEliminacionDto
             {
+                NumeroPartido = 104,
                 Local = ganadores[0],
                 Visitante = ganadores[1]
             });
 
         tercerPuesto.Add(new PartidoEliminacionDto
             {
+                NumeroPartido = 103,
                 Local = perdedores[0],
                 Visitante = perdedores[1]
             });
