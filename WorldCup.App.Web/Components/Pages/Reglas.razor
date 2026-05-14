@@ -1,0 +1,573 @@
+@page "/reglas"
+
+<section class="rules-page">
+    <div class="rules-hero">
+        <div>
+            <span class="rules-eyebrow">Reglamento oficial</span>
+            <h1>Reglas de la polla</h1>
+            <p>
+                Predice marcadores, clasificados, fases finales y podio. Cada punto queda
+                explicado en el ranking para que todos puedan revisar de donde sale su total.
+            </p>
+        </div>
+
+        <div class="hero-score">
+            <span>Max. grupos</span>
+            <strong>10</strong>
+            <small>por marcador exacto</small>
+        </div>
+    </div>
+
+    <div class="flyer-panel">
+        <div>
+            <span class="section-kicker">Texto corto para volante</span>
+            <h2>Resumen para compartir</h2>
+        </div>
+
+        <div class="flyer-copy">
+            <p>
+                Participa en la polla del Mundial 2026: pronostica cada marcador, define
+                clasificados de grupo, elige ganadores de las rondas finales y arma tu podio.
+            </p>
+            <p>
+                Las predicciones se cierran 1 hora antes de cada partido. El ranking suma
+                puntos por marcador exacto, ganador, goles, diferencia, clasificados, extras
+                de eliminatorias y podio final.
+            </p>
+        </div>
+    </div>
+
+    <div class="rules-grid">
+        <article class="rule-card accent-green">
+            <span class="rule-number">01</span>
+            <h3>Como participar</h3>
+            <p>
+                Cada usuario puede estar en una o varias pollas. Cada polla tiene su propio
+                ranking, sus participantes y sus predicciones.
+            </p>
+            <ul>
+                <li>El usuario entra con invitacion, enlace o PIN.</li>
+                <li>El creador administra participantes y accesos.</li>
+                <li>Los usuarios inactivos no aparecen en el ranking.</li>
+            </ul>
+        </article>
+
+        <article class="rule-card accent-gold">
+            <span class="rule-number">02</span>
+            <h3>Cierre de predicciones</h3>
+            <p>
+                Cada marcador se puede crear, editar o eliminar mientras el partido siga abierto.
+            </p>
+            <ul>
+                <li>Se bloquea 1 hora antes del inicio del partido.</li>
+                <li>Tambien queda bloqueado si el partido ya esta finalizado.</li>
+                <li>El usuario recibe alertas si faltan marcadores cerca del inicio.</li>
+            </ul>
+        </article>
+    </div>
+
+    <div class="score-section">
+        <div class="section-heading">
+            <span class="section-kicker">Puntuacion por marcador</span>
+            <h2>Fase de grupos</h2>
+            <p>
+                En grupos el marcador exacto domina todo: si aciertas exacto, ganas 10 puntos
+                y no se suman otros conceptos de ese marcador.
+            </p>
+        </div>
+
+        <div class="score-table-wrap">
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>Regla</th>
+                        <th>Cuando aplica</th>
+                        <th>Puntos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Marcador exacto</td>
+                        <td>Aciertas los goles de ambos equipos.</td>
+                        <td><span class="points points-green">10</span></td>
+                    </tr>
+                    <tr>
+                        <td>Ganador o empate</td>
+                        <td>Aciertas quien gana o que el partido empata.</td>
+                        <td><span class="points points-blue">4</span></td>
+                    </tr>
+                    <tr>
+                        <td>Goles</td>
+                        <td>Aciertas los goles de al menos un equipo.</td>
+                        <td><span class="points points-indigo">2</span></td>
+                    </tr>
+                    <tr>
+                        <td>Diferencia</td>
+                        <td>Aciertas la diferencia de goles, si no acertaste goles.</td>
+                        <td><span class="points points-slate">1</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="examples-grid">
+            <div class="example-box">
+                <strong>Ejemplo exacto</strong>
+                <span>Real: Mexico 2-0 Sudafrica</span>
+                <span>Pronostico: Mexico 2-0 Sudafrica</span>
+                <b>Resultado: 10 puntos</b>
+            </div>
+
+            <div class="example-box">
+                <strong>Ejemplo sin exacto</strong>
+                <span>Real: Mexico 2-0 Sudafrica</span>
+                <span>Pronostico: Mexico 3-0 Sudafrica</span>
+                <b>Resultado: 6 puntos (ganador + goles)</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="score-section knockout">
+        <div class="section-heading">
+            <span class="section-kicker">Fases eliminatorias</span>
+            <h2>Dieciseisavos hasta final</h2>
+            <p>
+                En las rondas finales los puntos de marcador se duplican y aparece el bonus
+                por acertar quien avanza.
+            </p>
+        </div>
+
+        <div class="rules-grid compact">
+            <article class="rule-card">
+                <h3>Marcador en KO</h3>
+                <ul>
+                    <li>Exacto: 20 puntos.</li>
+                    <li>Ganador o empate: 8 puntos.</li>
+                    <li>Goles: 4 puntos.</li>
+                    <li>Diferencia: 2 puntos.</li>
+                </ul>
+            </article>
+
+            <article class="rule-card">
+                <h3>Equipo que avanza</h3>
+                <p>
+                    Si aciertas el equipo que pasa a la siguiente ronda, ganas 10 puntos extra.
+                    Aplica en dieciseisavos, octavos, cuartos, semifinales, tercer puesto y final.
+                </p>
+            </article>
+
+            <article class="rule-card">
+                <h3>Tiempo extra y penales</h3>
+                <p>
+                    Si el partido real termina empatado y aciertas que hubo tiempo extra,
+                    sumas 5 puntos. Si tambien aciertas definicion por penales, sumas otros 5.
+                </p>
+            </article>
+        </div>
+    </div>
+
+    <div class="score-section">
+        <div class="section-heading">
+            <span class="section-kicker">Clasificacion de grupos</span>
+            <h2>Primeros, segundos y mejores terceros</h2>
+            <p>
+                Antes del inicio del Mundial se selecciona el orden de cada grupo. Estos puntos
+                son independientes de los marcadores de los partidos.
+            </p>
+        </div>
+
+        <div class="score-table-wrap">
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>Prediccion</th>
+                        <th>Orden exacto</th>
+                        <th>Equipo correcto en otra posicion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1&deg; del grupo</td>
+                        <td><span class="points points-gold">15</span></td>
+                        <td><span class="points points-soft">10</span></td>
+                    </tr>
+                    <tr>
+                        <td>2&deg; del grupo</td>
+                        <td><span class="points points-gold">10</span></td>
+                        <td><span class="points points-soft">5</span></td>
+                    </tr>
+                    <tr>
+                        <td>3&deg; del grupo</td>
+                        <td><span class="points points-gold">5</span></td>
+                        <td><span class="points points-soft">3</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="note-band">
+            El sistema muestra en el ranking el detalle de por que se ganaron los puntos de
+            clasificacion, por ejemplo: +15 por acertar el primero del grupo o +10 porque el
+            equipo clasifico aunque quedo en otra posicion.
+        </div>
+    </div>
+
+    <div class="rules-grid">
+        <article class="rule-card accent-red">
+            <span class="rule-number">03</span>
+            <h3>Podio final</h3>
+            <p>
+                Cuando este disponible la fase final, cada usuario elige campeon, subcampeon
+                y tercer puesto antes del cierre correspondiente.
+            </p>
+            <div class="podium-rules">
+                <span>Campeon <strong>20 pts</strong></span>
+                <span>Subcampeon <strong>10 pts</strong></span>
+                <span>Tercer puesto <strong>5 pts</strong></span>
+            </div>
+        </article>
+
+        <article class="rule-card accent-blue">
+            <span class="rule-number">04</span>
+            <h3>Ranking y desempates</h3>
+            <p>
+                Si dos usuarios empatan en puntos, el sistema ordena por calidad de aciertos.
+            </p>
+            <ol class="tie-list">
+                <li>Mas marcadores exactos.</li>
+                <li>Mas ganadores o empates correctos.</li>
+                <li>Mas aciertos de goles.</li>
+                <li>Mas aciertos de diferencia.</li>
+                <li>Mas puntos de clasificacion de grupos.</li>
+                <li>Mas puntos de clasificacion KO.</li>
+                <li>Mas puntos de podio.</li>
+                <li>Orden por nombre si persiste el empate.</li>
+            </ol>
+        </article>
+    </div>
+
+    <div class="admin-note">
+        <div>
+            <span class="section-kicker">Control del administrador</span>
+            <h2>Resultados reales</h2>
+        </div>
+        <p>
+            El administrador registra manualmente los resultados oficiales, cambia el estado
+            de los partidos y puede corregir marcadores si detecta un error. Al finalizar un
+            partido o una fase, el sistema recalcula los puntos del ranking.
+        </p>
+    </div>
+</section>
+
+<style>
+    .rules-page {
+        --ink: #13201c;
+        --muted: #65756d;
+        --line: #dce8e2;
+        --panel: #ffffff;
+        --soft: #f5f9f7;
+        --green: #117150;
+        --gold: #d7a21a;
+        --red: #c74444;
+        color: var(--ink);
+        display: grid;
+        gap: 1rem;
+    }
+
+    .rules-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #0f5139, #14745a 58%, #c79b20);
+        color: #fff;
+        box-shadow: 0 14px 32px rgba(15, 64, 48, .18);
+    }
+
+    .rules-hero h1,
+    .rules-hero p,
+    .flyer-panel h2,
+    .section-heading h2,
+    .admin-note h2 {
+        margin: 0;
+    }
+
+    .rules-hero h1 {
+        font-size: 2rem;
+        font-weight: 900;
+    }
+
+    .rules-hero p {
+        max-width: 720px;
+        margin-top: .35rem;
+        opacity: .94;
+    }
+
+    .rules-eyebrow,
+    .section-kicker {
+        display: inline-block;
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .hero-score {
+        min-width: 150px;
+        padding: .95rem;
+        border: 1px solid rgba(255, 255, 255, .38);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .12);
+        text-align: center;
+    }
+
+    .hero-score span,
+    .hero-score small {
+        display: block;
+        opacity: .9;
+        font-weight: 700;
+    }
+
+    .hero-score strong {
+        display: block;
+        font-size: 2.4rem;
+        line-height: 1;
+        font-weight: 900;
+    }
+
+    .flyer-panel,
+    .score-section,
+    .admin-note,
+    .rule-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 10px 24px rgba(27, 58, 45, .08);
+    }
+
+    .flyer-panel {
+        display: grid;
+        grid-template-columns: minmax(220px, .55fr) 1fr;
+        gap: 1rem;
+        padding: 1.15rem;
+    }
+
+    .flyer-copy {
+        display: grid;
+        gap: .65rem;
+        color: #2f423b;
+    }
+
+    .flyer-copy p {
+        margin: 0;
+    }
+
+    .rules-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .rules-grid.compact {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .rule-card {
+        position: relative;
+        overflow: hidden;
+        padding: 1rem;
+    }
+
+    .rule-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 5px;
+        background: var(--green);
+    }
+
+    .rule-card.accent-gold::before { background: var(--gold); }
+    .rule-card.accent-red::before { background: var(--red); }
+    .rule-card.accent-blue::before { background: #2f6fb1; }
+
+    .rule-number {
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 900;
+    }
+
+    .rule-card h3 {
+        margin: .1rem 0 .45rem;
+        font-size: 1.08rem;
+        font-weight: 900;
+    }
+
+    .rule-card p,
+    .rule-card li,
+    .admin-note p,
+    .section-heading p {
+        color: var(--muted);
+    }
+
+    .rule-card ul,
+    .tie-list {
+        margin: .65rem 0 0;
+        padding-left: 1.2rem;
+    }
+
+    .score-section {
+        padding: 1.15rem;
+    }
+
+    .section-heading {
+        max-width: 860px;
+        margin-bottom: .95rem;
+    }
+
+    .section-heading h2 {
+        font-size: 1.35rem;
+        font-weight: 900;
+    }
+
+    .section-heading p {
+        margin: .3rem 0 0;
+    }
+
+    .score-table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+    }
+
+    .score-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .score-table th,
+    .score-table td {
+        padding: .8rem;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+    }
+
+    .score-table th {
+        background: #f7faf8;
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .score-table tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .points {
+        display: inline-grid;
+        min-width: 44px;
+        place-items: center;
+        border-radius: 6px;
+        padding: .25rem .45rem;
+        font-weight: 900;
+    }
+
+    .points-green { background: #d9f4e8; color: #0d6b43; }
+    .points-blue { background: #dbeafe; color: #174ea6; }
+    .points-indigo { background: #e4e7ff; color: #3343a8; }
+    .points-slate { background: #e7ebef; color: #34404a; }
+    .points-gold { background: #fff0be; color: #886103; }
+    .points-soft { background: #e9f1ed; color: #24443a; }
+
+    .examples-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .85rem;
+        margin-top: .9rem;
+    }
+
+    .example-box {
+        display: grid;
+        gap: .25rem;
+        padding: .85rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--soft);
+    }
+
+    .example-box strong,
+    .example-box b {
+        color: var(--ink);
+    }
+
+    .example-box span {
+        color: var(--muted);
+    }
+
+    .knockout {
+        background: #fbfcfc;
+    }
+
+    .note-band,
+    .admin-note {
+        padding: 1rem;
+        background: #fff8df;
+        color: #6e5210;
+        border-color: #f2dc9a;
+    }
+
+    .note-band {
+        margin-top: .9rem;
+        border-radius: 8px;
+    }
+
+    .podium-rules {
+        display: grid;
+        gap: .45rem;
+        margin-top: .8rem;
+    }
+
+    .podium-rules span {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .55rem .65rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--soft);
+    }
+
+    .admin-note {
+        display: grid;
+        grid-template-columns: minmax(220px, .45fr) 1fr;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .admin-note p {
+        margin: 0;
+        color: #5a4612;
+    }
+
+    @@media (max-width: 900px) {
+        .rules-hero,
+        .flyer-panel,
+        .admin-note {
+            grid-template-columns: 1fr;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .rules-grid,
+        .rules-grid.compact,
+        .examples-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-score {
+            text-align: left;
+        }
+    }
+</style>

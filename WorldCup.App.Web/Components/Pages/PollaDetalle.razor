@@ -261,15 +261,12 @@ else
 
                                                                         @if (d.PuntosClasificacion > 0)
                                                                         {
-                                                                            <span class="badge bg-warning text-dark">
+                                                                            <button type="button"
+                                                                                    class="badge bg-warning text-dark detalle-puntos-btn"
+                                                                                    title="Ver detalle"
+                                                                                    @onclick='() => AbrirDetallePuntos("Clasificacion", d.PuntosClasificacion, "bg-warning text-dark", d.DetalleClasificacion, d)'>
                                                                                 +@d.PuntosClasificacion
-                                                                            </span>
-                                                                            @if (!string.IsNullOrWhiteSpace(d.DetalleClasificacion))
-                                                                            {
-                                                                                <div class="detalle-puntos">
-                                                                                    @d.DetalleClasificacion
-                                                                                </div>
-                                                                            }
+                                                                            </button>
                                                                         }
                                                                         else
                                                                         {
@@ -282,15 +279,12 @@ else
 
                                                                         @if (d.PuntosExtras > 0)
                                                                         {
-                                                                            <span class="badge bg-dark">
+                                                                            <button type="button"
+                                                                                    class="badge bg-dark detalle-puntos-btn"
+                                                                                    title="Ver detalle"
+                                                                                    @onclick='() => AbrirDetallePuntos("Extras", d.PuntosExtras, "bg-dark", d.DetalleExtras, d)'>
                                                                                 +@d.PuntosExtras
-                                                                            </span>
-                                                                            @if (!string.IsNullOrWhiteSpace(d.DetalleExtras))
-                                                                            {
-                                                                                <div class="detalle-puntos">
-                                                                                    @d.DetalleExtras
-                                                                                </div>
-                                                                            }
+                                                                            </button>
                                                                         }
                                                                         else
                                                                         {
@@ -303,15 +297,12 @@ else
 
                                                                         @if (d.PuntosPodio > 0)
                                                                         {
-                                                                            <span class="badge bg-danger">
+                                                                            <button type="button"
+                                                                                    class="badge bg-danger detalle-puntos-btn"
+                                                                                    title="Ver detalle"
+                                                                                    @onclick='() => AbrirDetallePuntos("Podio", d.PuntosPodio, "bg-danger", d.DetallePodio, d)'>
                                                                                 +@d.PuntosPodio
-                                                                            </span>
-                                                                            @if (!string.IsNullOrWhiteSpace(d.DetallePodio))
-                                                                            {
-                                                                                <div class="detalle-puntos">
-                                                                                    @d.DetallePodio
-                                                                                </div>
-                                                                            }
+                                                                            </button>
                                                                         }
                                                                         else
                                                                         {
@@ -411,6 +402,30 @@ else
 
 }
 
+@if (detallePuntosVisible)
+{
+    <div class="detalle-puntos-modal-backdrop" @onclick="CerrarDetallePuntos">
+        <div class="detalle-puntos-modal" @onclick:stopPropagation="true">
+            <button type="button"
+                    class="detalle-puntos-modal-close"
+                    aria-label="Cerrar"
+                    @onclick="CerrarDetallePuntos">
+                x
+            </button>
+
+            <div class="detalle-puntos-modal-head">
+                <span class="badge @detallePuntosClase">+@detallePuntosValor</span>
+                <div>
+                    <h5>@detallePuntosTitulo</h5>
+                    <small>@detallePuntosContexto</small>
+                </div>
+            </div>
+
+            <p>@detallePuntosTexto</p>
+        </div>
+    </div>
+}
+
 <style>
     .detalle-ranking-scroll {
         max-height: 520px;
@@ -425,13 +440,77 @@ else
         color: #fff;
     }
 
-    .detalle-puntos {
-        max-width: 220px;
-        margin: .25rem auto 0;
-        color: #5f6b7a;
-        font-size: .72rem;
-        line-height: 1.2;
-        white-space: normal;
+    .detalle-puntos-btn {
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+        line-height: 1;
+    }
+
+    .detalle-puntos-btn:hover,
+    .detalle-puntos-btn:focus-visible {
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, .18);
+        transform: translateY(-1px);
+    }
+
+    .detalle-puntos-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: rgba(20, 24, 30, .52);
+    }
+
+    .detalle-puntos-modal {
+        position: relative;
+        width: min(430px, 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 24px 60px rgba(20, 24, 30, .28);
+        padding: 1.2rem;
+        color: #212529;
+    }
+
+    .detalle-puntos-modal-close {
+        position: absolute;
+        top: .65rem;
+        right: .65rem;
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        background: #f8f9fa;
+        color: #6c757d;
+        font-weight: 800;
+    }
+
+    .detalle-puntos-modal-head {
+        display: flex;
+        gap: .8rem;
+        align-items: center;
+        padding-right: 2rem;
+    }
+
+    .detalle-puntos-modal h5 {
+        margin: 0;
+        font-weight: 800;
+    }
+
+    .detalle-puntos-modal small {
+        color: #6c757d;
+        font-weight: 700;
+    }
+
+    .detalle-puntos-modal p {
+        margin: .9rem 0 0;
+        color: #344054;
+        line-height: 1.45;
+        white-space: pre-line;
     }
 </style>
 
@@ -444,6 +523,13 @@ else
     private List<RankingPollaDto> ranking = new();
     private List<DetalleRankingDto> rankingDetalle = new();
     private string? usuarioDetalleAbierto;
+    private bool detallePuntosVisible;
+    private string detallePuntosTitulo = "";
+    private string detallePuntosTexto = "";
+    private string detallePuntosContexto = "";
+    private string detallePuntosClase = "";
+    private int detallePuntosValor;
+
     private void ToggleDetalleUsuario(string usuario)
     {
         if (usuarioDetalleAbierto == usuario)
@@ -455,6 +541,29 @@ else
             usuarioDetalleAbierto = usuario;
         }
     }
+
+    private void AbrirDetallePuntos(
+        string titulo,
+        int puntos,
+        string clase,
+        string? detalle,
+        DetalleRankingDto detalleRanking)
+    {
+        detallePuntosTitulo = titulo;
+        detallePuntosValor = puntos;
+        detallePuntosClase = clase;
+        detallePuntosTexto = string.IsNullOrWhiteSpace(detalle)
+            ? $"Estos puntos corresponden a {titulo.ToLowerInvariant()}."
+            : detalle;
+        detallePuntosContexto = $"{detalleRanking.Local} vs {detalleRanking.Visitante} | {detalleRanking.Fase}";
+        detallePuntosVisible = true;
+    }
+
+    private void CerrarDetallePuntos()
+    {
+        detallePuntosVisible = false;
+    }
+
     private List<ParticipanteDto> participantes = new();
 
     private string emailInvitado = "";

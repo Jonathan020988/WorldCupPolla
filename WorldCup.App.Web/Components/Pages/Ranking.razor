@@ -192,9 +192,51 @@
                                                                 <td>@Puntos(d.PuntosGanador, "points-blue")</td>
                                                                 <td>@Puntos(d.PuntosDiferencia, "points-slate")</td>
                                                                 <td>@Puntos(d.PuntosGoles, "points-indigo")</td>
-                                                                <td>@PuntosConDetalle(d.PuntosClasificacion, "points-gold", d.DetalleClasificacion)</td>
-                                                                <td>@PuntosConDetalle(d.PuntosExtras, "points-dark", d.DetalleExtras)</td>
-                                                                <td>@PuntosConDetalle(d.PuntosPodio, "points-red", d.DetallePodio)</td>
+                                                                <td>
+                                                                    @if (d.PuntosClasificacion > 0)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="points-pill points-button points-gold"
+                                                                                title="Ver detalle"
+                                                                                @onclick='() => AbrirDetallePuntos("Clasificacion", d.PuntosClasificacion, "points-gold", d.DetalleClasificacion, d)'>
+                                                                            +@d.PuntosClasificacion
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="text-muted">0</span>
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (d.PuntosExtras > 0)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="points-pill points-button points-dark"
+                                                                                title="Ver detalle"
+                                                                                @onclick='() => AbrirDetallePuntos("Extras", d.PuntosExtras, "points-dark", d.DetalleExtras, d)'>
+                                                                            +@d.PuntosExtras
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="text-muted">0</span>
+                                                                    }
+                                                                </td>
+                                                                <td>
+                                                                    @if (d.PuntosPodio > 0)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="points-pill points-button points-red"
+                                                                                title="Ver detalle"
+                                                                                @onclick='() => AbrirDetallePuntos("Podio", d.PuntosPodio, "points-red", d.DetallePodio, d)'>
+                                                                            +@d.PuntosPodio
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="text-muted">0</span>
+                                                                    }
+                                                                </td>
                                                                 <td><strong>@d.Total</strong></td>
                                                             </tr>
                                                         }
@@ -212,6 +254,30 @@
         </div>
     }
 </section>
+
+@if (detallePuntosVisible)
+{
+    <div class="points-modal-backdrop" @onclick="CerrarDetallePuntos">
+        <div class="points-modal" @onclick:stopPropagation="true">
+            <button type="button"
+                    class="points-modal-close"
+                    aria-label="Cerrar"
+                    @onclick="CerrarDetallePuntos">
+                x
+            </button>
+
+            <div class="points-modal-head">
+                <span class="points-pill @detallePuntosClase">+@detallePuntosValor</span>
+                <div>
+                    <h3>@detallePuntosTitulo</h3>
+                    <small>@detallePuntosContexto</small>
+                </div>
+            </div>
+
+            <p class="points-modal-text">@detallePuntosTexto</p>
+        </div>
+    </div>
+}
 
 <style>
     .ranking-page {
@@ -448,15 +514,6 @@
         z-index: 3;
     }
 
-    .points-detail {
-        max-width: 210px;
-        margin-top: .28rem;
-        color: var(--muted);
-        font-size: .72rem;
-        line-height: 1.2;
-        white-space: normal;
-    }
-
     .ranking-row.open {
         background: #f3fbf7;
     }
@@ -549,6 +606,79 @@
     .points-dark { background: #1d2a24; color: white; }
     .points-red { background: #ffe1e1; color: #9a1f1f; }
 
+    .points-button {
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .points-button:hover,
+    .points-button:focus-visible {
+        box-shadow: 0 0 0 3px rgba(215, 162, 26, .22);
+        transform: translateY(-1px);
+    }
+
+    .points-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: rgba(13, 31, 24, .52);
+    }
+
+    .points-modal {
+        position: relative;
+        width: min(430px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 24px 60px rgba(9, 31, 23, .28);
+        padding: 1.2rem;
+        color: var(--ink);
+    }
+
+    .points-modal-close {
+        position: absolute;
+        top: .65rem;
+        right: .65rem;
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #f7faf8;
+        color: var(--muted);
+        font-weight: 800;
+    }
+
+    .points-modal-head {
+        display: flex;
+        gap: .8rem;
+        align-items: center;
+        padding-right: 2rem;
+    }
+
+    .points-modal h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .points-modal small {
+        color: var(--muted);
+        font-weight: 700;
+    }
+
+    .points-modal-text {
+        margin: .9rem 0 0;
+        color: #33443d;
+        line-height: 1.45;
+        white-space: pre-line;
+    }
+
     @@media (max-width: 800px) {
         .ranking-hero,
         .panel-title {
@@ -569,6 +699,12 @@
     private List<DetalleRankingDto> rankingDetalle = new();
     private string? usuarioDetalleAbierto;
     private bool cargando = true;
+    private bool detallePuntosVisible;
+    private string detallePuntosTitulo = "";
+    private string detallePuntosTexto = "";
+    private string detallePuntosContexto = "";
+    private string detallePuntosClase = "";
+    private int detallePuntosValor;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -681,17 +817,25 @@
             : new MarkupString("<span class=\"text-muted\">0</span>");
     }
 
-    private MarkupString PuntosConDetalle(int puntos, string clase, string detalle)
+    private void AbrirDetallePuntos(
+        string titulo,
+        int puntos,
+        string clase,
+        string? detalle,
+        DetalleRankingDto detalleRanking)
     {
-        if (puntos <= 0)
-        {
-            return new MarkupString("<span class=\"text-muted\">0</span>");
-        }
+        detallePuntosTitulo = titulo;
+        detallePuntosValor = puntos;
+        detallePuntosClase = clase;
+        detallePuntosTexto = string.IsNullOrWhiteSpace(detalle)
+            ? $"Estos puntos corresponden a {titulo.ToLowerInvariant()}."
+            : detalle;
+        detallePuntosContexto = $"{detalleRanking.Local} vs {detalleRanking.Visitante} | {detalleRanking.Fase}";
+        detallePuntosVisible = true;
+    }
 
-        var detalleHtml = string.IsNullOrWhiteSpace(detalle)
-            ? ""
-            : $"<div class=\"points-detail\">{System.Net.WebUtility.HtmlEncode(detalle)}</div>";
-
-        return new MarkupString($"<span class=\"points-pill {clase}\">+{puntos}</span>{detalleHtml}");
+    private void CerrarDetallePuntos()
+    {
+        detallePuntosVisible = false;
     }
 }
