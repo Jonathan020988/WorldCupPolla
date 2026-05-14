@@ -59,6 +59,82 @@ else
         <div class="alert alert-info">@mensaje</div>
     }
 
+    <div class="card mb-4 phase-control">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Control del torneo por fases</span>
+            <small class="text-muted">Finaliza, genera la siguiente fase o reinicia para pruebas</small>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fase</th>
+                            <th class="text-center">Partidos</th>
+                            <th class="text-center">Finalizados</th>
+                            <th class="text-center">Faltan marcador</th>
+                            <th class="text-center">Siguiente fase</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fase in fasesAdmin)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@NombreFase(fase.Fase)</td>
+                                <td class="text-center">@fase.TotalPartidos</td>
+                                <td class="text-center">
+                                    <span class="badge @(fase.Pendientes == 0 && fase.TotalPartidos > 0 ? "bg-success" : "bg-secondary")">
+                                        @fase.Finalizados / @fase.TotalPartidos
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (fase.PenalesInvalidos > 0)
+                                    {
+                                        <span class="badge bg-danger">@fase.PenalesInvalidos penales</span>
+                                    }
+                                    else if (fase.FaltanMarcador > 0)
+                                    {
+                                        <span class="badge bg-warning text-dark">@fase.FaltanMarcador</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">0</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (string.IsNullOrWhiteSpace(fase.SiguienteFase))
+                                    {
+                                        <span class="text-muted">No aplica</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @(fase.SiguienteGenerada ? "bg-success" : "bg-light text-dark")">
+                                            @(fase.SiguienteGenerada ? "Generada" : "Pendiente")
+                                        </span>
+                                        <small class="text-muted ms-1">@fase.SiguienteFase</small>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-success me-1"
+                                            disabled="@(!fase.PuedeFinalizar || procesandoFase == fase.Fase)"
+                                            @onclick="() => FinalizarFase(fase)">
+                                        Finalizar fase
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            disabled="@(!fase.PuedeReiniciar || procesandoFase == fase.Fase)"
+                                            @onclick="() => ReiniciarFase(fase)">
+                                        Reiniciar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
         <div class="col-lg-6">
             <div class="card">
@@ -244,6 +320,16 @@ else
     .marcador-admin {
         width: 70px;
     }
+
+    .phase-control th {
+        color: #5f6b7a;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .phase-control td {
+        vertical-align: middle;
+    }
 </style>
 
 @code {
@@ -254,8 +340,10 @@ else
     private List<PollaAdminDto> pollas = new();
     private List<MiembroAdminDto> miembros = new();
     private List<PrediccionAdminDto> prediccionesUsuario = new();
+    private List<FaseAdminDto> fasesAdmin = new();
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
+    private string? procesandoFase;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -287,10 +375,86 @@ else
 
         resumen = await Http.GetFromJsonAsync<ResumenAdminDto>(
             $"api/Admin/resumen?adminUsuarioId={adminId}");
+        fasesAdmin = await Http.GetFromJsonAsync<List<FaseAdminDto>>(
+            $"api/Partidos/admin-fases?adminUsuarioId={adminId}") ?? new();
         usuarios = await Http.GetFromJsonAsync<List<UsuarioAdminDto>>(
             $"api/Admin/usuarios?adminUsuarioId={adminId}") ?? new();
         pollas = await Http.GetFromJsonAsync<List<PollaAdminDto>>(
             $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
+    }
+
+    private async Task FinalizarFase(FaseAdminDto fase)
+    {
+        await EjecutarAccionFase(fase, "finalizar");
+    }
+
+    private async Task ReiniciarFase(FaseAdminDto fase)
+    {
+        await EjecutarAccionFase(fase, "reiniciar");
+    }
+
+    private async Task EjecutarAccionFase(FaseAdminDto fase, string accion)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+            return;
+
+        procesandoFase = fase.Fase;
+
+        var response = await Http.PostAsJsonAsync(
+            $"api/Partidos/admin-fases/{fase.Fase}/{accion}",
+            new AdminFaseRequestDto
+            {
+                AdminUsuarioId = Sesion.UsuarioId.Value
+            });
+
+        mensaje = await LeerMensajeRespuesta(response);
+        await CargarPanel();
+
+        if (usuarioPredicciones != null)
+        {
+            await CargarPredicciones(usuarioPredicciones);
+        }
+
+        procesandoFase = null;
+    }
+
+    private async Task<string> LeerMensajeRespuesta(HttpResponseMessage response)
+    {
+        var contenido = await response.Content.ReadAsStringAsync();
+
+        if (string.IsNullOrWhiteSpace(contenido))
+        {
+            return response.IsSuccessStatusCode
+                ? "Operación realizada correctamente."
+                : "No se pudo completar la operación.";
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return contenido;
+        }
+
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(contenido);
+            if (json.RootElement.TryGetProperty("mensaje", out var mensajeApi))
+            {
+                return mensajeApi.GetString() ?? contenido;
+            }
+        }
+        catch
+        {
+            return contenido;
+        }
+
+        return contenido;
+    }
+
+    private string NombreFase(string fase)
+    {
+        return fase == "TercerPuesto"
+            ? "Tercer puesto"
+            : fase;
     }
 
     private async Task CargarMiembros(PollaAdminDto polla)
@@ -384,6 +548,27 @@ else
         {
             await CargarPredicciones(usuarioPredicciones);
         }
+    }
+
+    private class AdminFaseRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+    }
+
+    private class FaseAdminDto
+    {
+        public string Fase { get; set; } = "";
+        public int TotalPartidos { get; set; }
+        public int Finalizados { get; set; }
+        public int Pendientes { get; set; }
+        public int ConMarcador { get; set; }
+        public int FaltanMarcador { get; set; }
+        public int PenalesInvalidos { get; set; }
+        public bool PuedeFinalizar { get; set; }
+        public bool PuedeReiniciar { get; set; }
+        public string? SiguienteFase { get; set; }
+        public bool SiguienteGenerada { get; set; }
+        public int PartidosPosteriores { get; set; }
     }
 
     private class ResumenAdminDto

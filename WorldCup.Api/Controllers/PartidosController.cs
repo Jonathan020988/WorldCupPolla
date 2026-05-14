@@ -250,6 +250,276 @@ namespace WorldCup.Api.Controllers
             });
         }
 
+        [HttpGet("admin-fases")]
+        public async Task<IActionResult> GetFasesAdmin([FromQuery] int adminUsuarioId)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(adminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede consultar el control de fases");
+            }
+
+            var fases = new List<object>();
+
+            foreach (var fase in FasesTorneo)
+            {
+                var partidosFase = await _context.Partidos
+                    .Where(p => p.Fase == fase)
+                    .ToListAsync();
+
+                var total = partidosFase.Count;
+                var finalizados = partidosFase.Count(p => p.Finalizado);
+                var conMarcador = partidosFase.Count(p =>
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue);
+                var penalesInvalidos = partidosFase.Count(p =>
+                    p.Fase != "Grupos" &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue &&
+                    p.GolesLocal == p.GolesVisitante &&
+                    (!p.PenalesLocal.HasValue ||
+                     !p.PenalesVisitante.HasValue ||
+                     p.PenalesLocal == p.PenalesVisitante));
+                var fasesPosteriores = ObtenerFasesPosteriores(fase);
+                var partidosPosteriores = await _context.Partidos
+                    .CountAsync(p => fasesPosteriores.Contains(p.Fase));
+                var siguienteFase = ObtenerSiguienteFase(fase);
+                var siguienteGenerada = fase == "Semifinales"
+                    ? await _context.Partidos.AnyAsync(p => p.Fase == "Final") &&
+                      await _context.Partidos.AnyAsync(p => p.Fase == "TercerPuesto")
+                    : siguienteFase != null &&
+                      await _context.Partidos.AnyAsync(p => p.Fase == siguienteFase);
+
+                fases.Add(new
+                {
+                    fase,
+                    totalPartidos = total,
+                    finalizados,
+                    pendientes = total - finalizados,
+                    conMarcador,
+                    faltanMarcador = total - conMarcador,
+                    penalesInvalidos,
+                    puedeFinalizar = total > 0 &&
+                        conMarcador == total &&
+                        penalesInvalidos == 0,
+                    puedeReiniciar = total > 0 &&
+                        (finalizados > 0 ||
+                         conMarcador > 0 ||
+                         partidosPosteriores > 0),
+                    siguienteFase,
+                    siguienteGenerada,
+                    partidosPosteriores
+                });
+            }
+
+            return Ok(fases);
+        }
+
+        [HttpPost("admin-fases/{fase}/finalizar")]
+        public async Task<IActionResult> FinalizarFaseAdmin(
+            string fase,
+            AdminFaseTorneoDTO dto)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(dto.AdminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede finalizar fases");
+            }
+
+            var faseNormalizada = NormalizarFaseTorneo(fase);
+            if (faseNormalizada == null)
+            {
+                return BadRequest("Fase inválida");
+            }
+
+            var partidos = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Fase == faseNormalizada)
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+
+            if (!partidos.Any())
+            {
+                return NotFound($"No existen partidos para la fase {faseNormalizada}");
+            }
+
+            var sinMarcador = partidos
+                .Where(p => !p.GolesLocal.HasValue || !p.GolesVisitante.HasValue)
+                .Select(NombrePartido)
+                .ToList();
+
+            if (sinMarcador.Any())
+            {
+                return BadRequest("Faltan marcadores en: " + string.Join(", ", sinMarcador));
+            }
+
+            var penalesInvalidos = partidos
+                .Where(p =>
+                    p.Fase != "Grupos" &&
+                    p.GolesLocal == p.GolesVisitante &&
+                    (!p.PenalesLocal.HasValue ||
+                     !p.PenalesVisitante.HasValue ||
+                     p.PenalesLocal == p.PenalesVisitante))
+                .Select(NombrePartido)
+                .ToList();
+
+            if (penalesInvalidos.Any())
+            {
+                return BadRequest("Faltan penales válidos en: " + string.Join(", ", penalesInvalidos));
+            }
+
+            foreach (var partido in partidos)
+            {
+                partido.Estado = "Finalizado";
+                partido.Finalizado = true;
+
+                if (partido.Fase == "Grupos" ||
+                    partido.GolesLocal != partido.GolesVisitante)
+                {
+                    partido.PenalesLocal = null;
+                    partido.PenalesVisitante = null;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (faseNormalizada == "Grupos")
+            {
+                foreach (var partido in partidos)
+                {
+                    await CalcularPuntosGrupoParaPartido(partido);
+                }
+
+                foreach (var grupo in partidos
+                    .Select(p => p.Local.Grupo)
+                    .Where(g => !string.IsNullOrWhiteSpace(g))
+                    .Distinct())
+                {
+                    await CalcularPuntosClasificacionGrupo(grupo!);
+                }
+            }
+            else
+            {
+                foreach (var partido in partidos)
+                {
+                    CalcularPuntosEliminatoria(partido);
+                }
+            }
+
+            if (faseNormalizada is "Final" or "TercerPuesto")
+            {
+                await CalcularPuntosPodio();
+            }
+
+            List<string> fasesGeneradas;
+            try
+            {
+                fasesGeneradas = await GenerarSiguientesFasesAsync(faseNormalizada);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var extra = fasesGeneradas.Any()
+                ? $" Se generó: {string.Join(", ", fasesGeneradas)}."
+                : "";
+
+            return Ok(new
+            {
+                mensaje = $"Fase {faseNormalizada} finalizada correctamente.{extra}"
+            });
+        }
+
+        [HttpPost("admin-fases/{fase}/reiniciar")]
+        public async Task<IActionResult> ReiniciarFaseAdmin(
+            string fase,
+            AdminFaseTorneoDTO dto)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(dto.AdminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede reiniciar fases");
+            }
+
+            var faseNormalizada = NormalizarFaseTorneo(fase);
+            if (faseNormalizada == null)
+            {
+                return BadRequest("Fase inválida");
+            }
+
+            var fasesPosteriores = ObtenerFasesPosteriores(faseNormalizada);
+            var partidosPosteriores = await _context.Partidos
+                .Where(p => fasesPosteriores.Contains(p.Fase))
+                .ToListAsync();
+            var partidosPosterioresIds = partidosPosteriores
+                .Select(p => p.Id)
+                .ToList();
+
+            if (partidosPosterioresIds.Any())
+            {
+                _context.Predicciones.RemoveRange(
+                    _context.Predicciones.Where(p => partidosPosterioresIds.Contains(p.PartidoId)));
+                _context.Partidos.RemoveRange(partidosPosteriores);
+            }
+
+            var partidos = await _context.Partidos
+                .Include(p => p.Local)
+                .Where(p => p.Fase == faseNormalizada)
+                .ToListAsync();
+
+            if (!partidos.Any())
+            {
+                return NotFound($"No existen partidos para la fase {faseNormalizada}");
+            }
+
+            foreach (var partido in partidos)
+            {
+                partido.GolesLocal = null;
+                partido.GolesVisitante = null;
+                partido.PenalesLocal = null;
+                partido.PenalesVisitante = null;
+                partido.Finalizado = false;
+                partido.Estado = "Pendiente";
+            }
+
+            var partidosIds = partidos.Select(p => p.Id).ToList();
+            var predicciones = await _context.Predicciones
+                .Where(p => partidosIds.Contains(p.PartidoId))
+                .ToListAsync();
+
+            foreach (var prediccion in predicciones)
+            {
+                prediccion.PuntosMarcador = 0;
+                prediccion.PuntosClasificacion = 0;
+                prediccion.Bloqueada = false;
+                prediccion.PuntosTotales =
+                    prediccion.PuntosMarcador +
+                    prediccion.PuntosClasificacion +
+                    prediccion.PuntosPodio;
+            }
+
+            if (faseNormalizada == "Grupos")
+            {
+                var prediccionesGrupo = await _context.PrediccionesGrupo.ToListAsync();
+                foreach (var prediccionGrupo in prediccionesGrupo)
+                {
+                    prediccionGrupo.Bloqueada = false;
+                }
+            }
+
+            await ReiniciarPuntosPodioAsync();
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Fase {faseNormalizada} reiniciada correctamente. Los marcadores quedaron en blanco."
+            });
+        }
+
 
 
         [HttpGet("posiciones/{grupo}")]
@@ -666,6 +936,16 @@ namespace WorldCup.Api.Controllers
 
         private readonly AppDbContext _context;
         private readonly AdminAuthorizationService? _adminAuthorization;
+        private static readonly string[] FasesTorneo =
+        {
+            "Grupos",
+            "Dieciseisavos",
+            "Octavos",
+            "Cuartos",
+            "Semifinales",
+            "TercerPuesto",
+            "Final"
+        };
 
         public PartidosController(
             AppDbContext context,
@@ -673,6 +953,54 @@ namespace WorldCup.Api.Controllers
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
+        }
+
+        private string? NormalizarFaseTorneo(string fase)
+        {
+            var limpia = fase.Trim().Replace(" ", "").Replace("-", "").ToLowerInvariant();
+
+            return limpia switch
+            {
+                "grupos" => "Grupos",
+                "dieciseisavos" => "Dieciseisavos",
+                "octavos" => "Octavos",
+                "cuartos" => "Cuartos",
+                "semifinales" => "Semifinales",
+                "tercerpuesto" => "TercerPuesto",
+                "final" => "Final",
+                _ => null
+            };
+        }
+
+        private string? ObtenerSiguienteFase(string fase)
+        {
+            return fase switch
+            {
+                "Grupos" => "Dieciseisavos",
+                "Dieciseisavos" => "Octavos",
+                "Octavos" => "Cuartos",
+                "Cuartos" => "Semifinales",
+                "Semifinales" => "Final / TercerPuesto",
+                _ => null
+            };
+        }
+
+        private List<string> ObtenerFasesPosteriores(string fase)
+        {
+            var indice = Array.IndexOf(FasesTorneo, fase);
+            if (indice < 0 || indice == FasesTorneo.Length - 1)
+            {
+                return new List<string>();
+            }
+
+            return FasesTorneo
+                .Skip(indice + 1)
+                .ToList();
+        }
+
+        private static string NombrePartido(Partido partido)
+        {
+            return $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}";
         }
 
         //edpoint      
@@ -1101,6 +1429,235 @@ namespace WorldCup.Api.Controllers
             }
 
             return true;
+        }
+
+        private async Task<List<string>> GenerarSiguientesFasesAsync(string fase)
+        {
+            var generadas = new List<string>();
+
+            switch (fase)
+            {
+                case "Grupos":
+                    if (await GenerarDieciseisavosAdminAsync())
+                    {
+                        generadas.Add("Dieciseisavos");
+                    }
+                    break;
+
+                case "Dieciseisavos":
+                    if (await GenerarRondaGanadoresAdminAsync("Dieciseisavos", "Octavos", 16))
+                    {
+                        generadas.Add("Octavos");
+                    }
+                    break;
+
+                case "Octavos":
+                    if (await GenerarRondaGanadoresAdminAsync("Octavos", "Cuartos", 8))
+                    {
+                        generadas.Add("Cuartos");
+                    }
+                    break;
+
+                case "Cuartos":
+                    if (await GenerarRondaGanadoresAdminAsync("Cuartos", "Semifinales", 4))
+                    {
+                        generadas.Add("Semifinales");
+                    }
+                    break;
+
+                case "Semifinales":
+                    if (await GenerarFinalAdminAsync())
+                    {
+                        generadas.Add("Final");
+                    }
+
+                    if (await GenerarTercerPuestoAdminAsync())
+                    {
+                        generadas.Add("TercerPuesto");
+                    }
+                    break;
+            }
+
+            return generadas;
+        }
+
+        private async Task<bool> GenerarDieciseisavosAdminAsync()
+        {
+            if (await _context.Partidos.AnyAsync(p => p.Fase == "Dieciseisavos"))
+            {
+                return false;
+            }
+
+            var gruposPendientes = await _context.Partidos
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+
+            if (gruposPendientes)
+            {
+                throw new InvalidOperationException("No todos los partidos de grupos están finalizados");
+            }
+
+            var cruces = await ConstruirDieciseisavos();
+            if (cruces.Count != 16)
+            {
+                throw new InvalidOperationException("No hay 32 equipos clasificados para dieciseisavos");
+            }
+
+            var fecha = await ObtenerFechaSiguienteFaseAsync("Grupos");
+
+            foreach (var cruce in cruces)
+            {
+                var local = await _context.Equipos.FirstAsync(e => e.Nombre == cruce.Local);
+                var visitante = await _context.Equipos.FirstAsync(e => e.Nombre == cruce.Visitante);
+
+                _context.Partidos.Add(new Partido
+                {
+                    Fecha = fecha,
+                    Fase = "Dieciseisavos",
+                    LocalId = local.Id,
+                    VisitanteId = visitante.Id,
+                    Estado = "Pendiente",
+                    Finalizado = false
+                });
+            }
+
+            return true;
+        }
+
+        private async Task<bool> GenerarRondaGanadoresAdminAsync(
+            string faseAnterior,
+            string faseNueva,
+            int cantidadEsperada)
+        {
+            if (await _context.Partidos.AnyAsync(p => p.Fase == faseNueva))
+            {
+                return false;
+            }
+
+            if (!await FaseListaParaGenerar(faseAnterior, cantidadEsperada))
+            {
+                throw new InvalidOperationException($"No todos los partidos de {faseAnterior} tienen resultado válido");
+            }
+
+            var partidosAnteriores = await _context.Partidos
+                .Where(p => p.Fase == faseAnterior)
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+            var fecha = await ObtenerFechaSiguienteFaseAsync(faseAnterior);
+
+            for (var i = 0; i < partidosAnteriores.Count; i += 2)
+            {
+                _context.Partidos.Add(new Partido
+                {
+                    Fecha = fecha,
+                    Fase = faseNueva,
+                    LocalId = ObtenerGanadorId(partidosAnteriores[i]),
+                    VisitanteId = ObtenerGanadorId(partidosAnteriores[i + 1]),
+                    Estado = "Pendiente",
+                    Finalizado = false
+                });
+            }
+
+            return true;
+        }
+
+        private async Task<bool> GenerarFinalAdminAsync()
+        {
+            if (await _context.Partidos.AnyAsync(p => p.Fase == "Final"))
+            {
+                return false;
+            }
+
+            if (!await FaseListaParaGenerar("Semifinales", 2))
+            {
+                throw new InvalidOperationException("No todas las semifinales tienen resultado válido");
+            }
+
+            var semifinales = await _context.Partidos
+                .Where(p => p.Fase == "Semifinales")
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+            var fecha = await ObtenerFechaSiguienteFaseAsync("Semifinales", 3);
+
+            _context.Partidos.Add(new Partido
+            {
+                Fecha = fecha,
+                Fase = "Final",
+                LocalId = ObtenerGanadorId(semifinales[0]),
+                VisitanteId = ObtenerGanadorId(semifinales[1]),
+                Estado = "Pendiente",
+                Finalizado = false
+            });
+
+            return true;
+        }
+
+        private async Task<bool> GenerarTercerPuestoAdminAsync()
+        {
+            if (await _context.Partidos.AnyAsync(p => p.Fase == "TercerPuesto"))
+            {
+                return false;
+            }
+
+            if (!await FaseListaParaGenerar("Semifinales", 2))
+            {
+                throw new InvalidOperationException("No todas las semifinales tienen resultado válido");
+            }
+
+            var semifinales = await _context.Partidos
+                .Where(p => p.Fase == "Semifinales")
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+            var fecha = await ObtenerFechaSiguienteFaseAsync("Semifinales", 2);
+
+            _context.Partidos.Add(new Partido
+            {
+                Fecha = fecha,
+                Fase = "TercerPuesto",
+                LocalId = ObtenerPerdedorId(semifinales[0]),
+                VisitanteId = ObtenerPerdedorId(semifinales[1]),
+                Estado = "Pendiente",
+                Finalizado = false
+            });
+
+            return true;
+        }
+
+        private async Task<DateTime> ObtenerFechaSiguienteFaseAsync(
+            string faseAnterior,
+            int diasDespues = 1)
+        {
+            var ultimaFecha = await _context.Partidos
+                .Where(p => p.Fase == faseAnterior)
+                .MaxAsync(p => (DateTime?)p.Fecha);
+            var baseFecha = ultimaFecha.HasValue && ultimaFecha.Value > DateTime.UtcNow
+                ? ultimaFecha.Value
+                : DateTime.UtcNow;
+
+            return baseFecha.AddDays(diasDespues);
+        }
+
+        private async Task ReiniciarPuntosPodioAsync()
+        {
+            var predicciones = await _context.Predicciones
+                .Where(p => p.PuntosPodio != 0)
+                .ToListAsync();
+
+            foreach (var prediccion in predicciones)
+            {
+                prediccion.PuntosPodio = 0;
+                prediccion.PuntosTotales =
+                    prediccion.PuntosMarcador +
+                    prediccion.PuntosClasificacion;
+            }
+
+            var prediccionesPodio = await _context.PrediccionesPodio
+                .Where(p => p.Bloqueada)
+                .ToListAsync();
+
+            foreach (var podio in prediccionesPodio)
+            {
+                podio.Bloqueada = false;
+            }
         }
 
         private int ObtenerPerdedorId(Partido partido)

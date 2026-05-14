@@ -22,4 +22,9 @@ namespace WorldCup.Api.DTOs
         public int AdminUsuarioId { get; set; }
         public bool Activo { get; set; }
     }
+
+    public class AdminFaseTorneoDTO
+    {
+        public int AdminUsuarioId { get; set; }
+    }
 }
