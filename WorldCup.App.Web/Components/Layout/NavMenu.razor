@@ -147,8 +147,15 @@
             return;
         }
 
-        var solicitudes = await PollasService.GetNotificacionesAsync(Sesion.UsuarioId.Value);
-        solicitudesPendientes = solicitudes.Count(s => s.Estado == "Pendiente");
+        try
+        {
+            var solicitudes = await PollasService.GetNotificacionesAsync(Sesion.UsuarioId.Value);
+            solicitudesPendientes = solicitudes.Count(s => s.Estado == "Pendiente");
+        }
+        catch
+        {
+            solicitudesPendientes = 0;
+        }
     }
 
     private async Task CerrarSesion()

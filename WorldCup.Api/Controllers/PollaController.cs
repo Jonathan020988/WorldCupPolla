@@ -874,16 +874,18 @@ namespace WorldCup.Api.Controllers
                 })
                 .ToListAsync();
 
-            var partidosProximos = await _context.Partidos
+            var partidosCandidatos = await _context.Partidos
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
                 .Where(p =>
                     !p.Finalizado &&
-                    p.Estado != "Postergado" &&
-                    p.Fecha > ahora &&
-                    p.Fecha <= limite)
+                    p.Estado != "Postergado")
                 .OrderBy(p => p.Fecha)
                 .ToListAsync();
+
+            var partidosProximos = partidosCandidatos
+                .Where(p => p.Fecha > ahora && p.Fecha <= limite)
+                .ToList();
 
             foreach (var polla in pollasUsuario)
             {
