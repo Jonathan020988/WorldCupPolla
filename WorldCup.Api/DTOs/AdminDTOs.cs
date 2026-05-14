@@ -33,4 +33,14 @@ namespace WorldCup.Api.DTOs
     {
         public int AdminUsuarioId { get; set; }
     }
+
+    public class AdminActualizarReaperturaDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public string Fase { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public bool Activa { get; set; }
+    }
 }

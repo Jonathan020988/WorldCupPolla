@@ -81,6 +81,14 @@ else
         </div>
     }
 
+    @if (reaperturasActivas.Any())
+    {
+        <div class="alert alert-warning reopen-user-alert">
+            El administrador habilitó edición temporal para:
+            <strong>@string.Join(", ", reaperturasActivas.Select(EtiquetaReapertura))</strong>.
+        </div>
+    }
+
     @if (partidos?.Any() == true)
     {
         <div class="prediction-filter">
@@ -433,6 +441,11 @@ else
         color: #163c27;
     }
 
+    .reopen-user-alert {
+        border-radius: 8px;
+        font-weight: 700;
+    }
+
     .phase-title {
         display: flex;
         justify-content: space-between;
@@ -757,6 +770,7 @@ else
     private List<PollaDto> pollas = new();
     private PodioEstadoDto? podioEstado;
     private GuardarPodioDto podio = new();
+    private List<ReaperturaUsuarioDto> reaperturasActivas = new();
     private bool cargando = true;
     private string? mensajeGuardado;
     private bool guardadoConError;
@@ -817,6 +831,7 @@ else
         predicciones.Clear();
         prediccionesGuardadas.Clear();
         prediccionesEnEdicion.Clear();
+        reaperturasActivas.Clear();
         fasesMinimizadas.Clear();
         paisFiltro = null;
         fechaFiltro = null;
@@ -840,6 +855,8 @@ else
         var existentes = await PrediccionesService.GetPrediccionesAsync(
             Sesion.PollaActivaId.Value,
             Sesion.UsuarioId.Value);
+
+        await CargarReaperturasAsync();
 
         var existentesDict = existentes
             .GroupBy(x => x.PartidoId)
@@ -876,11 +893,43 @@ else
 
     private bool EstaBloqueado(PartidoDto partido)
     {
+        if (ReaperturaActiva(partido.Fase, "Marcadores"))
+        {
+            return false;
+        }
+
         if (partido.Fecha <= DateTime.MinValue)
             return false;
 
         return HoraColombiaActual() >= partido.Fecha.AddHours(-1)
                || partido.Finalizado;
+    }
+
+    private async Task CargarReaperturasAsync()
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            reaperturasActivas.Clear();
+            return;
+        }
+
+        reaperturasActivas = await Http.GetFromJsonAsync<List<ReaperturaUsuarioDto>>(
+            $"api/Predicciones/reaperturas?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}") ?? new();
+    }
+
+    private bool ReaperturaActiva(string fase, string tipo)
+    {
+        return reaperturasActivas.Any(r =>
+            r.Activa &&
+            string.Equals(r.Fase, fase, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Tipo, tipo, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string EtiquetaReapertura(ReaperturaUsuarioDto reapertura)
+    {
+        return reapertura.Tipo == "Podio"
+            ? "podio final"
+            : $"{reapertura.Fase} ({reapertura.Tipo.ToLowerInvariant()})";
     }
 
     private static DateTime HoraColombiaActual()
@@ -1269,6 +1318,13 @@ else
     {
         public int id { get; set; }
         public string nombre { get; set; } = "";
+    }
+
+    private class ReaperturaUsuarioDto
+    {
+        public string Fase { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public bool Activa { get; set; }
     }
 
     private class PodioGuardadoDto

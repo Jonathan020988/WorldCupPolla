@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
+using WorldCup.Api.Models;
 using WorldCup.Api.Services;
 
 namespace WorldCup.Api.Controllers
@@ -219,6 +220,107 @@ namespace WorldCup.Api.Controllers
             return Ok(predicciones);
         }
 
+        [HttpGet("reaperturas")]
+        public async Task<IActionResult> GetReaperturasUsuario(
+            [FromQuery] int adminUsuarioId,
+            [FromQuery] int pollaId,
+            [FromQuery] int usuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var reaperturas = await _context.AdminReaperturasPrediccion
+                .Where(r =>
+                    r.PollaId == pollaId &&
+                    r.UsuarioId == usuarioId &&
+                    r.Activa)
+                .OrderBy(r => r.Fase)
+                .ThenBy(r => r.Tipo)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.PollaId,
+                    r.UsuarioId,
+                    r.Fase,
+                    r.Tipo,
+                    r.Activa,
+                    r.FechaActualizacion
+                })
+                .ToListAsync();
+
+            return Ok(reaperturas);
+        }
+
+        [HttpPut("reaperturas")]
+        public async Task<IActionResult> ActualizarReaperturaUsuario(
+            [FromBody] AdminActualizarReaperturaDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            var fase = NormalizarFaseReapertura(dto.Fase);
+            var tipo = NormalizarTipoReapertura(dto.Tipo);
+
+            if (fase == null || tipo == null)
+                return BadRequest("Fase o tipo de reapertura inválido.");
+
+            if (tipo == "Podio")
+            {
+                fase = "Podio";
+            }
+
+            if (tipo == "Clasificacion" && fase != "Grupos")
+                return BadRequest("La clasificación solo aplica para la fase de grupos.");
+
+            if (tipo == "Marcadores" && fase == "Podio")
+                return BadRequest("El podio se habilita con el tipo Podio.");
+
+            var usuarioExiste = await _context.Usuarios.AnyAsync(u => u.Id == dto.UsuarioId);
+            var pollaExiste = await _context.Pollas.AnyAsync(p => p.Id == dto.PollaId);
+
+            if (!usuarioExiste || !pollaExiste)
+                return BadRequest("Usuario o polla inválidos.");
+
+            var existente = await _context.AdminReaperturasPrediccion
+                .FirstOrDefaultAsync(r =>
+                    r.PollaId == dto.PollaId &&
+                    r.UsuarioId == dto.UsuarioId &&
+                    r.Fase == fase &&
+                    r.Tipo == tipo);
+
+            if (existente == null)
+            {
+                existente = new AdminReaperturaPrediccion
+                {
+                    PollaId = dto.PollaId,
+                    UsuarioId = dto.UsuarioId,
+                    Fase = fase,
+                    Tipo = tipo,
+                    Activa = dto.Activa,
+                    AdminUsuarioId = dto.AdminUsuarioId,
+                    FechaCreacion = DateTime.UtcNow,
+                    FechaActualizacion = DateTime.UtcNow
+                };
+
+                _context.AdminReaperturasPrediccion.Add(existente);
+            }
+            else
+            {
+                existente.Activa = dto.Activa;
+                existente.AdminUsuarioId = dto.AdminUsuarioId;
+                existente.FechaActualizacion = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = dto.Activa
+                    ? $"Reapertura habilitada para {tipo} ({fase})."
+                    : $"Reapertura cerrada para {tipo} ({fase})."
+            });
+        }
+
         [HttpPut("usuarios/{usuarioId:int}/estado")]
         public async Task<IActionResult> ActualizarEstadoUsuario(
             int usuarioId,
@@ -288,6 +390,37 @@ namespace WorldCup.Api.Controllers
 
         private async Task<bool> EsAdmin(int usuarioId) =>
             await _adminAuthorization.EsAdminAsync(usuarioId);
+
+        private static string? NormalizarFaseReapertura(string fase)
+        {
+            var limpia = (fase ?? "").Trim().Replace(" ", "").Replace("-", "").ToLowerInvariant();
+
+            return limpia switch
+            {
+                "grupos" => "Grupos",
+                "dieciseisavos" => "Dieciseisavos",
+                "octavos" => "Octavos",
+                "cuartos" => "Cuartos",
+                "semifinales" => "Semifinales",
+                "tercerpuesto" => "TercerPuesto",
+                "final" => "Final",
+                "podio" => "Podio",
+                _ => null
+            };
+        }
+
+        private static string? NormalizarTipoReapertura(string tipo)
+        {
+            var limpia = (tipo ?? "").Trim().Replace(" ", "").Replace("-", "").ToLowerInvariant();
+
+            return limpia switch
+            {
+                "marcadores" => "Marcadores",
+                "clasificacion" => "Clasificacion",
+                "podio" => "Podio",
+                _ => null
+            };
+        }
 
         private static int CalcularPuntosMarcador(
             string fase,

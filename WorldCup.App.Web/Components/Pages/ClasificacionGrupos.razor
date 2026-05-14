@@ -93,11 +93,17 @@ else
     </div>
 
     @{
-        var claseAlerta = clasificacionCerrada ? "alert-danger" : "alert-info";
+        var claseAlerta = clasificacionCerrada
+            ? (clasificacionReabierta ? "alert-warning" : "alert-danger")
+            : "alert-info";
     }
     <div class="alert @claseAlerta">
 
-        @if (clasificacionCerrada)
+        @if (clasificacionCerrada && clasificacionReabierta)
+        {
+            <strong>Reapertura activa por administrador</strong>
+        }
+        else if (clasificacionCerrada)
         {
             <strong>⛔ Clasificaciones cerradas</strong>
         }
@@ -136,7 +142,7 @@ else
                                 <input class="form-check-input"
                                 type="checkbox"
                                 checked="@gruposTercero.Contains(grupo.Key)"
-                                disabled="@(CheckboxBloqueado(grupo.Key) || clasificacionCerrada)"
+                                disabled="@(CheckboxBloqueado(grupo.Key) || !PuedeEditarClasificacion)"
                                 @onchange="(e => ToggleTercero(grupo.Key))" />
 
                                 <label class="form-check-label">
@@ -145,7 +151,7 @@ else
                             </div>
 
                             <button class="btn btn-success btn-sm"
-                            disabled="@(grupo.Value.First().bloqueado || clasificacionCerrada)"
+                            disabled="@(grupo.Value.First().bloqueado || !PuedeEditarClasificacion)"
                             @onclick="() => GuardarGrupo(grupo.Key, grupo.Value)">
 
                                 @(grupo.Value.First().bloqueado ? "✔ Guardado" : "💾 Guardar")
@@ -153,6 +159,7 @@ else
                             </button>
 
                             <button class="btn btn-warning btn-sm"
+                            disabled="@(!PuedeEditarClasificacion)"
                             @onclick="() => EditarGrupo(grupo.Value)">
                                 ✏ Editar
                             </button>
@@ -198,7 +205,7 @@ else
                                                 <select class="form-select form-select-sm"
                                                 style="width:70px"
                                                 @bind="equipo.posicion"
-                                                disabled="@(equipo.bloqueado  || clasificacionCerrada)">
+                                                disabled="@(equipo.bloqueado  || !PuedeEditarClasificacion)">
 
                                                     <option value="1" disabled="@PosicionOcupada(grupo.Value,1,equipo)">1</option>
                                                     <option value="2" disabled="@PosicionOcupada(grupo.Value,2,equipo)">2</option>
@@ -323,6 +330,7 @@ else
 @code {
 
     private bool clasificacionCerrada = false;
+    private bool clasificacionReabierta = false;
     private DateTime fechaCierre;
     private string contador = "";
     private System.Timers.Timer? timer;
@@ -332,6 +340,7 @@ else
     private bool cargandoContexto = true;
     private string? mensajeClasificacion;
     private bool clasificacionConError;
+    private bool PuedeEditarClasificacion => !clasificacionCerrada || clasificacionReabierta;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -386,6 +395,7 @@ else
         primeros.Clear();
         segundos.Clear();
         terceros.Clear();
+        clasificacionReabierta = false;
         DetenerContador();
     }
 
@@ -422,6 +432,7 @@ else
         await CargarTerceros();
         CalcularClasificados();
         await CargarEstadoClasificacion();
+        await CargarReaperturaClasificacion();
         IniciarContador();
     }
 
@@ -523,6 +534,13 @@ else
 
     private void EditarGrupo(List<EquipoGrupo> grupo)
     {
+        if (!PuedeEditarClasificacion)
+        {
+            mensajeClasificacion = "La clasificación de grupos está cerrada y ya no se puede editar.";
+            clasificacionConError = true;
+            return;
+        }
+
         foreach (var equipo in grupo)
         {
             equipo.bloqueado = false;
@@ -552,6 +570,14 @@ else
 
     private async void ToggleTercero(string grupo)
     {
+        if (!PuedeEditarClasificacion)
+        {
+            mensajeClasificacion = "La clasificación de grupos está cerrada y ya no se puede editar.";
+            clasificacionConError = true;
+            StateHasChanged();
+            return;
+        }
+
         grupo = NormalizarGrupo(grupo);
 
         if (gruposTercero.Contains(grupo))
@@ -612,6 +638,14 @@ else
     {
         if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
         {
+            return;
+        }
+
+        if (!PuedeEditarClasificacion)
+        {
+            erroresGrupo[grupoNombre] = "La clasificación de grupos está cerrada y ya no se puede editar.";
+            clasificacionConError = true;
+            StateHasChanged();
             return;
         }
 
@@ -854,10 +888,42 @@ else
         }
     }
 
+    private async Task CargarReaperturaClasificacion()
+    {
+        clasificacionReabierta = false;
+
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            var reaperturas = await Http.GetFromJsonAsync<List<ReaperturaDto>>(
+                $"api/Predicciones/reaperturas?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}") ?? new();
+
+            clasificacionReabierta = reaperturas.Any(r =>
+                r.Activa &&
+                string.Equals(r.Fase, "Grupos", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.Tipo, "Clasificacion", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            clasificacionReabierta = false;
+        }
+    }
+
     public class EstadoDto
     {
         public bool cerrado { get; set; }
         public DateTime fechaCierre { get; set; }
+    }
+
+    private class ReaperturaDto
+    {
+        public string Fase { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public bool Activa { get; set; }
     }
 
     

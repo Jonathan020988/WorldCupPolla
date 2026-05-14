@@ -30,6 +30,8 @@ namespace WorldCup.Api.Data
 
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
+        public DbSet<AdminReaperturaPrediccion> AdminReaperturasPrediccion { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -99,6 +101,10 @@ namespace WorldCup.Api.Data
 
             modelBuilder.Entity<PasswordResetToken>()
                 .HasIndex(t => t.TokenHash);
+
+            modelBuilder.Entity<AdminReaperturaPrediccion>()
+                .HasIndex(r => new { r.PollaId, r.UsuarioId, r.Fase, r.Tipo })
+                .IsUnique();
 
         }
     }

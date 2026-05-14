@@ -369,6 +369,69 @@ else
                 Predicciones de @usuarioPredicciones.Nombre
             </div>
             <div class="card-body p-0">
+                <div class="reopen-panel p-3 border-bottom">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label">Fase para habilitar</label>
+                            <select class="form-select form-select-sm" @bind="faseReapertura">
+                                @foreach (var fase in fasesCalendario)
+                                {
+                                    <option value="@fase">@NombreFase(fase)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Reapertura controlada</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        disabled="@(procesandoReapertura != null)"
+                                        @onclick="HabilitarMarcadores">
+                                    Habilitar marcadores
+                                </button>
+
+                                @if (faseReapertura == "Grupos")
+                                {
+                                    <button class="btn btn-sm btn-outline-success"
+                                            disabled="@(procesandoReapertura != null)"
+                                            @onclick="HabilitarClasificacion">
+                                        Habilitar clasificación
+                                    </button>
+                                }
+
+                                <button class="btn btn-sm btn-outline-warning"
+                                        disabled="@(procesandoReapertura != null)"
+                                        @onclick="HabilitarPodio">
+                                    Habilitar podio
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (reaperturasUsuario.Any())
+                    {
+                        <div class="active-reopens mt-3">
+                            <small class="text-muted d-block mb-2">Permisos activos para este usuario</small>
+                            @foreach (var reapertura in reaperturasUsuario)
+                            {
+                                <span class="reopen-chip">
+                                    @EtiquetaReapertura(reapertura)
+                                    <button type="button"
+                                            disabled="@(procesandoReapertura != null)"
+                                            @onclick="() => CambiarReapertura(reapertura.Fase, reapertura.Tipo, false)">
+                                        cerrar
+                                    </button>
+                                </span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <small class="text-muted d-block mt-2">
+                            Sin reaperturas activas. El usuario sigue sujeto a los bloqueos normales.
+                        </small>
+                    }
+                </div>
+
                 <table class="table table-sm mb-0 align-middle">
                     <thead>
                         <tr>
@@ -441,6 +504,39 @@ else
     .calendario-fecha {
         min-width: 190px;
     }
+
+    .reopen-panel {
+        background: #f8fbff;
+    }
+
+    .active-reopens {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+    }
+
+    .reopen-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        border: 1px solid #b6d4fe;
+        border-radius: 999px;
+        background: #fff;
+        color: #084298;
+        padding: .25rem .35rem .25rem .65rem;
+        font-size: .8rem;
+        font-weight: 700;
+    }
+
+    .reopen-chip button {
+        border: 0;
+        border-radius: 999px;
+        background: #e7f1ff;
+        color: #084298;
+        font-size: .72rem;
+        font-weight: 800;
+        padding: .15rem .45rem;
+    }
 </style>
 
 @code {
@@ -454,11 +550,14 @@ else
     private List<FaseAdminDto> fasesAdmin = new();
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
     private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
+    private List<ReaperturaAdminDto> reaperturasUsuario = new();
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
     private int? procesandoPartidoFecha;
+    private string? procesandoReapertura;
     private string faseCalendario = "";
+    private string faseReapertura = "Grupos";
     private string correoPrueba = "";
 
     private readonly List<string> fasesCalendario = new()
@@ -653,6 +752,7 @@ else
         pollaSeleccionada = polla;
         usuarioPredicciones = null;
         prediccionesUsuario.Clear();
+        reaperturasUsuario.Clear();
 
         miembros = await Http.GetFromJsonAsync<List<MiembroAdminDto>>(
             $"api/Admin/pollas/{polla.Id}/miembros?adminUsuarioId={Sesion.UsuarioId!.Value}") ?? new();
@@ -718,6 +818,66 @@ else
         usuarioPredicciones = miembro;
         prediccionesUsuario = await Http.GetFromJsonAsync<List<PrediccionAdminDto>>(
             $"api/Admin/predicciones?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={miembro.UsuarioId}") ?? new();
+        await CargarReaperturasUsuario();
+    }
+
+    private async Task CargarReaperturasUsuario()
+    {
+        if (pollaSeleccionada == null || usuarioPredicciones == null)
+        {
+            reaperturasUsuario.Clear();
+            return;
+        }
+
+        reaperturasUsuario = await Http.GetFromJsonAsync<List<ReaperturaAdminDto>>(
+            $"api/Admin/reaperturas?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={usuarioPredicciones.UsuarioId}") ?? new();
+    }
+
+    private Task HabilitarMarcadores()
+    {
+        return CambiarReapertura(faseReapertura, "Marcadores", true);
+    }
+
+    private Task HabilitarClasificacion()
+    {
+        return CambiarReapertura("Grupos", "Clasificacion", true);
+    }
+
+    private Task HabilitarPodio()
+    {
+        return CambiarReapertura("Podio", "Podio", true);
+    }
+
+    private async Task CambiarReapertura(string fase, string tipo, bool activa)
+    {
+        if (pollaSeleccionada == null || usuarioPredicciones == null || !Sesion.UsuarioId.HasValue)
+            return;
+
+        procesandoReapertura = $"{fase}|{tipo}";
+
+        var response = await Http.PutAsJsonAsync(
+            "api/Admin/reaperturas",
+            new AdminReaperturaRequestDto
+            {
+                AdminUsuarioId = Sesion.UsuarioId.Value,
+                PollaId = pollaSeleccionada.Id,
+                UsuarioId = usuarioPredicciones.UsuarioId,
+                Fase = fase,
+                Tipo = tipo,
+                Activa = activa
+            });
+
+        mensaje = await LeerMensajeRespuesta(response);
+        await CargarReaperturasUsuario();
+
+        procesandoReapertura = null;
+    }
+
+    private string EtiquetaReapertura(ReaperturaAdminDto reapertura)
+    {
+        return reapertura.Tipo == "Podio"
+            ? "Podio final"
+            : $"{NombreFase(reapertura.Fase)} - {reapertura.Tipo}";
     }
 
     private async Task GuardarPrediccion(PrediccionAdminDto prediccion)
@@ -750,6 +910,16 @@ else
     {
         public int AdminUsuarioId { get; set; }
         public DateTime Fecha { get; set; }
+    }
+
+    private class AdminReaperturaRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public string Fase { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public bool Activa { get; set; }
     }
 
     private class PartidoCalendarioAdminDto
@@ -812,6 +982,17 @@ else
         public string Nombre { get; set; } = "";
         public string Email { get; set; } = "";
         public bool Activo { get; set; }
+    }
+
+    private class ReaperturaAdminDto
+    {
+        public int Id { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public string Fase { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public bool Activa { get; set; }
+        public DateTime FechaActualizacion { get; set; }
     }
 
     private class PrediccionAdminDto

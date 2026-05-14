@@ -22,13 +22,14 @@ namespace WorldCup.Api.Controllers
         public async Task<IActionResult> GuardarPodio(GuardarPodioDTO dto)
         {
             int usuarioId = dto.UsuarioId;
+            var reaperturaPodio = await TieneReaperturaPodioActivaAsync(dto.PollaId, usuarioId);
 
             bool gruposTerminados = await GruposTerminados();
 
             if (!gruposTerminados)
                 return Conflict("El podio solo se puede definir tras terminar la fase de grupos");
 
-            if (await DieciseisavosIniciados())
+            if (!reaperturaPodio && await DieciseisavosIniciados())
                 return Conflict("El podio se cerró al iniciar los dieciseisavos");
 
             if (dto.CampeonId == dto.SubcampeonId ||
@@ -41,7 +42,7 @@ namespace WorldCup.Api.Controllers
                     p.PollaId == dto.PollaId &&
                     p.UsuarioId == usuarioId);
 
-            if (existente != null && existente.Bloqueada)
+            if (existente != null && existente.Bloqueada && !reaperturaPodio)
                 return Conflict("El podio ya está bloqueado");
 
             if (existente == null)
@@ -63,6 +64,10 @@ namespace WorldCup.Api.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            await RecalcularPodioUsuarioSiDefinidoAsync(dto.PollaId, usuarioId);
+            await _context.SaveChangesAsync();
+
             return Ok("✅ Podio guardado correctamente");
         }
 
@@ -73,6 +78,7 @@ namespace WorldCup.Api.Controllers
         {
             var gruposTerminados = await GruposTerminados();
             var cerrado = await DieciseisavosIniciados();
+            var reaperturaPodio = await TieneReaperturaPodioActivaAsync(pollaId, usuarioId);
             var equipos = gruposTerminados
                 ? await ObtenerEquiposPodioDisponibles()
                 : new List<object>();
@@ -92,7 +98,8 @@ namespace WorldCup.Api.Controllers
             {
                 gruposTerminados,
                 cerrado,
-                disponible = gruposTerminados && !cerrado,
+                reaperturaPodio,
+                disponible = gruposTerminados && (!cerrado || reaperturaPodio),
                 equipos,
                 prediccion
             });
@@ -143,6 +150,70 @@ namespace WorldCup.Api.Controllers
             return p.PenalesLocal > p.PenalesVisitante
                 ? p.LocalId
                 : p.VisitanteId;
+        }
+
+        private int ObtenerPerdedorId(Models.Partido p)
+        {
+            var ganador = ObtenerGanadorId(p);
+            return ganador == p.LocalId
+                ? p.VisitanteId
+                : p.LocalId;
+        }
+
+        private async Task<bool> TieneReaperturaPodioActivaAsync(int pollaId, int usuarioId)
+        {
+            return await _context.AdminReaperturasPrediccion.AnyAsync(r =>
+                r.PollaId == pollaId &&
+                r.UsuarioId == usuarioId &&
+                r.Fase == "Podio" &&
+                r.Tipo == "Podio" &&
+                r.Activa);
+        }
+
+        private async Task RecalcularPodioUsuarioSiDefinidoAsync(int pollaId, int usuarioId)
+        {
+            var final = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
+
+            var tercerPuesto = await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+
+            if (final == null || tercerPuesto == null)
+                return;
+
+            var predPodio = await _context.PrediccionesPodio
+                .FirstOrDefaultAsync(p => p.PollaId == pollaId && p.UsuarioId == usuarioId);
+
+            if (predPodio == null)
+                return;
+
+            var campeon = ObtenerGanadorId(final);
+            var subcampeon = ObtenerPerdedorId(final);
+            var tercero = ObtenerGanadorId(tercerPuesto);
+            var puntos = 0;
+
+            if (predPodio.CampeonId == campeon) puntos += 20;
+            if (predPodio.SubcampeonId == subcampeon) puntos += 10;
+            if (predPodio.TerceroId == tercero) puntos += 5;
+
+            var prediccionRepresentativa = await _context.Predicciones
+                .Include(p => p.Partido)
+                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .OrderByDescending(p => p.Partido.Fase == "Final")
+                .ThenByDescending(p => p.Partido.Fase == "TercerPuesto")
+                .ThenBy(p => p.PartidoId)
+                .FirstOrDefaultAsync();
+
+            if (prediccionRepresentativa != null)
+            {
+                prediccionRepresentativa.PuntosPodio = puntos;
+                prediccionRepresentativa.PuntosTotales =
+                    prediccionRepresentativa.PuntosMarcador +
+                    prediccionRepresentativa.PuntosClasificacion +
+                    prediccionRepresentativa.PuntosPodio;
+            }
+
+            predPodio.Bloqueada = true;
         }
 
         private async Task<bool> GruposTerminados()
