@@ -55,6 +55,23 @@ namespace WorldCup.App.Shared.Services
             );
         }
 
+        public async Task<string> CrearInvitacionAsync(
+            int pollaId,
+            CrearInvitacionPollaDto dto)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/invitaciones",
+                dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            var data = await response.Content.ReadFromJsonAsync<InvitacionCreadaDto>();
+            return data?.LinkInvitacion ?? dto.LinkInvitacion;
+        }
+
         public async Task CrearPollaAsync(CrearPollaDto dto)
         {
             await _http.PostAsJsonAsync("api/Polla", dto);
@@ -97,10 +114,10 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        public async Task<List<SolicitudIngresoDto>> GetNotificacionesAsync(int creadorId)
+        public async Task<List<NotificacionDto>> GetNotificacionesAsync(int usuarioId)
         {
-            return await _http.GetFromJsonAsync<List<SolicitudIngresoDto>>(
-                $"api/Polla/solicitudes/{creadorId}"
+            return await _http.GetFromJsonAsync<List<NotificacionDto>>(
+                $"api/Polla/notificaciones/{usuarioId}"
             ) ?? new();
         }
 
@@ -131,6 +148,29 @@ namespace WorldCup.App.Shared.Services
 
             response.EnsureSuccessStatusCode();
 
+        }
+
+        public async Task AceptarInvitacionAsync(int invitacionId, int usuarioId)
+        {
+            var response = await _http.PostAsync(
+                $"api/Polla/invitaciones/{invitacionId}/aceptar?usuarioId={usuarioId}",
+                null);
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task RechazarInvitacionAsync(int invitacionId, int usuarioId)
+        {
+            var response = await _http.PostAsync(
+                $"api/Polla/invitaciones/{invitacionId}/rechazar?usuarioId={usuarioId}",
+                null);
+
+            response.EnsureSuccessStatusCode();
+        }
+
+        private class InvitacionCreadaDto
+        {
+            public string LinkInvitacion { get; set; } = "";
         }
 
         public async Task<List<DetalleRankingDto>> GetRankingDetalleAsync(int pollaId)

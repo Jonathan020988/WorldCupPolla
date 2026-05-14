@@ -469,13 +469,43 @@ else
         Navigation.NavigateTo("/dashboard");
     }
 
-    private void Invitar()
+    private async Task Invitar()
     {
         if (string.IsNullOrWhiteSpace(emailInvitado))
+        {
+            mensaje = "Debes indicar el correo del invitado.";
+            esError = true;
             return;
+        }
 
-        // 🔹 Por ahora solo generamos el link
-        linkInvitacion = $"{Navigation.BaseUri}unirse-polla/{PollaId}";
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para invitar usuarios.";
+            esError = true;
+            return;
+        }
+
+        try
+        {
+            var link = $"{Navigation.BaseUri}unirse-polla/{PollaId}";
+            linkInvitacion = await PollasService.CrearInvitacionAsync(
+                PollaId,
+                new CrearInvitacionPollaDto
+                {
+                    RemitenteId = Sesion.UsuarioId.Value,
+                    EmailInvitado = emailInvitado,
+                    LinkInvitacion = link
+                });
+
+            mensaje = $"Invitación enviada a {emailInvitado}.";
+            esError = false;
+            emailInvitado = "";
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
     }
 
     private string nuevoPin = "";

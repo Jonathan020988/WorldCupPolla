@@ -6,16 +6,21 @@
 
 @inject PollasService PollasService
 @inject SesionService Sesion
+@inject NavigationManager Navigation
 
-<h2>🔔 Notificaciones</h2>
+<h2>Notificaciones</h2>
 
-@if (!Sesion.EstaLogueado)
+@if (cargando)
+{
+    <p>Cargando notificaciones...</p>
+}
+else if (!Sesion.EstaLogueado)
 {
     <div class="alert alert-warning">
-        Debes iniciar sesión para ver tus notificaciones.
+        Debes iniciar sesion para ver tus notificaciones.
     </div>
 }
-else if (solicitudes.Count == 0)
+else if (notificaciones.Count == 0)
 {
     <div class="alert alert-info">
         No tienes notificaciones.
@@ -24,100 +29,213 @@ else if (solicitudes.Count == 0)
 else
 {
     <ul class="list-group">
-        @foreach (var solicitud in solicitudes)
+        @foreach (var notificacion in notificaciones)
         {
             <li class="list-group-item">
-                <div class="fw-bold">
-                    👤 @solicitud.UsuarioNombre quiere unirse a
-                    <strong>@solicitud.PollaNombre</strong>
-                </div>
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <div class="fw-bold">
+                            @TituloNotificacion(notificacion)
+                        </div>
 
-                <small class="text-muted">
-                    @solicitud.FechaSolicitud.ToString("dd/MM/yyyy hh:mm tt")
-                </small>
+                        <div>
+                            @notificacion.Mensaje
+                        </div>
+                    </div>
 
-                <div class="mt-2">
-                    <span class="badge @ClaseEstado(solicitud.Estado)">
-                        @solicitud.Estado
+                    <span class="badge @ClaseTipo(notificacion.Tipo) align-self-start">
+                        @EtiquetaTipo(notificacion.Tipo)
                     </span>
                 </div>
 
-                @if (solicitud.Estado == "Pendiente")
+                <small class="text-muted">
+                    @notificacion.FechaSolicitud.ToString("dd/MM/yyyy hh:mm tt")
+                </small>
+
+                <div class="mt-2">
+                    <span class="badge @ClaseEstado(notificacion.Estado)">
+                        @notificacion.Estado
+                    </span>
+                </div>
+
+                @if (notificacion.Tipo == "SolicitudIngreso" && notificacion.Estado == "Pendiente")
                 {
                     <div class="mt-2">
                         <button class="btn btn-success btn-sm me-2"
-                                @onclick="() => Aceptar(solicitud.Id)">
-                            ✔ Aprobar
+                                @onclick="() => AceptarSolicitud(notificacion.Id)">
+                            Aprobar
                         </button>
 
                         <button class="btn btn-danger btn-sm"
-                                @onclick="() => Rechazar(solicitud.Id)">
-                            ✖ Rechazar
+                                @onclick="() => RechazarSolicitud(notificacion.Id)">
+                            Rechazar
                         </button>
                     </div>
                 }
+                else if (notificacion.Tipo == "Invitacion" && notificacion.Estado == "Pendiente")
+                {
+                    <div class="mt-2">
+                        <button class="btn btn-success btn-sm me-2"
+                                @onclick="() => AceptarInvitacion(notificacion)">
+                            Aceptar invitacion
+                        </button>
 
-                <button class="btn btn-sm btn-outline-secondary mt-2"
-                        @onclick="() => Eliminar(solicitud.Id)">
-                    🗑 Eliminar
-                </button>
+                        <button class="btn btn-outline-danger btn-sm"
+                                @onclick="() => RechazarInvitacion(notificacion.Id)">
+                            Rechazar
+                        </button>
+                    </div>
+                }
+                else if (notificacion.Tipo == "PrediccionPendiente")
+                {
+                    <button class="btn btn-primary btn-sm mt-2"
+                            @onclick="() => IrAPredicciones(notificacion)">
+                        Ir a predicciones
+                    </button>
+                }
+
+                @if (notificacion.Tipo == "SolicitudIngreso")
+                {
+                    <button class="btn btn-sm btn-outline-secondary mt-2"
+                            @onclick="() => EliminarSolicitud(notificacion.Id)">
+                        Eliminar
+                    </button>
+                }
             </li>
         }
     </ul>
 }
 
 @code {
-    private List<SolicitudIngresoDto> solicitudes = new();
+    private bool cargando = true;
+    private List<NotificacionDto> notificaciones = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await Task.Delay(50);
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
 
         if (Sesion.EstaLogueado && Sesion.UsuarioId != null)
         {
             await Cargar();
         }
+
+        cargando = false;
+        StateHasChanged();
     }
 
     private async Task Cargar()
     {
-        solicitudes = await PollasService.GetNotificacionesAsync(Sesion.UsuarioId!.Value);
+        notificaciones = await PollasService.GetNotificacionesAsync(Sesion.UsuarioId!.Value);
     }
 
-    private async Task Aceptar(int id)
+    private async Task AceptarSolicitud(int id)
     {
         await PollasService.AprobarSolicitudAsync(id);
-        await ActualizarEstadoLocal(id, "Aprobada");
+        await ActualizarEstadoLocal(id, "Aprobada", "SolicitudIngreso");
     }
 
-    private async Task Rechazar(int id)
+    private async Task RechazarSolicitud(int id)
     {
         await PollasService.RechazarSolicitudAsync(id);
-        await ActualizarEstadoLocal(id, "Rechazada");
+        await ActualizarEstadoLocal(id, "Rechazada", "SolicitudIngreso");
     }
 
-    private async Task Eliminar(int id)
+    private async Task EliminarSolicitud(int id)
     {
         await PollasService.EliminarSolicitudAsync(id);
-        solicitudes = solicitudes.Where(x => x.Id != id).ToList();
+        notificaciones = notificaciones
+            .Where(x => x.Tipo != "SolicitudIngreso" || x.Id != id)
+            .ToList();
     }
 
-    private Task ActualizarEstadoLocal(int id, string estado)
+    private async Task AceptarInvitacion(NotificacionDto notificacion)
     {
-        var solicitud = solicitudes.FirstOrDefault(x => x.Id == id);
-        if (solicitud != null)
+        await PollasService.AceptarInvitacionAsync(
+            notificacion.Id,
+            Sesion.UsuarioId!.Value);
+
+        await ActualizarEstadoLocal(notificacion.Id, "Aceptada", "Invitacion");
+
+        if (notificacion.PollaId.HasValue)
         {
-            solicitud.Estado = estado;
+            await Sesion.SeleccionarPollaAsync(
+                notificacion.PollaId.Value,
+                notificacion.PollaNombre);
+
+            Navigation.NavigateTo($"/polla/{notificacion.PollaId.Value}");
+        }
+    }
+
+    private async Task RechazarInvitacion(int id)
+    {
+        await PollasService.RechazarInvitacionAsync(id, Sesion.UsuarioId!.Value);
+        await ActualizarEstadoLocal(id, "Rechazada", "Invitacion");
+    }
+
+    private async Task IrAPredicciones(NotificacionDto notificacion)
+    {
+        if (notificacion.PollaId.HasValue)
+        {
+            await Sesion.SeleccionarPollaAsync(
+                notificacion.PollaId.Value,
+                notificacion.PollaNombre);
+        }
+
+        Navigation.NavigateTo("/predicciones");
+    }
+
+    private Task ActualizarEstadoLocal(int id, string estado, string tipo)
+    {
+        var notificacion = notificaciones.FirstOrDefault(x =>
+            x.Id == id &&
+            x.Tipo == tipo);
+
+        if (notificacion != null)
+        {
+            notificacion.Estado = estado;
         }
 
         return Task.CompletedTask;
     }
 
+    private static string TituloNotificacion(NotificacionDto notificacion) =>
+        notificacion.Tipo switch
+        {
+            "SolicitudIngreso" => "Solicitud de ingreso",
+            "Invitacion" => "Invitacion a una polla",
+            "PrediccionPendiente" => "Prediccion pendiente",
+            _ => "Notificacion"
+        };
+
+    private static string EtiquetaTipo(string tipo) =>
+        tipo switch
+        {
+            "SolicitudIngreso" => "Solicitud",
+            "Invitacion" => "Invitacion",
+            "PrediccionPendiente" => "Alerta",
+            _ => "Aviso"
+        };
+
+    private static string ClaseTipo(string tipo) =>
+        tipo switch
+        {
+            "SolicitudIngreso" => "bg-primary",
+            "Invitacion" => "bg-success",
+            "PrediccionPendiente" => "bg-warning text-dark",
+            _ => "bg-secondary"
+        };
+
     private static string ClaseEstado(string estado) =>
         estado switch
         {
-            "Pendiente" => "bg-warning",
-            "Aprobada" => "bg-success",
-            _ => "bg-danger"
+            "Pendiente" => "bg-warning text-dark",
+            "Aprobada" or "Aceptada" => "bg-success",
+            "Rechazada" => "bg-danger",
+            _ => "bg-secondary"
         };
 }

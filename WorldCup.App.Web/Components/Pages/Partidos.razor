@@ -61,9 +61,16 @@
 
     .admin-result {
         display: grid;
-        grid-template-columns: minmax(130px, 1fr) 90px 90px 90px 90px auto;
+        grid-template-columns: minmax(130px, 1fr) 90px 90px 90px 90px minmax(220px, auto);
         gap: .5rem;
         align-items: center;
+    }
+
+    .resultado-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .35rem;
     }
 
     @@media (max-width: 576px) {
@@ -155,8 +162,12 @@
 
                     @if (Sesion.EsAdmin)
                     {
+                        var resultadoEditable = ResultadoEditable(p);
+                        var tieneResultado = TieneResultadoReal(p);
+
                         <div class="admin-result mt-3">
                             <select class="form-select form-select-sm"
+                                    disabled="@(!resultadoEditable)"
                                     @bind="p.Estado">
                                 <option value="Pendiente">Pendiente</option>
                                 <option value="EnJuego">En juego</option>
@@ -168,32 +179,49 @@
                                    class="form-control form-control-sm"
                                    min="0"
                                    placeholder="Local"
+                                   disabled="@(!resultadoEditable)"
                                    @bind="p.GolesLocal" />
 
                             <input type="number"
                                    class="form-control form-control-sm"
                                    min="0"
                                    placeholder="Visitante"
+                                   disabled="@(!resultadoEditable)"
                                    @bind="p.GolesVisitante" />
 
                             <input type="number"
                                    class="form-control form-control-sm"
                                    min="0"
                                    placeholder="Pen. local"
-                                   disabled="@PenalesDeshabilitados(p)"
+                                   disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
                                    @bind="p.PenalesLocal" />
 
                             <input type="number"
                                    class="form-control form-control-sm"
                                    min="0"
                                    placeholder="Pen. visit."
-                                   disabled="@PenalesDeshabilitados(p)"
+                                   disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
                                    @bind="p.PenalesVisitante" />
 
-                            <button class="btn btn-sm btn-primary"
-                                    @onclick="() => GuardarResultadoAdmin(p)">
-                                Guardar
-                            </button>
+                            <div class="resultado-actions">
+                                <button class="btn btn-sm btn-primary"
+                                        disabled="@(!resultadoEditable)"
+                                        @onclick="() => GuardarResultadoAdmin(p)">
+                                    Guardar
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        disabled="@(resultadoEditable || !tieneResultado)"
+                                        @onclick="() => EditarResultadoAdmin(p)">
+                                    Editar
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-danger"
+                                        disabled="@(!tieneResultado)"
+                                        @onclick="() => EliminarMarcadorAdmin(p)">
+                                    Eliminar marcador
+                                </button>
+                            </div>
                         </div>
 
                         @if (erroresPartido.ContainsKey(p.Id))
@@ -215,6 +243,7 @@
     private List<PartidoDto> partidos = new();
     private List<PartidoDto> partidosFiltrados = new();
     private Dictionary<int, string> erroresPartido = new();
+    private HashSet<int> resultadosEnEdicion = new();
 
     private string? faseSeleccionada;
 
@@ -291,6 +320,27 @@
                partido.GolesLocal != partido.GolesVisitante;
     }
 
+    private bool TieneResultadoReal(PartidoDto partido)
+    {
+        return partido.GolesLocal.HasValue ||
+               partido.GolesVisitante.HasValue ||
+               partido.PenalesLocal.HasValue ||
+               partido.PenalesVisitante.HasValue ||
+               partido.Finalizado ||
+               partido.Estado != "Pendiente";
+    }
+
+    private bool ResultadoEditable(PartidoDto partido)
+    {
+        return !TieneResultadoReal(partido) ||
+               resultadosEnEdicion.Contains(partido.Id);
+    }
+
+    private void EditarResultadoAdmin(PartidoDto partido)
+    {
+        resultadosEnEdicion.Add(partido.Id);
+    }
+
     private async Task GuardarResultadoAdmin(PartidoDto partido)
     {
         if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin)
@@ -322,6 +372,43 @@
             return;
         }
 
+        partidos = await PartidosService.GetPartidosAsync();
+        resultadosEnEdicion.Remove(partido.Id);
+        FiltrarPorFase(faseSeleccionada);
+    }
+
+    private async Task EliminarMarcadorAdmin(PartidoDto partido)
+    {
+        if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        erroresPartido.Remove(partido.Id);
+
+        var dto = new AdminResultadoDto
+        {
+            AdminUsuarioId = Sesion.UsuarioId.Value,
+            Estado = "Pendiente",
+            GolesLocal = null,
+            GolesVisitante = null,
+            PenalesLocal = null,
+            PenalesVisitante = null
+        };
+
+        var response = await Http.PutAsJsonAsync(
+            $"api/Partidos/{partido.Id}/admin-resultado",
+            dto);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            erroresPartido[partido.Id] =
+                await response.Content.ReadAsStringAsync();
+            return;
+        }
+
+        resultadosEnEdicion.Remove(partido.Id);
         partidos = await PartidosService.GetPartidosAsync();
         FiltrarPorFase(faseSeleccionada);
     }

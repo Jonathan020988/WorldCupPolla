@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 using WorldCup.App.Shared.DTOs;
 
 
@@ -13,10 +14,14 @@ namespace WorldCup.Api.Controllers
     public class PollaController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly EmailService _emailService;
 
-        public PollaController(AppDbContext context)
+        public PollaController(
+            AppDbContext context,
+            EmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         // =========================================================
@@ -550,6 +555,153 @@ namespace WorldCup.Api.Controllers
             return Ok();
         }
 
+        [HttpPost("{pollaId:int}/invitaciones")]
+        public async Task<IActionResult> CrearInvitacion(
+            int pollaId,
+            [FromBody] CrearInvitacionPollaDto dto)
+        {
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            if (polla.CreadorId != dto.RemitenteId)
+                return Forbid("Solo el creador puede invitar usuarios a esta polla");
+
+            var email = NormalizarEmail(dto.EmailInvitado);
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest("Debes indicar un correo válido");
+
+            var usuarioInvitado = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+
+            if (usuarioInvitado != null)
+            {
+                var yaEsMiembro = await _context.PollaMiembros
+                    .AnyAsync(pm =>
+                        pm.PollaId == pollaId &&
+                        pm.UsuarioId == usuarioInvitado.Id);
+
+                if (yaEsMiembro)
+                    return BadRequest("Ese usuario ya pertenece a la polla");
+            }
+
+            var invitacion = await _context.PollaInvitaciones
+                .FirstOrDefaultAsync(i =>
+                    i.PollaId == pollaId &&
+                    i.EmailInvitado.ToLower() == email &&
+                    i.Estado == "Pendiente");
+
+            if (invitacion == null)
+            {
+                invitacion = new PollaInvitacion
+                {
+                    PollaId = pollaId,
+                    RemitenteId = dto.RemitenteId,
+                    EmailInvitado = email,
+                    Estado = "Pendiente",
+                    FechaEnvio = DateTime.UtcNow
+                };
+
+                _context.PollaInvitaciones.Add(invitacion);
+            }
+            else
+            {
+                invitacion.RemitenteId = dto.RemitenteId;
+                invitacion.FechaEnvio = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            var link = string.IsNullOrWhiteSpace(dto.LinkInvitacion)
+                ? $"/unirse-polla/{pollaId}"
+                : dto.LinkInvitacion;
+
+            await _emailService.EnviarInvitacionPollaAsync(
+                email,
+                usuarioInvitado?.Nombre ?? email,
+                polla.Nombre,
+                polla.Creador.Nombre,
+                link);
+
+            return Ok(new
+            {
+                invitacion.Id,
+                linkInvitacion = link
+            });
+        }
+
+        [HttpPost("invitaciones/{invitacionId:int}/aceptar")]
+        public async Task<IActionResult> AceptarInvitacion(
+            int invitacionId,
+            [FromQuery] int usuarioId)
+        {
+            var invitacion = await _context.PollaInvitaciones
+                .Include(i => i.Polla)
+                .FirstOrDefaultAsync(i => i.Id == invitacionId);
+
+            if (invitacion == null)
+                return NotFound("Invitación no encontrada");
+
+            if (invitacion.Estado != "Pendiente")
+                return BadRequest("La invitación ya fue procesada");
+
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null || !usuario.Activo)
+                return BadRequest("El usuario no existe o está inactivo");
+
+            if (NormalizarEmail(usuario.Email) != NormalizarEmail(invitacion.EmailInvitado))
+                return Forbid("Esta invitación pertenece a otro correo");
+
+            var yaEsMiembro = await _context.PollaMiembros
+                .AnyAsync(pm =>
+                    pm.PollaId == invitacion.PollaId &&
+                    pm.UsuarioId == usuarioId);
+
+            if (!yaEsMiembro)
+            {
+                _context.PollaMiembros.Add(new PollaMiembro
+                {
+                    PollaId = invitacion.PollaId,
+                    UsuarioId = usuarioId,
+                    FechaIngreso = DateTime.UtcNow
+                });
+            }
+
+            invitacion.Estado = "Aceptada";
+            invitacion.UsuarioAceptadoId = usuarioId;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { pollaId = invitacion.PollaId });
+        }
+
+        [HttpPost("invitaciones/{invitacionId:int}/rechazar")]
+        public async Task<IActionResult> RechazarInvitacion(
+            int invitacionId,
+            [FromQuery] int usuarioId)
+        {
+            var invitacion = await _context.PollaInvitaciones
+                .FirstOrDefaultAsync(i => i.Id == invitacionId);
+
+            if (invitacion == null)
+                return NotFound("Invitación no encontrada");
+
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null ||
+                NormalizarEmail(usuario.Email) != NormalizarEmail(invitacion.EmailInvitado))
+                return Forbid("Esta invitación pertenece a otro correo");
+
+            if (invitacion.Estado != "Pendiente")
+                return BadRequest("La invitación ya fue procesada");
+
+            invitacion.Estado = "Rechazada";
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
 
 
         // ================= CAMBIAR PIN =================
@@ -657,6 +809,122 @@ namespace WorldCup.Api.Controllers
             return Ok(solicitudes);
         }
 
+        [HttpGet("notificaciones/{usuarioId:int}")]
+        public async Task<IActionResult> GetNotificacionesUsuario(int usuarioId)
+        {
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null)
+                return NotFound("Usuario no encontrado");
+
+            var notificaciones = new List<NotificacionDto>();
+
+            var solicitudes = await _context.SolicitudesIngresoPolla
+                .Include(s => s.Usuario)
+                .Include(s => s.Polla)
+                .Where(s => s.Polla.CreadorId == usuarioId && s.Usuario.Activo)
+                .ToListAsync();
+
+            notificaciones.AddRange(solicitudes.Select(s => new NotificacionDto
+            {
+                Id = s.Id,
+                Tipo = "SolicitudIngreso",
+                PollaId = s.PollaId,
+                PollaNombre = s.Polla.Nombre,
+                UsuarioId = s.UsuarioId,
+                UsuarioNombre = s.Usuario.Nombre,
+                Estado = s.Estado,
+                FechaSolicitud = s.FechaSolicitud,
+                RequiereAccion = s.Estado == "Pendiente",
+                Mensaje = $"{s.Usuario.Nombre} quiere unirse a {s.Polla.Nombre}"
+            }));
+
+            var email = NormalizarEmail(usuario.Email);
+            var invitaciones = await _context.PollaInvitaciones
+                .Include(i => i.Polla)
+                .Include(i => i.Remitente)
+                .Where(i => i.EmailInvitado.ToLower() == email)
+                .ToListAsync();
+
+            notificaciones.AddRange(invitaciones.Select(i => new NotificacionDto
+            {
+                Id = i.Id,
+                Tipo = "Invitacion",
+                PollaId = i.PollaId,
+                PollaNombre = i.Polla.Nombre,
+                UsuarioId = i.RemitenteId,
+                UsuarioNombre = i.Remitente.Nombre,
+                Estado = i.Estado,
+                FechaSolicitud = i.FechaEnvio,
+                RequiereAccion = i.Estado == "Pendiente",
+                Link = $"/unirse-polla/{i.PollaId}",
+                Mensaje = $"{i.Remitente.Nombre} te invitó a la polla {i.Polla.Nombre}"
+            }));
+
+            var ahora = DateTime.UtcNow;
+            var limite = ahora.AddHours(2);
+            var pollasUsuario = await _context.PollaMiembros
+                .Include(pm => pm.Polla)
+                .Where(pm =>
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.PollaId,
+                    pm.Polla.Nombre
+                })
+                .ToListAsync();
+
+            var partidosProximos = await _context.Partidos
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p =>
+                    !p.Finalizado &&
+                    p.Estado != "Postergado" &&
+                    p.Fecha > ahora &&
+                    p.Fecha <= limite)
+                .OrderBy(p => p.Fecha)
+                .ToListAsync();
+
+            foreach (var polla in pollasUsuario)
+            {
+                foreach (var partido in partidosProximos)
+                {
+                    var tienePrediccion = await _context.Predicciones
+                        .AnyAsync(p =>
+                            p.PollaId == polla.PollaId &&
+                            p.UsuarioId == usuarioId &&
+                            p.PartidoId == partido.Id &&
+                            p.GolesLocal.HasValue &&
+                            p.GolesVisitante.HasValue);
+
+                    if (tienePrediccion)
+                    {
+                        continue;
+                    }
+
+                    notificaciones.Add(new NotificacionDto
+                    {
+                        Id = partido.Id,
+                        Tipo = "PrediccionPendiente",
+                        PollaId = polla.PollaId,
+                        PollaNombre = polla.Nombre,
+                        PartidoId = partido.Id,
+                        Partido = $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}",
+                        Estado = "Pendiente",
+                        FechaSolicitud = partido.Fecha,
+                        FechaPartido = partido.Fecha,
+                        Link = "/predicciones",
+                        Mensaje = $"Falta tu predicción de {partido.Local.Nombre} vs {partido.Visitante.Nombre} en {polla.Nombre}. El partido empieza en menos de 2 horas."
+                    });
+                }
+            }
+
+            return Ok(notificaciones
+                .OrderByDescending(n => n.Estado == "Pendiente")
+                .ThenBy(n => n.FechaSolicitud)
+                .ToList());
+        }
+
         // ================= ACEPTAR SOLICITUD =================
         [HttpPost("solicitudes/{solicitudId:int}/aprobar")]
         public async Task<IActionResult> AprobarSolicitud(int solicitudId)
@@ -722,6 +990,11 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        private static string NormalizarEmail(string? email)
+        {
+            return (email ?? "").Trim().ToLowerInvariant();
         }
 
 
