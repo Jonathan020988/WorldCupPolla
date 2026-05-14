@@ -160,7 +160,10 @@ else
                             <option value="0">Selecciona equipo</option>
                             @foreach (var equipo in podioEstado.equipos)
                             {
-                                <option value="@equipo.id">@equipo.nombre</option>
+                                <option value="@equipo.id"
+                                        disabled="@EquipoPodioOcupado(equipo.id, 1)">
+                                    @equipo.nombre
+                                </option>
                             }
                         </select>
                     </div>
@@ -170,7 +173,10 @@ else
                             <option value="0">Selecciona equipo</option>
                             @foreach (var equipo in podioEstado.equipos)
                             {
-                                <option value="@equipo.id">@equipo.nombre</option>
+                                <option value="@equipo.id"
+                                        disabled="@EquipoPodioOcupado(equipo.id, 2)">
+                                    @equipo.nombre
+                                </option>
                             }
                         </select>
                     </div>
@@ -180,7 +186,10 @@ else
                             <option value="0">Selecciona equipo</option>
                             @foreach (var equipo in podioEstado.equipos)
                             {
-                                <option value="@equipo.id">@equipo.nombre</option>
+                                <option value="@equipo.id"
+                                        disabled="@EquipoPodioOcupado(equipo.id, 3)">
+                                    @equipo.nombre
+                                </option>
                             }
                         </select>
                     </div>
@@ -289,6 +298,8 @@ else
 
                         @if (p.Fase != "Grupos")
                         {
+                            var alertaEmpate = AlertaEmpateEliminatoria(p);
+
                             <div class="prediction-extra">
                                 <select class="form-select form-select-sm"
                                         disabled="@(!editable)"
@@ -311,9 +322,16 @@ else
                                            type="checkbox"
                                            disabled="@(!editable)"
                                            @bind="predicciones[p.Id].PredicePenales" />
-                                    <span class="form-check-label">Penales</span>
+                                    <span class="form-check-label">Extra + penales</span>
                                 </label>
                             </div>
+
+                            @if (!string.IsNullOrWhiteSpace(alertaEmpate))
+                            {
+                                <div class="knockout-alert">
+                                    @alertaEmpate
+                                </div>
+                            }
                         }
 
                         <div class="prediction-footer">
@@ -576,6 +594,17 @@ else
 
     .prediction-extra .form-select {
         max-width: 260px;
+    }
+
+    .knockout-alert {
+        margin-top: .55rem;
+        padding: .55rem .7rem;
+        border: 1px solid #f2d49b;
+        border-radius: 6px;
+        background: #fff8ed;
+        color: #8a5f1b;
+        font-size: .86rem;
+        font-weight: 700;
     }
 
     .compact-check {
@@ -891,6 +920,39 @@ else
         return $"{partido.Local} vs {partido.Visitante}";
     }
 
+    private bool EquipoPodioOcupado(int equipoId, int campo)
+    {
+        return campo switch
+        {
+            1 => equipoId == podio.SubcampeonId || equipoId == podio.TerceroId,
+            2 => equipoId == podio.CampeonId || equipoId == podio.TerceroId,
+            3 => equipoId == podio.CampeonId || equipoId == podio.SubcampeonId,
+            _ => false
+        };
+    }
+
+    private string AlertaEmpateEliminatoria(PartidoDto partido)
+    {
+        if (partido.Fase == "Grupos" ||
+            !predicciones.TryGetValue(partido.Id, out var item) ||
+            !item.GolesLocal.HasValue ||
+            !item.GolesVisitante.HasValue ||
+            item.GolesLocal != item.GolesVisitante)
+        {
+            return "";
+        }
+
+        var faltaClasificado = !item.PrediceClasificadoId.HasValue;
+        var faltaDefinicion = !item.PrediceTiempoExtra && !item.PredicePenales;
+
+        if (!faltaClasificado && !faltaDefinicion)
+        {
+            return "";
+        }
+
+        return "Empate en eliminatoria: debes definir qué equipo pasa y si pasa por tiempo extra o por tiempo extra y penales.";
+    }
+
     private void EditarPartido(PartidoDto partido)
     {
         if (EstaBloqueado(partido))
@@ -937,10 +999,23 @@ else
                 item.PrediceTiempoExtra = true;
             }
 
-            if (!item.PrediceClasificadoId.HasValue &&
-                item.GolesLocal.HasValue &&
+            var esEmpate = item.GolesLocal.HasValue &&
                 item.GolesVisitante.HasValue &&
-                item.GolesLocal != item.GolesVisitante)
+                item.GolesLocal == item.GolesVisitante;
+
+            if (esEmpate)
+            {
+                if (!item.PrediceClasificadoId.HasValue ||
+                    (!item.PrediceTiempoExtra && !item.PredicePenales))
+                {
+                    mensajeGuardado = $"La predicción {NombrePartido(partido)} está empatada: debes indicar qué equipo clasifica y si pasa por tiempo extra o por penales.";
+                    guardadoConError = true;
+                    return;
+                }
+            }
+            else if (!item.PrediceClasificadoId.HasValue &&
+                item.GolesLocal.HasValue &&
+                item.GolesVisitante.HasValue)
             {
                 item.PrediceClasificadoId = item.GolesLocal > item.GolesVisitante
                     ? partido.LocalId

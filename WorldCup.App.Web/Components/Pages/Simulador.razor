@@ -19,75 +19,159 @@ else
 
     <div class="container-fluid">
 
-        @for (int i = 0; i < grupos.Count; i += 2)
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-end gap-3">
+                <div>
+                    <label class="form-label fw-bold">Simular fase de grupos por</label>
+                    <select class="form-select"
+                            style="min-width:230px"
+                            value="@modoSimulador"
+                            @onchange="CambiarModoSimulador">
+                        <option value="marcadores">Marcadores</option>
+                        <option value="posiciones">Posición en tabla</option>
+                    </select>
+                </div>
+
+                <div class="text-muted small">
+                    Por marcadores calcula la tabla automáticamente. Por posición te deja ordenar cada grupo manualmente.
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(mensajeSimulador))
         {
-            <div class="row mb-3">
+            <div class="alert @(simuladorConError ? "alert-danger" : "alert-success")">
+                @mensajeSimulador
+            </div>
+        }
 
-                @foreach (var grupo in grupos.Skip(i).Take(2))
-                {
-                    <div class="col-lg-6">
+        @if (modoSimulador == "marcadores")
+        {
+            @for (int i = 0; i < grupos.Count; i += 2)
+            {
+                <div class="row mb-3">
 
-                        <div class="card shadow-sm mb-3 border-0">
+                    @foreach (var grupo in grupos.Skip(i).Take(2))
+                    {
+                        <div class="col-lg-6">
 
-                            <div class="card-header bg-dark text-white fw-bold py-2">
-                                🏆 @grupo.Key
-                            </div>
+                            <div class="card shadow-sm mb-3 border-0">
 
-                            <div class="card-body p-2">
+                                <div class="card-header bg-dark text-white fw-bold py-2">
+                                    🏆 @grupo.Key
+                                </div>
 
-                                @foreach (var partido in grupo)
-                                {
-                                    <div class="border rounded p-2 mb-2 bg-light">
+                                <div class="card-body p-2">
 
-                                        <div class="row align-items-center text-center small">
+                                    @foreach (var partido in grupo)
+                                    {
+                                        <div class="border rounded p-2 mb-2 bg-light">
 
-                                            <div class="col-4 fw-bold">
-                                                @partido.Local
+                                            <div class="row align-items-center text-center small">
+
+                                                <div class="col-4 fw-bold">
+                                                    @partido.Local
+                                                </div>
+
+                                                <div class="col-2">
+                                                    <input type="number"
+                                                           min="0"
+                                                           class="form-control form-control-sm text-center"
+                                                           @bind="partido.GolesLocal" />
+                                                </div>
+
+                                                <div class="col-1 fw-bold">
+                                                    VS
+                                                </div>
+
+                                                <div class="col-2">
+                                                    <input type="number"
+                                                           min="0"
+                                                           class="form-control form-control-sm text-center"
+                                                           @bind="partido.GolesVisitante" />
+                                                </div>
+
+                                                <div class="col-3 fw-bold">
+                                                    @partido.Visitante
+                                                </div>
+
                                             </div>
 
-                                            <div class="col-2">
-                                                <input type="number"
-                                                       min="0"
-                                                       class="form-control form-control-sm text-center"
-                                                       @bind="partido.GolesLocal" />
-                                            </div>
+                                            <div class="text-end mt-1">
 
-                                            <div class="col-1 fw-bold">
-                                                VS
-                                            </div>
+                                                <button class="btn btn-success btn-sm py-0 px-2"
+                                                        @onclick="() => GuardarPartido(partido)">
+                                                    💾 Guardar
+                                                </button>
 
-                                            <div class="col-2">
-                                                <input type="number"
-                                                       min="0"
-                                                       class="form-control form-control-sm text-center"
-                                                       @bind="partido.GolesVisitante" />
-                                            </div>
-
-                                            <div class="col-3 fw-bold">
-                                                @partido.Visitante
                                             </div>
 
                                         </div>
+                                    }
 
-                                        <div class="text-end mt-1">
-
-                                            <button class="btn btn-success btn-sm py-0 px-2"
-                                                    @onclick="() => GuardarPartido(partido)">
-                                                💾 Guardar
-                                            </button>
-
-                                        </div>
-
-                                    </div>
-                                }
+                                </div>
 
                             </div>
 
                         </div>
+                    }
 
+                </div>
+            }
+        }
+        else
+        {
+            <div class="row">
+                @foreach (var grupo in posicionesPorGrupo.OrderBy(x => x.Key))
+                {
+                    <div class="col-md-6 mb-4">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                <strong>Grupo @grupo.Key</strong>
+
+                                <label class="form-check text-white mb-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           checked="@gruposTerceroSimulador.Contains(grupo.Key)"
+                                           disabled="@TerceroSimuladorBloqueado(grupo.Key)"
+                                           @onchange="(_ => ToggleTerceroSimulador(grupo.Key))" />
+                                    <span class="form-check-label">Mejor 3°</span>
+                                </label>
+                            </div>
+
+                            <div class="card-body p-0">
+                                <table class="table table-striped table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="padding-left:15px">Equipo</th>
+                                            <th style="width:120px">Posición</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var equipo in grupo.Value)
+                                        {
+                                            <tr>
+                                                <td style="padding-left:15px">
+                                                    <strong>@equipo.Equipo</strong>
+                                                </td>
+                                                <td>
+                                                    <select class="form-select form-select-sm"
+                                                            style="width:76px"
+                                                            @bind="equipo.Posicion">
+                                                        <option value="1" disabled="@PosicionOcupadaSimulador(grupo.Value, 1, equipo)">1</option>
+                                                        <option value="2" disabled="@PosicionOcupadaSimulador(grupo.Value, 2, equipo)">2</option>
+                                                        <option value="3" disabled="@PosicionOcupadaSimulador(grupo.Value, 3, equipo)">3</option>
+                                                        <option value="4" disabled="@PosicionOcupadaSimulador(grupo.Value, 4, equipo)">4</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 }
-
             </div>
         }
 
@@ -955,6 +1039,11 @@ else
 
     private Dictionary<string, List<EquipoGrupoDto>> tablasPorGrupo = new();
 
+    private string modoSimulador = "marcadores";
+    private string? mensajeSimulador;
+    private bool simuladorConError;
+    private Dictionary<string, List<SimuladorEquipoPosicion>> posicionesPorGrupo = new();
+    private HashSet<string> gruposTerceroSimulador = new(StringComparer.OrdinalIgnoreCase);
 
     private List<PartidoEliminacionDto> dieciseisavos = new();
     private List<PartidoEliminacionDto> octavos = new();
@@ -1065,6 +1154,8 @@ else
         partidos = await Http.GetFromJsonAsync<List<SimuladorPartidoDto>>(
             "api/Partidos/simulador"
         );
+
+        PrepararPosicionesPorGrupo();
     }
 
     private async Task GuardarPartido(SimuladorPartidoDto partido)
@@ -1083,6 +1174,22 @@ else
         mejoresTerceros.Clear();
         tablasPorGrupo.Clear();
         dieciseisavos.Clear();
+        octavos.Clear();
+        cuartos.Clear();
+        semifinales.Clear();
+        tercerPuesto.Clear();
+        final.Clear();
+
+        if (modoSimulador == "posiciones")
+        {
+            if (!ConstruirTablasDesdePosiciones())
+            {
+                return;
+            }
+
+            GenerarCrucesDieciseisavos();
+            return;
+        }
 
         var terceros = new List<EquipoGrupoDto>();
 
@@ -1101,7 +1208,7 @@ else
                     equipos.Add(partido.Local, new EquipoGrupoDto
                         {
                             Nombre = partido.Local,
-                            Grupo = grupo.Key
+                            Grupo = NormalizarGrupo(grupo.Key)
                         });
                 }
 
@@ -1110,7 +1217,7 @@ else
                     equipos.Add(partido.Visitante, new EquipoGrupoDto
                         {
                             Nombre = partido.Visitante,
-                            Grupo = grupo.Key
+                            Grupo = NormalizarGrupo(grupo.Key)
                         });
                 }
 
@@ -1147,7 +1254,7 @@ else
                 .ThenByDescending(x => x.GolesFavor)
                 .ToList();
 
-            tablasPorGrupo[grupo.Key.Trim().Replace("Grupo ", "")] = ordenados;
+            tablasPorGrupo[NormalizarGrupo(grupo.Key)] = ordenados;
 
             clasificados.Add(ordenados[0]);
             clasificados.Add(ordenados[1]);
@@ -1162,9 +1269,13 @@ else
             .Take(8)
             .ToList();
 
+        GenerarCrucesDieciseisavos();
+    }
+
+    private void GenerarCrucesDieciseisavos()
+    {
         EquipoGrupoDto Primero(string grupo) =>
-       
-        tablasPorGrupo[grupo][0];
+            tablasPorGrupo[grupo][0];
 
         EquipoGrupoDto Segundo(string grupo) =>
             tablasPorGrupo[grupo][1];
@@ -1323,6 +1434,157 @@ else
             GrupoVisitante = "2º Grupo G"
         }
     };
+
+        mensajeSimulador = "Cruces de 16avos generados correctamente.";
+        simuladorConError = false;
+    }
+
+    private void PrepararPosicionesPorGrupo()
+    {
+        posicionesPorGrupo.Clear();
+
+        if (partidos == null)
+        {
+            return;
+        }
+
+        foreach (var grupo in partidos
+            .GroupBy(p => NormalizarGrupo(p.Grupo))
+            .OrderBy(g => g.Key))
+        {
+            var equipos = grupo
+                .SelectMany(p => new[] { p.Local, p.Visitante })
+                .Where(e => !string.IsNullOrWhiteSpace(e))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(e => e)
+                .Select((equipo, index) => new SimuladorEquipoPosicion
+                {
+                    Grupo = grupo.Key,
+                    Equipo = equipo,
+                    Posicion = index + 1
+                })
+                .ToList();
+
+            posicionesPorGrupo[grupo.Key] = equipos;
+        }
+    }
+
+    private void CambiarModoSimulador(ChangeEventArgs e)
+    {
+        modoSimulador = e.Value?.ToString() == "posiciones"
+            ? "posiciones"
+            : "marcadores";
+
+        LimpiarSimulacionDesdeGrupos();
+        mensajeSimulador = null;
+    }
+
+    private void LimpiarSimulacionDesdeGrupos()
+    {
+        clasificados.Clear();
+        mejoresTerceros.Clear();
+        tablasPorGrupo.Clear();
+        dieciseisavos.Clear();
+        octavos.Clear();
+        cuartos.Clear();
+        semifinales.Clear();
+        tercerPuesto.Clear();
+        final.Clear();
+    }
+
+    private bool PosicionOcupadaSimulador(
+        List<SimuladorEquipoPosicion> grupo,
+        int posicion,
+        SimuladorEquipoPosicion actual)
+    {
+        return grupo.Any(e => e != actual && e.Posicion == posicion);
+    }
+
+    private void ToggleTerceroSimulador(string grupo)
+    {
+        grupo = NormalizarGrupo(grupo);
+
+        if (gruposTerceroSimulador.Contains(grupo))
+        {
+            gruposTerceroSimulador.Remove(grupo);
+        }
+        else if (gruposTerceroSimulador.Count < 8)
+        {
+            gruposTerceroSimulador.Add(grupo);
+        }
+    }
+
+    private bool TerceroSimuladorBloqueado(string grupo)
+    {
+        grupo = NormalizarGrupo(grupo);
+        return !gruposTerceroSimulador.Contains(grupo) &&
+               gruposTerceroSimulador.Count >= 8;
+    }
+
+    private bool ConstruirTablasDesdePosiciones()
+    {
+        if (posicionesPorGrupo.Count == 0)
+        {
+            mensajeSimulador = "No hay grupos disponibles para simular por posiciones.";
+            simuladorConError = true;
+            return false;
+        }
+
+        if (gruposTerceroSimulador.Count != 8)
+        {
+            mensajeSimulador = "Debes marcar exactamente 8 grupos como mejores terceros.";
+            simuladorConError = true;
+            return false;
+        }
+
+        foreach (var grupo in posicionesPorGrupo)
+        {
+            if (grupo.Value.Select(e => e.Posicion).Distinct().Count() != grupo.Value.Count)
+            {
+                mensajeSimulador = $"El grupo {grupo.Key} tiene posiciones repetidas.";
+                simuladorConError = true;
+                return false;
+            }
+        }
+
+        foreach (var grupo in posicionesPorGrupo.OrderBy(g => g.Key))
+        {
+            var tabla = grupo.Value
+                .OrderBy(e => e.Posicion)
+                .Select(e => new EquipoGrupoDto
+                {
+                    Nombre = e.Equipo,
+                    Grupo = grupo.Key,
+                    Puntos = PuntosSimuladosPorPosicion(e.Posicion),
+                    GolesFavor = 0,
+                    GolesContra = 0
+                })
+                .ToList();
+
+            tablasPorGrupo[grupo.Key] = tabla;
+            clasificados.Add(tabla[0]);
+            clasificados.Add(tabla[1]);
+
+            if (gruposTerceroSimulador.Contains(grupo.Key))
+            {
+                mejoresTerceros.Add(tabla[2]);
+            }
+        }
+
+        mensajeSimulador = null;
+        simuladorConError = false;
+        return true;
+    }
+
+    private static int PuntosSimuladosPorPosicion(int posicion)
+    {
+        return posicion switch
+        {
+            1 => 9,
+            2 => 6,
+            3 => 3,
+            _ => 0
+        };
     }
 
     private IEnumerable<EquipoGrupoDto> TercerosDisponiblesPara(
@@ -1432,6 +1694,13 @@ else
             return partido.Visitante;
 
         return partido.GanadorPenales ?? "";
+    }
+
+    private class SimuladorEquipoPosicion
+    {
+        public string Grupo { get; set; } = "";
+        public string Equipo { get; set; } = "";
+        public int Posicion { get; set; }
     }
 
     
