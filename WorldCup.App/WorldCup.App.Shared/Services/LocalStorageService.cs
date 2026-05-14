@@ -19,17 +19,19 @@ namespace WorldCup.App.Shared.Services
 
         public async Task SetAsync<T>(string key, T value)
         {
-            await _js.InvokeVoidAsync("localStorage.setItem", key, JsonSerializer.Serialize(value));
+            await _js.InvokeVoidAsync("sessionStorage.setItem", key, JsonSerializer.Serialize(value));
+            await _js.InvokeVoidAsync("localStorage.removeItem", key);
         }
 
         public async Task<T?> GetAsync<T>(string key)
         {
-            var json = await _js.InvokeAsync<string>("localStorage.getItem", key);
+            var json = await _js.InvokeAsync<string>("sessionStorage.getItem", key);
             return json == null ? default : JsonSerializer.Deserialize<T>(json);
         }
 
         public async Task RemoveAsync(string key)
         {
+            await _js.InvokeVoidAsync("sessionStorage.removeItem", key);
             await _js.InvokeVoidAsync("localStorage.removeItem", key);
         }
 
