@@ -153,12 +153,22 @@ namespace WorldCup.Api.Controllers
 
         private async Task<bool> DieciseisavosIniciados()
         {
-            return await _context.Partidos
-                .AnyAsync(p =>
-                    p.Fase == "Dieciseisavos" &&
-                    (p.Finalizado ||
-                     p.Estado == "EnJuego" ||
-                    p.Fecha <= ColombiaClock.Now()));
+            var ahoraColombia = ColombiaClock.Now();
+
+            var partidos = await _context.Partidos
+                .Where(p => p.Fase == "Dieciseisavos")
+                .Select(p => new
+                {
+                    p.Finalizado,
+                    p.Estado,
+                    p.Fecha
+                })
+                .ToListAsync();
+
+            return partidos.Any(p =>
+                p.Finalizado ||
+                p.Estado == "EnJuego" ||
+                p.Fecha <= ahoraColombia);
         }
 
         private async Task<List<object>> ObtenerEquiposPodioDisponibles()

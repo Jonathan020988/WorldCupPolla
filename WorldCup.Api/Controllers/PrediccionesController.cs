@@ -489,14 +489,18 @@ namespace WorldCup.Api.Controllers
             // 🔒 BLOQUEO: si ya empezó el primer partido del grupo
             var grupoNorm = dto.Grupo.ToUpper();
 
-            bool grupoYaInicio = await _context.Partidos
+            var ahoraColombia = ColombiaClock.Now();
+
+            var partidosGrupo = await _context.Partidos
                 .Include(p => p.Local)
-                .AnyAsync(p =>
+                .Where(p =>
                     p.Fase == "Grupos" &&
                     p.Local.Grupo != null &&
-                    p.Local.Grupo.ToUpper() == grupoNorm &&
-                    p.Fecha <= ColombiaClock.Now()
-                );
+                    p.Local.Grupo.ToUpper() == grupoNorm)
+                .Select(p => p.Fecha)
+                .ToListAsync();
+
+            bool grupoYaInicio = partidosGrupo.Any(fecha => fecha <= ahoraColombia);
 
 
             if (grupoYaInicio)

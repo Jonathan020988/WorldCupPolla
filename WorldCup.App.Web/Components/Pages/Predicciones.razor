@@ -96,12 +96,52 @@ else
                 </select>
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(paisFiltro))
+            <div>
+                <label class="form-label fw-bold mb-1">Filtrar por fecha</label>
+                <input class="form-control"
+                       type="date"
+                       @bind="fechaFiltro" />
+            </div>
+
+            @if (FiltrosActivos())
             {
                 <button class="btn btn-outline-secondary"
-                        @onclick="LimpiarFiltroPais">
+                        @onclick="LimpiarFiltros">
                     Ver todos
                 </button>
+            }
+        </div>
+
+        var pendientesMarcador = PartidosPendientesMarcador().ToList();
+
+        <div class="pending-predictions-panel @(pendientesMarcador.Any() ? "" : "is-complete")">
+            <div class="pending-summary">
+                <strong>Marcadores pendientes</strong>
+                <span>
+                    @(pendientesMarcador.Any()
+                        ? $"{pendientesMarcador.Count} por completar"
+                        : "Todos completos")
+                </span>
+            </div>
+
+            @if (pendientesMarcador.Any())
+            {
+                <div class="pending-list">
+                    @foreach (var partido in pendientesMarcador.Take(10))
+                    {
+                        <span class="pending-chip">
+                            @partido.Local vs @partido.Visitante
+                            <small>@partido.Fecha.ToString("dd/MM HH:mm")</small>
+                        </span>
+                    }
+
+                    @if (pendientesMarcador.Count > 10)
+                    {
+                        <span class="pending-chip more">
+                            +@(pendientesMarcador.Count - 10) más
+                        </span>
+                    }
+                </div>
             }
         </div>
     }
@@ -166,7 +206,7 @@ else
     }
     else
     {
-        var partidosVista = PartidosFiltradosPorPais().ToList();
+        var partidosVista = PartidosFiltrados().ToList();
 
         @if (!partidosVista.Any())
         {
@@ -387,6 +427,68 @@ else
         min-width: min(100%, 320px);
     }
 
+    .pending-predictions-panel {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding: .85rem 1rem;
+        border: 1px solid #f2d49b;
+        border-left: 4px solid #f0ad4e;
+        border-radius: 8px;
+        background: #fff8ed;
+    }
+
+    .pending-predictions-panel.is-complete {
+        border-color: #b7dfc1;
+        border-left-color: #198754;
+        background: #f0fbf4;
+    }
+
+    .pending-summary {
+        min-width: 190px;
+    }
+
+    .pending-summary strong {
+        display: block;
+        color: #2f3a45;
+    }
+
+    .pending-summary span {
+        color: #6b7280;
+        font-size: .9rem;
+    }
+
+    .pending-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+    }
+
+    .pending-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .28rem .55rem;
+        border: 1px solid #ead6b4;
+        border-radius: 999px;
+        background: #fff;
+        color: #344054;
+        font-size: .84rem;
+        font-weight: 600;
+    }
+
+    .pending-chip small {
+        color: #8a5f1b;
+        font-weight: 700;
+    }
+
+    .pending-chip.more {
+        background: #2f3a45;
+        border-color: #2f3a45;
+        color: white;
+    }
+
     .prediction-card {
         margin-bottom: .65rem;
         padding: .75rem;
@@ -574,6 +676,7 @@ else
     private string? mensajeGuardado;
     private bool guardadoConError;
     private string? paisFiltro;
+    private DateTime? fechaFiltro;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -629,6 +732,7 @@ else
         prediccionesGuardadas.Clear();
         prediccionesEnEdicion.Clear();
         paisFiltro = null;
+        fechaFiltro = null;
         podioEstado = null;
         podio = new();
     }
@@ -708,21 +812,28 @@ else
         }
     }
 
-    private IEnumerable<PartidoDto> PartidosFiltradosPorPais()
+    private IEnumerable<PartidoDto> PartidosFiltrados()
     {
         if (partidos == null)
         {
             return Enumerable.Empty<PartidoDto>();
         }
 
-        if (string.IsNullOrWhiteSpace(paisFiltro))
+        var query = partidos.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(paisFiltro))
         {
-            return partidos;
+            query = query.Where(p =>
+                string.Equals(p.Local, paisFiltro, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.Visitante, paisFiltro, StringComparison.OrdinalIgnoreCase));
         }
 
-        return partidos.Where(p =>
-            string.Equals(p.Local, paisFiltro, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Visitante, paisFiltro, StringComparison.OrdinalIgnoreCase));
+        if (fechaFiltro.HasValue)
+        {
+            query = query.Where(p => p.Fecha.Date == fechaFiltro.Value.Date);
+        }
+
+        return query;
     }
 
     private List<string> PaisesDisponibles()
@@ -735,9 +846,33 @@ else
             .ToList() ?? new List<string>();
     }
 
-    private void LimpiarFiltroPais()
+    private bool FiltrosActivos()
+    {
+        return !string.IsNullOrWhiteSpace(paisFiltro) || fechaFiltro.HasValue;
+    }
+
+    private void LimpiarFiltros()
     {
         paisFiltro = null;
+        fechaFiltro = null;
+    }
+
+    private IEnumerable<PartidoDto> PartidosPendientesMarcador()
+    {
+        if (partidos == null)
+        {
+            return Enumerable.Empty<PartidoDto>();
+        }
+
+        return partidos
+            .Where(p =>
+                !prediccionesGuardadas.Contains(p.Id) ||
+                !predicciones.TryGetValue(p.Id, out var prediccion) ||
+                !prediccion.GolesLocal.HasValue ||
+                !prediccion.GolesVisitante.HasValue)
+            .OrderBy(p => OrdenFase(p.Fase))
+            .ThenBy(p => p.Fecha)
+            .ThenBy(p => p.Id);
     }
 
     private bool EstaGuardada(PartidoDto partido)

@@ -139,10 +139,18 @@
                 </select>
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(paisFiltro))
+            <div>
+                <label class="form-label fw-bold mb-1">Filtrar por fecha</label>
+                <input class="form-control"
+                       type="date"
+                       @bind="fechaFiltro"
+                       @bind:after="AplicarFiltros" />
+            </div>
+
+            @if (FiltrosActivos())
             {
                 <button class="btn btn-outline-secondary"
-                        @onclick="LimpiarFiltroPais">
+                        @onclick="LimpiarFiltros">
                     Ver todos
                 </button>
             }
@@ -290,6 +298,7 @@
 
     private string? faseSeleccionada;
     private string? paisFiltro;
+    private DateTime? fechaFiltro;
 
     private readonly List<string> fasesOrdenadas = new()
     {
@@ -332,9 +341,10 @@
         AplicarFiltros();
     }
 
-    private void LimpiarFiltroPais()
+    private void LimpiarFiltros()
     {
         paisFiltro = null;
+        fechaFiltro = null;
         AplicarFiltros();
     }
 
@@ -353,7 +363,19 @@
                 .ToList();
         }
 
+        if (fechaFiltro.HasValue)
+        {
+            query = query
+                .Where(p => p.Fecha.Date == fechaFiltro.Value.Date)
+                .ToList();
+        }
+
         partidosFiltrados = query;
+    }
+
+    private bool FiltrosActivos()
+    {
+        return !string.IsNullOrWhiteSpace(paisFiltro) || fechaFiltro.HasValue;
     }
 
     private List<string> PaisesDisponibles()
