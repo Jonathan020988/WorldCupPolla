@@ -1,4 +1,5 @@
 ﻿using WorldCup.App.Shared.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using WorldCup.App.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,11 +9,6 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7092/
 if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var apiBaseUri))
 {
     throw new InvalidOperationException("Configure ApiBaseUrl con una URL absoluta valida.");
-}
-
-if (!builder.Environment.IsDevelopment() && apiBaseUri.IsLoopback)
-{
-    throw new InvalidOperationException("ApiBaseUrl no puede apuntar a localhost en produccion.");
 }
 
 var apiAccessKey = builder.Configuration["ApiAccess:Key"];
@@ -35,6 +31,12 @@ void ConfigureApiClient(HttpClient client)
 // Blazor Server
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddScoped<LocalStorageService>();
 
@@ -63,6 +65,8 @@ builder.Services.AddHttpClient<PollasService>(ConfigureApiClient);
 //builder.Services.AddScoped<PrediccionesService>();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
