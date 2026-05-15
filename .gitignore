@@ -17,6 +17,11 @@ Release/
 # Logs
 *.log
 
+# Secretos de despliegue local
+appsettings.Production.local.json
+*.pubxml.user
+deploy/secrets.*
+
 # EF migrations snapshots temporales
 *Migrations/*.Designer.cs
 

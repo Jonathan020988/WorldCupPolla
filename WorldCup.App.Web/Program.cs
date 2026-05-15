@@ -2,8 +2,35 @@
 using WorldCup.App.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+const string ApiKeyHeaderName = "X-WorldCup-Api-Key";
 
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7092/";
+if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var apiBaseUri))
+{
+    throw new InvalidOperationException("Configure ApiBaseUrl con una URL absoluta valida.");
+}
 
+if (!builder.Environment.IsDevelopment() && apiBaseUri.IsLoopback)
+{
+    throw new InvalidOperationException("ApiBaseUrl no puede apuntar a localhost en produccion.");
+}
+
+var apiAccessKey = builder.Configuration["ApiAccess:Key"];
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(apiAccessKey))
+{
+    throw new InvalidOperationException("Configure ApiAccess:Key con la misma llave privada configurada en la API.");
+}
+
+void ConfigureApiClient(HttpClient client)
+{
+    client.BaseAddress = apiBaseUri;
+
+    if (!string.IsNullOrWhiteSpace(apiAccessKey))
+    {
+        client.DefaultRequestHeaders.Remove(ApiKeyHeaderName);
+        client.DefaultRequestHeaders.Add(ApiKeyHeaderName, apiAccessKey);
+    }
+}
 
 // Blazor Server
 builder.Services.AddRazorComponents()
@@ -16,32 +43,21 @@ builder.Services.AddScoped<SesionService>();
 builder.Services.AddScoped<UsuariosService>();
 
 builder.Services.AddScoped(sp =>
-    new HttpClient
-    {
-        BaseAddress = new Uri("https://localhost:7092/")
-    });
+{
+    var client = new HttpClient();
+    ConfigureApiClient(client);
+    return client;
+});
 
 
 // HttpClient apuntando a la API (PUERTO 7092)
-builder.Services.AddHttpClient<AuthService>(client =>
-{
-    client.BaseAddress = new Uri("https://localhost:7092/");
-});
+builder.Services.AddHttpClient<AuthService>(ConfigureApiClient);
 
-builder.Services.AddHttpClient<PartidosService>(client =>
-{
-    client.BaseAddress = new Uri("https://localhost:7092/");
-});
+builder.Services.AddHttpClient<PartidosService>(ConfigureApiClient);
 
-builder.Services.AddHttpClient<PrediccionesService>(client =>
-{
-    client.BaseAddress = new Uri("https://localhost:7092/");
-});
+builder.Services.AddHttpClient<PrediccionesService>(ConfigureApiClient);
 
-builder.Services.AddHttpClient<PollasService>(client =>
-{
-    client.BaseAddress = new Uri("https://localhost:7092/");
-});
+builder.Services.AddHttpClient<PollasService>(ConfigureApiClient);
 
 // en la linea anterior se van agregando los servicios
 //builder.Services.AddScoped<PrediccionesService>();
@@ -57,6 +73,13 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    app = "WorldCup.App.Web",
+    utc = DateTime.UtcNow
+}));
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
