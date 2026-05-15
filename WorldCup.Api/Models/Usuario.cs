@@ -19,6 +19,8 @@ namespace WorldCup.Api.Models
         public string PasswordHash { get; set; } = null!;
 
         public bool Activo { get; set; } = true;
+        public bool EmailConfirmado { get; set; } = true;
+        public DateTime? EmailConfirmadoEn { get; set; }
 
         // Relaciones
         public List<Polla> PollasCreadas { get; set; } = new();

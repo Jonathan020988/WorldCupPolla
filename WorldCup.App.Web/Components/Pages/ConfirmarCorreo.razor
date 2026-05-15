@@ -1,0 +1,52 @@
+@page "/confirmar-correo"
+@rendermode InteractiveServer
+
+@inject WorldCup.App.Shared.Services.UsuariosService UsuariosService
+
+<div class="container py-5" style="max-width:520px">
+    <div class="card shadow-sm">
+        <div class="card-body p-4 text-center">
+            <h3 class="mb-3">Confirmación de correo</h3>
+
+            @if (cargando)
+            {
+                <p class="text-muted">Validando tu enlace...</p>
+            }
+            else if (string.IsNullOrWhiteSpace(error))
+            {
+                <div class="alert alert-success">
+                    Correo confirmado correctamente. Ya puedes iniciar sesión.
+                </div>
+                <a class="btn btn-primary" href="/login">Iniciar sesión</a>
+            }
+            else
+            {
+                <div class="alert alert-danger">
+                    @error
+                </div>
+                <a class="btn btn-outline-primary" href="/registro">Crear una cuenta nueva</a>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, SupplyParameterFromQuery]
+    public string? token { get; set; }
+
+    private bool cargando = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            error = "El enlace de confirmación no es válido.";
+            cargando = false;
+            return;
+        }
+
+        error = await UsuariosService.ConfirmarCorreoAsync(token);
+        cargando = false;
+    }
+}

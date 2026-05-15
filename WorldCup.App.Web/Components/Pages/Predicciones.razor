@@ -111,6 +111,18 @@ else
                        @bind="fechaFiltro" />
             </div>
 
+            <div>
+                <label class="form-label fw-bold mb-1">Filtrar por fase</label>
+                <select class="form-select"
+                        @bind="faseFiltro">
+                    <option value="">Todas las fases</option>
+                    @foreach (var fase in FasesDisponibles())
+                    {
+                        <option value="@fase">@NombreFase(fase)</option>
+                    }
+                </select>
+            </div>
+
             @if (FiltrosActivos())
             {
                 <button class="btn btn-outline-secondary"
@@ -776,6 +788,7 @@ else
     private bool guardadoConError;
     private string? paisFiltro;
     private DateTime? fechaFiltro;
+    private string? faseFiltro;
     private HashSet<string> fasesMinimizadas = new(StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -835,6 +848,7 @@ else
         fasesMinimizadas.Clear();
         paisFiltro = null;
         fechaFiltro = null;
+        faseFiltro = null;
         podioEstado = null;
         podio = new();
     }
@@ -969,6 +983,12 @@ else
             query = query.Where(p => p.Fecha.Date == fechaFiltro.Value.Date);
         }
 
+        if (!string.IsNullOrWhiteSpace(faseFiltro))
+        {
+            query = query.Where(p =>
+                string.Equals(p.Fase, faseFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
         return query;
     }
 
@@ -982,15 +1002,28 @@ else
             .ToList() ?? new List<string>();
     }
 
+    private List<string> FasesDisponibles()
+    {
+        return partidos?
+            .Select(p => p.Fase)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(OrdenFase)
+            .ToList() ?? new List<string>();
+    }
+
     private bool FiltrosActivos()
     {
-        return !string.IsNullOrWhiteSpace(paisFiltro) || fechaFiltro.HasValue;
+        return !string.IsNullOrWhiteSpace(paisFiltro) ||
+               fechaFiltro.HasValue ||
+               !string.IsNullOrWhiteSpace(faseFiltro);
     }
 
     private void LimpiarFiltros()
     {
         paisFiltro = null;
         fechaFiltro = null;
+        faseFiltro = null;
     }
 
     private IEnumerable<PartidoDto> PartidosPendientesMarcador()
@@ -1304,6 +1337,13 @@ else
         "Final" => 7,
         _ => 99
     };
+
+    private string NombreFase(string fase)
+    {
+        return fase == "TercerPuesto"
+            ? "Tercer puesto"
+            : fase;
+    }
 
     private class PodioEstadoDto
     {

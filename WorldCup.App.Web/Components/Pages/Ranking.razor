@@ -75,6 +75,25 @@
     }
     else
     {
+        @if (MundialFinalizado())
+        {
+            <div class="winners-banner">
+                <span class="winners-kicker">Polla finalizada</span>
+                <h2>Felicitaciones a los ganadores</h2>
+                <div class="winners-grid">
+                    @foreach (var ganador in ranking.Take(3))
+                    {
+                        var posicionGanador = ranking.IndexOf(ganador) + 1;
+                        <div class="winner-card winner-@posicionGanador">
+                            <span class="winner-place">@posicionGanador</span>
+                            <strong>@ganador.Usuario</strong>
+                            <small>@ganador.Puntos puntos</small>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <div class="summary-grid">
             <div class="summary-item leader">
                 <span class="summary-label">Lider</span>
@@ -430,6 +449,74 @@
         margin-bottom: .9rem;
     }
 
+    .winners-banner {
+        margin-bottom: 1rem;
+        padding: 1.3rem;
+        border: 1px solid #d6eadf;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #f3fbf6 0%, #ffffff 58%, #fff8df 100%);
+        box-shadow: 0 14px 34px rgba(22, 61, 42, .08);
+    }
+
+    .winners-kicker {
+        color: var(--green);
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .winners-banner h2 {
+        margin: .15rem 0 1rem;
+        font-size: clamp(1.45rem, 3vw, 2.2rem);
+        font-weight: 900;
+        color: var(--ink);
+    }
+
+    .winners-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: .8rem;
+    }
+
+    .winner-card {
+        display: grid;
+        gap: .2rem;
+        padding: 1rem;
+        border: 1px solid #dfe7ef;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+    .winner-card strong {
+        color: var(--ink);
+        font-size: 1.1rem;
+        font-weight: 900;
+    }
+
+    .winner-card small {
+        color: var(--muted);
+        font-weight: 800;
+    }
+
+    .winner-place {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: #2f2610;
+        font-weight: 900;
+    }
+
+    .winner-2 .winner-place {
+        background: #d9e0e7;
+    }
+
+    .winner-3 .winner-place {
+        background: #d6a987;
+    }
+
     .summary-item {
         padding: 1rem;
     }
@@ -750,7 +837,8 @@
         }
 
         .summary-grid,
-        .podium-strip {
+        .podium-strip,
+        .winners-grid {
             grid-template-columns: 1fr;
         }
     }
@@ -877,6 +965,15 @@
         return ranking.Any()
             ? (int)Math.Round(ranking.Average(r => r.Puntos))
             : 0;
+    }
+
+    private bool MundialFinalizado()
+    {
+        return ranking.Any() &&
+               rankingDetalle.Any(d =>
+                   d.Fase == "Final" &&
+                   d.ResultadoLocal.HasValue &&
+                   d.ResultadoVisitante.HasValue);
     }
 
     private string Iniciales(string nombre)

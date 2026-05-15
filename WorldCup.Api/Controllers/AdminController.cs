@@ -172,6 +172,8 @@ namespace WorldCup.Api.Controllers
                 _context.PrediccionesPodio.Where(p => p.PollaId == pollaId));
             _context.PrediccionesTerceros.RemoveRange(
                 _context.PrediccionesTerceros.Where(p => p.PollaId == pollaId));
+            _context.AdminReaperturasPrediccion.RemoveRange(
+                _context.AdminReaperturasPrediccion.Where(p => p.PollaId == pollaId));
             _context.PollaMiembros.RemoveRange(
                 _context.PollaMiembros.Where(p => p.PollaId == pollaId));
             _context.PollaInvitaciones.RemoveRange(

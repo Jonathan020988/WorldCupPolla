@@ -63,29 +63,37 @@
         
         error = null;
 
-        var result = await AuthService.LoginAsync(new LoginDto
+        try
+        {
+            var result = await AuthService.LoginAsync(new LoginDto
+                {
+                    Email = email,
+                    Password = password
+                });
+
+            if (result == null)
             {
-                Email = email,
-                Password = password
-            });
+                error = "Credenciales inválidas";
+                return;
+            }
 
-        if (result == null)
-        {
-            error = "Credenciales inválidas";
-            return;
-        }
-        await Sesion.LoginAsync(result.Id, result.Nombre, result.EsAdmin);
+            await Sesion.LoginAsync(result.Id, result.Nombre, result.EsAdmin);
         
-        if (!string.IsNullOrWhiteSpace(returnUrl))
-        {
-            Navigation.NavigateTo(returnUrl, true);
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                Navigation.NavigateTo(returnUrl, true);
+            }
+            else
+            {
+                Navigation.NavigateTo("/dashboard", true);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Navigation.NavigateTo("/dashboard", true);
+            error = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Credenciales inválidas"
+                : ex.Message;
         }
-
-
     }
 
     [Parameter, SupplyParameterFromQuery]

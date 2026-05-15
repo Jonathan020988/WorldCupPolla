@@ -74,13 +74,24 @@ namespace WorldCup.App.Shared.Services
 
         public async Task CrearPollaAsync(CrearPollaDto dto)
         {
-            await _http.PostAsJsonAsync("api/Polla", dto);
+            var response = await _http.PostAsJsonAsync("api/Polla", dto);
+            response.EnsureSuccessStatusCode();
         }
 
-        public async Task EliminarPollaAsync(int pollaId)
+        public async Task ActualizarPollaAsync(int pollaId, CrearPollaDto dto)
         {
-            var response = await _http.DeleteAsync($"api/Polla/{pollaId}");
+            var response = await _http.PutAsJsonAsync($"api/Polla/{pollaId}", dto);
             response.EnsureSuccessStatusCode();
+        }
+
+        public async Task EliminarPollaAsync(int pollaId, int solicitanteId)
+        {
+            var response = await _http.DeleteAsync($"api/Polla/{pollaId}?solicitanteId={solicitanteId}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
         }
 
         public async Task ActualizarPinAsync(int pollaId, string pin)

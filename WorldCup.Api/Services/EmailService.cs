@@ -31,6 +31,21 @@ namespace WorldCup.Api.Services
                 resetLink);
         }
 
+        public async Task EnviarConfirmacionRegistroAsync(
+            string destino,
+            string nombre,
+            string confirmLink)
+        {
+            await EnviarCorreoAsync(
+                destino,
+                "Confirma tu cuenta - WorldCup Polla",
+                $"Hola {nombre},\n\n" +
+                "Gracias por registrarte en WorldCup Polla.\n\n" +
+                $"Confirma tu correo desde este enlace:\n{confirmLink}\n\n" +
+                "Este enlace vence en 24 horas. Sin esta confirmacion no podras iniciar sesion.",
+                confirmLink);
+        }
+
         public async Task EnviarInvitacionPollaAsync(
             string destino,
             string nombreInvitado,

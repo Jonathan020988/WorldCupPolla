@@ -18,6 +18,8 @@ namespace WorldCup.App.Shared.DTOs
         public int CreadorId { get; set; }
         public int? MaximoMiembros { get; set; }
         public bool PermitirEmpatesEnEliminatoria { get; set; }
+        public decimal? ValorInscripcion { get; set; }
+        public string? MetodoPago { get; set; }
 
         // 🔑 PIN
         public string? PinIngreso { get; set; }

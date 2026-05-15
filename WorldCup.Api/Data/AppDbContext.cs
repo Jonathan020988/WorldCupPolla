@@ -29,6 +29,7 @@ namespace WorldCup.Api.Data
         public DbSet<PrediccionTercero> PrediccionesTerceros { get; set; }
 
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
 
         public DbSet<AdminReaperturaPrediccion> AdminReaperturasPrediccion { get; set; }
 
@@ -100,6 +101,15 @@ namespace WorldCup.Api.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(t => t.TokenHash);
+
+            modelBuilder.Entity<EmailVerificationToken>()
+                .HasOne(t => t.Usuario)
+                .WithMany()
+                .HasForeignKey(t => t.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<EmailVerificationToken>()
                 .HasIndex(t => t.TokenHash);
 
             modelBuilder.Entity<AdminReaperturaPrediccion>()

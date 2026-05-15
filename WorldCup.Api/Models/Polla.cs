@@ -20,6 +20,8 @@
         // Configuración especial de la polla (puntos extra, reglas)
         public int? MaximoMiembros { get; set; } // Opcional
         public bool PermitirEmpatesEnEliminatoria { get; set; } = false;
+        public decimal? ValorInscripcion { get; set; }
+        public string? MetodoPago { get; set; }
 
         // Relación con los miembros de la polla
         public List<PollaMiembro> Miembros { get; set; } = new();

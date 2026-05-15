@@ -30,5 +30,18 @@ namespace WorldCup.App.Shared.Services
                 throw new Exception(error);
             }
         }
+
+        public async Task<string?> ConfirmarCorreoAsync(string token)
+        {
+            var response = await _http.GetAsync(
+                $"api/Usuarios/confirmar-correo?token={Uri.EscapeDataString(token)}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+
+            return null;
+        }
     }
 }

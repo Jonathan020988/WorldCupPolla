@@ -81,6 +81,69 @@ else
         </div>
     }
 
+    <div class="card mt-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h5 class="mb-1">Reglas de pago de la polla</h5>
+                    <small class="text-muted">Valor de participación y método definido por el creador.</small>
+                </div>
+
+                @if (EsCreador && !editandoPolla)
+                {
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="EditarDatosPolla">
+                        Editar
+                    </button>
+                }
+            </div>
+
+            @if (editandoPolla)
+            {
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Precio</label>
+                        <input type="number"
+                               class="form-control"
+                               min="0"
+                               step="1000"
+                               @bind="valorInscripcionEdit" />
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Método de pago</label>
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="metodoPagoEdit"></textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-success btn-sm"
+                            @onclick="GuardarDatosPolla">
+                        Guardar cambios
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="CancelarDatosPolla">
+                        Cancelar
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="payment-summary mt-3">
+                    <div>
+                        <span>Precio</span>
+                        <strong>@FormatoPrecio(polla.ValorInscripcion)</strong>
+                    </div>
+                    <div>
+                        <span>Método de pago</span>
+                        <p>@(string.IsNullOrWhiteSpace(polla.MetodoPago) ? "No definido todavía." : polla.MetodoPago)</p>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
     <div class="row g-3 mt-4">
 
         <!-- 📊 Ranking -->
@@ -467,6 +530,39 @@ else
         color: #fff;
     }
 
+    .payment-summary {
+        display: grid;
+        grid-template-columns: minmax(160px, 220px) 1fr;
+        gap: 1rem;
+    }
+
+    .payment-summary > div {
+        border: 1px solid #e4e7ec;
+        border-radius: 8px;
+        background: #f8fafc;
+        padding: .8rem;
+    }
+
+    .payment-summary span {
+        display: block;
+        color: #667085;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .payment-summary strong {
+        display: block;
+        margin-top: .2rem;
+        color: #146c43;
+        font-size: 1.2rem;
+    }
+
+    .payment-summary p {
+        margin: .25rem 0 0;
+        white-space: pre-line;
+    }
+
     .detalle-fase-row td {
         background: #eef6f1;
         padding: .55rem .75rem !important;
@@ -574,6 +670,12 @@ else
         line-height: 1.45;
         white-space: pre-line;
     }
+
+    @@media (max-width: 768px) {
+        .payment-summary {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 @code {
@@ -592,6 +694,9 @@ else
     private string detallePuntosClase = "";
     private int detallePuntosValor;
     private HashSet<string> fasesDetalleMinimizadas = new(StringComparer.OrdinalIgnoreCase);
+    private bool editandoPolla;
+    private decimal? valorInscripcionEdit;
+    private string metodoPagoEdit = "";
 
     private void ToggleDetalleUsuario(string usuario)
     {
@@ -669,6 +774,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         polla = await PollasService.GetPollaAsync(PollaId);
+        PrepararDatosPolla();
         ranking = await PollasService.GetRankingAsync(PollaId);
         rankingDetalle =
             await Http.GetFromJsonAsync<List<DetalleRankingDto>>(
@@ -712,6 +818,67 @@ else
     private void VolverADashboard()
     {
         Navigation.NavigateTo("/dashboard");
+    }
+
+    private void PrepararDatosPolla()
+    {
+        valorInscripcionEdit = polla?.ValorInscripcion;
+        metodoPagoEdit = polla?.MetodoPago ?? "";
+    }
+
+    private void EditarDatosPolla()
+    {
+        PrepararDatosPolla();
+        editandoPolla = true;
+    }
+
+    private void CancelarDatosPolla()
+    {
+        editandoPolla = false;
+        PrepararDatosPolla();
+    }
+
+    private async Task GuardarDatosPolla()
+    {
+        if (polla == null || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            await PollasService.ActualizarPollaAsync(
+                PollaId,
+                new CrearPollaDto
+                {
+                    Nombre = polla.Nombre,
+                    Descripcion = polla.Descripcion,
+                    CreadorId = Sesion.UsuarioId.Value,
+                    MaximoMiembros = polla.MaximoMiembros,
+                    PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
+                    PinIngreso = polla.PinIngreso ?? "0000",
+                    ValorInscripcion = valorInscripcionEdit,
+                    MetodoPago = metodoPagoEdit
+                });
+
+            polla = await PollasService.GetPollaAsync(PollaId);
+            PrepararDatosPolla();
+            editandoPolla = false;
+            mensaje = "Datos de pago actualizados.";
+            esError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
+    }
+
+    private static string FormatoPrecio(decimal? valor)
+    {
+        return valor.HasValue && valor.Value > 0
+            ? $"${valor.Value:N0}"
+            : "No definido";
     }
 
     private async Task Invitar()

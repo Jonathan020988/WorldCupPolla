@@ -42,6 +42,9 @@ namespace WorldCup.Api.Controllers
             if (!usuario.Activo)
                 return Unauthorized("Usuario inactivo. Contacta al administrador.");
 
+            if (!usuario.EmailConfirmado)
+                return Unauthorized("Debes confirmar tu correo antes de iniciar sesión.");
+
             var passwordValida = BCrypt.Net.BCrypt.Verify(dto.Password, usuario.PasswordHash);
 
             if (!passwordValida)

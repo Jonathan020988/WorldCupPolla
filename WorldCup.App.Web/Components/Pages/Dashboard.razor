@@ -11,6 +11,13 @@
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="alert @(mensajeError ? "alert-danger" : "alert-success")">
+        @mensaje
+    </div>
+}
+
 @if (pollas == null || !pollas.Any())
 {
     <div class="alert alert-info">
@@ -46,12 +53,15 @@ else
                                 </NavLink>
                             </div>
 
-                            <!-- Eliminar a la derecha -->
-                            <button class="btn btn-sm btn-danger d-flex align-items-center gap-1"
-                                    title="Eliminar polla"
-                                    @onclick="() => ConfirmarEliminar(p.Id)">
-                                🗑 <span>Eliminar</span>
-                            </button>
+                            @if (p.CreadorId == Sesion.UsuarioId)
+                            {
+                                <!-- Eliminar a la derecha -->
+                                <button class="btn btn-sm btn-danger d-flex align-items-center gap-1"
+                                        title="Eliminar polla"
+                                        @onclick="() => ConfirmarEliminar(p)">
+                                    🗑 <span>Eliminar</span>
+                                </button>
+                            }
 
                         </div>
 
@@ -66,6 +76,8 @@ else
 @code {
 
     private List<PollaDto> pollas = new();
+    private string? mensaje;
+    private bool mensajeError;
 
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -86,8 +98,18 @@ else
     }
    
 
-    private async Task ConfirmarEliminar(int pollaId)
+    private async Task ConfirmarEliminar(PollaDto pollaEliminar)
     {
+        var pollaId = pollaEliminar.Id;
+
+        if (pollaEliminar.CantidadParticipantes > 1)
+        {
+            await JS.InvokeVoidAsync(
+                "alert",
+                "Primero debes eliminar los usuarios de la polla antes de eliminarla.");
+            return;
+        }
+
         var confirmar = await JS.InvokeAsync<bool>(
             "confirm",
             "⚠️ ¿Seguro que deseas eliminar esta polla?\n\nEsta acción NO se puede deshacer."
@@ -96,20 +118,36 @@ else
         if (!confirmar)
             return;
 
-        // 1️⃣ Eliminar en backend
-        await PollasService.EliminarPollaAsync(pollaId);
-
-        // 2️⃣ Eliminar del listado LOCAL (CLAVE 🔑)
-        var polla = pollas.FirstOrDefault(p => p.Id == pollaId);
-        if (polla != null)
-            pollas.Remove(polla);
-
-        if (Sesion.PollaActivaId == pollaId)
+        try
         {
-            await Sesion.LimpiarPollaActivaAsync();
-        }
+            if (!Sesion.UsuarioId.HasValue)
+            {
+                mensaje = "Debes iniciar sesión para eliminar una polla.";
+                mensajeError = true;
+                return;
+            }
 
-        // 3️⃣ Blazor redibuja SOLO
+            // 1️⃣ Eliminar en backend
+            await PollasService.EliminarPollaAsync(pollaId, Sesion.UsuarioId.Value);
+
+            // 2️⃣ Eliminar del listado LOCAL (CLAVE 🔑)
+            var polla = pollas.FirstOrDefault(p => p.Id == pollaId);
+            if (polla != null)
+                pollas.Remove(polla);
+
+            if (Sesion.PollaActivaId == pollaId)
+            {
+                await Sesion.LimpiarPollaActivaAsync();
+            }
+
+            mensaje = "Polla eliminada correctamente.";
+            mensajeError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            mensajeError = true;
+        }
     }
 }
 

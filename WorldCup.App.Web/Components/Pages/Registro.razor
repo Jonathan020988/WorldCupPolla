@@ -42,9 +42,15 @@
                 </div>
             }
 
+            @if (registroExitoso)
+            {
+                <div class="alert alert-success mt-2">
+                    Cuenta creada. Revisa tu correo y confirma el registro antes de iniciar sesión.
+                </div>
+            }
 
             <button class="btn btn-success w-100 mt-2"
-                    disabled="@cargando"
+                    disabled="@(cargando || registroExitoso)"
                     @onclick="Registrar">
                 Crear cuenta
             </button>
@@ -66,6 +72,7 @@
     private RegistroUsuarioDTO model = new();
     private string? error;
     private bool cargando = false;
+    private bool registroExitoso;
 
     private async Task Registrar()
     {
@@ -85,11 +92,11 @@
                 {
                     Nombre = model.Nombre,
                     Email = model.Email,
-                    Password = model.Password
+                    Password = model.Password,
+                    ConfirmUrlBase = $"{Navigation.BaseUri}confirmar-correo"
                 });
 
-            // 👉 luego redirigimos a login
-            Navigation.NavigateTo("/login");
+            registroExitoso = true;
         }
         catch (Exception ex)
         {

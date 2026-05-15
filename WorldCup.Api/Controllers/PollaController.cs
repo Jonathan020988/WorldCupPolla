@@ -39,8 +39,11 @@ namespace WorldCup.Api.Controllers
                     Descripcion = p.Descripcion,
                     CreadorId = p.CreadorId,
                     FechaCreacion = p.FechaCreacion,
+                    CantidadParticipantes = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && pm.Usuario.Activo),
                     MaximoMiembros = p.MaximoMiembros,
-                    PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria
+                    PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
+                    ValorInscripcion = p.ValorInscripcion,
+                    MetodoPago = p.MetodoPago
                 })
                 .ToListAsync();
 
@@ -65,8 +68,11 @@ namespace WorldCup.Api.Controllers
                 Descripcion = polla.Descripcion,
                 CreadorId = polla.CreadorId,
                 FechaCreacion = polla.FechaCreacion,
+                CantidadParticipantes = await _context.PollaMiembros.CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo),
                 MaximoMiembros = polla.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
+                ValorInscripcion = polla.ValorInscripcion,
+                MetodoPago = polla.MetodoPago,
                 PinIngreso = polla.PinIngreso // 👈 CLAVE
             });
         }
@@ -97,6 +103,8 @@ namespace WorldCup.Api.Controllers
                 CreadorId = dto.CreadorId,   // 🔥 AHORA SÍ
                 MaximoMiembros = dto.MaximoMiembros,
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
+                ValorInscripcion = dto.ValorInscripcion,
+                MetodoPago = dto.MetodoPago,
                 FechaCreacion = DateTime.UtcNow,
                 PinIngreso = dto.PinIngreso
             };
@@ -130,10 +138,18 @@ namespace WorldCup.Api.Controllers
             if (polla == null)
                 return NotFound();
 
+            if (polla.CreadorId != dto.CreadorId)
+                return Forbid("Solo el creador puede editar esta polla");
+
+            if (string.IsNullOrWhiteSpace(dto.Nombre))
+                return BadRequest("Nombre obligatorio");
+
             polla.Nombre = dto.Nombre;
             polla.Descripcion = dto.Descripcion;
             polla.MaximoMiembros = dto.MaximoMiembros;
             polla.PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria;
+            polla.ValorInscripcion = dto.ValorInscripcion;
+            polla.MetodoPago = dto.MetodoPago;
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -144,18 +160,41 @@ namespace WorldCup.Api.Controllers
         // DELETE: api/Polla/{id}
         // =========================================================
         [HttpDelete("{id:int}")]
-        public async Task<IActionResult> DeletePolla(int id)
+        public async Task<IActionResult> DeletePolla(
+            int id,
+            [FromQuery] int solicitanteId)
         {
             var polla = await _context.Pollas.FindAsync(id);
             if (polla == null)
                 return NotFound();
 
-            // 🔥 eliminar dependencias
-            var miembros = _context.PollaMiembros.Where(pm => pm.PollaId == id);
-            var predicciones = _context.Predicciones.Where(p => p.PollaId == id);
+            if (polla.CreadorId != solicitanteId)
+                return Forbid("Solo el creador puede eliminar esta polla");
 
-            _context.PollaMiembros.RemoveRange(miembros);
-            _context.Predicciones.RemoveRange(predicciones);
+            var miembrosExternos = await _context.PollaMiembros
+                .CountAsync(pm => pm.PollaId == id && pm.UsuarioId != polla.CreadorId);
+
+            if (miembrosExternos > 0)
+            {
+                return Conflict("Primero debes eliminar los usuarios de la polla antes de eliminarla.");
+            }
+
+            _context.AdminReaperturasPrediccion.RemoveRange(
+                _context.AdminReaperturasPrediccion.Where(r => r.PollaId == id));
+            _context.Predicciones.RemoveRange(
+                _context.Predicciones.Where(p => p.PollaId == id));
+            _context.PrediccionesGrupo.RemoveRange(
+                _context.PrediccionesGrupo.Where(p => p.PollaId == id));
+            _context.PrediccionesPodio.RemoveRange(
+                _context.PrediccionesPodio.Where(p => p.PollaId == id));
+            _context.PrediccionesTerceros.RemoveRange(
+                _context.PrediccionesTerceros.Where(p => p.PollaId == id));
+            _context.PollaInvitaciones.RemoveRange(
+                _context.PollaInvitaciones.Where(p => p.PollaId == id));
+            _context.SolicitudesIngresoPolla.RemoveRange(
+                _context.SolicitudesIngresoPolla.Where(p => p.PollaId == id));
+            _context.PollaMiembros.RemoveRange(
+                _context.PollaMiembros.Where(pm => pm.PollaId == id));
             _context.Pollas.Remove(polla);
 
             await _context.SaveChangesAsync();
@@ -746,8 +785,11 @@ namespace WorldCup.Api.Controllers
                     Descripcion = p.Descripcion,
                     CreadorId = p.CreadorId,
                     FechaCreacion = p.FechaCreacion,
+                    CantidadParticipantes = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && pm.Usuario.Activo),
                     MaximoMiembros = p.MaximoMiembros,
-                    PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria
+                    PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
+                    ValorInscripcion = p.ValorInscripcion,
+                    MetodoPago = p.MetodoPago
                 })
                 .ToListAsync();
 

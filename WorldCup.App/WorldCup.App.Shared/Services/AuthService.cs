@@ -23,7 +23,7 @@ namespace WorldCup.App.Shared.Services
             var response = await _http.PostAsJsonAsync("api/auth/login", dto);
 
             if (!response.IsSuccessStatusCode)
-                return null;
+                throw new Exception(await response.Content.ReadAsStringAsync());
 
             return await response.Content.ReadFromJsonAsync<UsuarioDto>();
         }
