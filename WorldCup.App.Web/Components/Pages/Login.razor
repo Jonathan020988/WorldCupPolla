@@ -31,9 +31,19 @@
 
             <div class="mb-3">
                 <label class="form-label">Contraseña</label>
-                <input type="password"
+                <input type="@TipoPassword"
                        class="form-control"
                        @bind="password" />
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="mostrarPasswordLogin"
+                       @bind="mostrarPassword" />
+                <label class="form-check-label" for="mostrarPasswordLogin">
+                    Mostrar contraseña
+                </label>
             </div>
 
             <button class="btn btn-primary w-100 mt-2"
@@ -57,6 +67,9 @@
     private string email = "";
     private string password = "";
     private string? error;
+    private bool mostrarPassword;
+
+    private string TipoPassword => mostrarPassword ? "text" : "password";
 
     private async Task LoginAsync()
     {
