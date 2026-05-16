@@ -10,7 +10,7 @@
         <div class="registro-header">
             <div>
                 <h3>Crear cuenta</h3>
-                <p>Regístrate y valida tu correo con un código seguro.</p>
+                <p>Registrate y valida tu correo con un codigo seguro.</p>
             </div>
         </div>
 
@@ -41,39 +41,39 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Contraseña</label>
+                <label class="form-label">Contrasena</label>
                 <input type="@TipoPassword" class="form-control" @bind="model.Password" />
             </div>
 
             <div class="mb-2">
-                <label class="form-label">Confirmar contraseña</label>
+                <label class="form-label">Confirmar contrasena</label>
                 <input type="@TipoPassword" class="form-control" @bind="model.ConfirmPassword" />
             </div>
 
             <div class="form-check mb-3">
                 <input class="form-check-input" type="checkbox" id="mostrarPassword" @bind="mostrarPassword" />
                 <label class="form-check-label" for="mostrarPassword">
-                    Mostrar contraseñas
+                    Mostrar contrasenas
                 </label>
             </div>
 
             <button class="btn btn-success w-100 mt-2"
                     disabled="@cargando"
                     @onclick="Registrar">
-                @(cargando ? "Enviando código..." : "Crear cuenta")
+                @(cargando ? "Enviando codigo..." : "Crear cuenta")
             </button>
         }
         else
         {
             <div class="codigo-panel">
-                <span class="codigo-badge">Código enviado</span>
+                <span class="codigo-badge">Codigo enviado</span>
                 <h4>Revisa tu correo</h4>
                 <p>
-                    Enviamos un código de 6 dígitos a <strong>@emailPendiente</strong>.
-                    Escríbelo aquí para activar tu cuenta.
+                    Enviamos un codigo de 6 digitos a <strong>@emailPendiente</strong>.
+                    Escribelo aqui para activar tu cuenta.
                 </p>
 
-                <label class="form-label">Código de confirmación</label>
+                <label class="form-label">Codigo de confirmacion</label>
                 <input class="form-control codigo-input"
                        inputmode="numeric"
                        maxlength="6"
@@ -84,21 +84,27 @@
                 <button class="btn btn-primary w-100 mt-3"
                         disabled="@cargando"
                         @onclick="ConfirmarCodigo">
-                    @(cargando ? "Validando..." : "Validar código")
+                    @(cargando ? "Validando..." : "Validar codigo")
                 </button>
 
                 <button class="btn btn-link w-100 mt-2"
                         disabled="@cargando"
+                        @onclick="ReenviarCodigo">
+                    Reenviar codigo
+                </button>
+
+                <button class="btn btn-link w-100"
+                        disabled="@cargando"
                         @onclick="CambiarDatos">
-                    Cambiar datos o reenviar código
+                    Cambiar datos
                 </button>
             </div>
         }
 
         <div class="text-center mt-3">
             <small class="text-muted">
-                ¿Ya tienes cuenta?
-                <a href="/login">Iniciar sesión</a>
+                Ya tienes cuenta?
+                <a href="/login">Iniciar sesion</a>
             </small>
         </div>
     </div>
@@ -115,7 +121,7 @@
                 Bienvenido a la Polla Mundial.
             </p>
             <button class="btn btn-primary w-100" @onclick="IrLogin">
-                Iniciar sesión
+                Iniciar sesion
             </button>
         </div>
     </div>
@@ -143,13 +149,13 @@
             string.IsNullOrWhiteSpace(model.Email) ||
             string.IsNullOrWhiteSpace(model.Password))
         {
-            error = "Nombre, correo y contraseña son obligatorios.";
+            error = "Nombre, correo y contrasena son obligatorios.";
             return;
         }
 
         if (model.Password != model.ConfirmPassword)
         {
-            error = "Las contraseñas no coinciden.";
+            error = "Las contrasenas no coinciden.";
             return;
         }
 
@@ -167,7 +173,7 @@
             emailPendiente = model.Email.Trim();
             codigoConfirmacion = "";
             codigoEnviado = true;
-            mensaje = "Te enviamos un código de 6 dígitos al correo registrado.";
+            mensaje = "Te enviamos un codigo de 6 digitos al correo registrado. Puede tardar unos minutos.";
         }
         catch (Exception ex)
         {
@@ -187,7 +193,7 @@
         var codigo = (codigoConfirmacion ?? "").Trim();
         if (codigo.Length != 6 || !codigo.All(char.IsDigit))
         {
-            error = "Escribe el código de 6 dígitos que llegó a tu correo.";
+            error = "Escribe el codigo de 6 digitos que llego a tu correo.";
             return;
         }
 
@@ -207,6 +213,40 @@
             }
 
             registroConfirmado = true;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task ReenviarCodigo()
+    {
+        error = null;
+        mensaje = null;
+
+        if (string.IsNullOrWhiteSpace(emailPendiente))
+        {
+            error = "No hay un correo pendiente para reenviar.";
+            return;
+        }
+
+        try
+        {
+            cargando = true;
+            var apiError = await UsuariosService.ReenviarCodigoCorreoAsync(new ReenviarCodigoCorreoDTO
+            {
+                Email = emailPendiente
+            });
+
+            if (apiError != null)
+            {
+                error = apiError;
+                return;
+            }
+
+            codigoConfirmacion = "";
+            mensaje = "Te reenviamos un codigo nuevo. Revisa tu bandeja, promociones y spam.";
         }
         finally
         {

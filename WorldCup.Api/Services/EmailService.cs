@@ -28,7 +28,7 @@ namespace WorldCup.Api.Services
                 "Recibimos una solicitud para restablecer tu contrasena.\n\n" +
                 $"Abre este enlace para crear una nueva contrasena:\n{resetLink}\n\n" +
                 "Este enlace vence en 1 hora. Si no solicitaste este cambio, puedes ignorar este correo.",
-                resetLink);
+                "recuperacion-password");
         }
 
         public async Task EnviarConfirmacionRegistroAsync(
@@ -41,11 +41,11 @@ namespace WorldCup.Api.Services
                 "Confirma tu cuenta - WorldCup Polla",
                 $"Hola {nombre},\n\n" +
                 "Gracias por registrarte en WorldCup Polla.\n\n" +
-                "Tu código de confirmación es:\n\n" +
+                "Tu codigo de confirmacion es:\n\n" +
                 $"{codigo}\n\n" +
-                "Escribe este código en la página de registro para activar tu cuenta.\n\n" +
-                "El código vence en 30 minutos. Sin esta confirmación no podrás iniciar sesión.",
-                $"codigo-confirmacion:{destino}");
+                "Escribe este codigo en la pagina de registro para activar tu cuenta.\n\n" +
+                "El codigo vence en 2 horas. Sin esta confirmacion no podras iniciar sesion.",
+                "codigo-confirmacion");
         }
 
         public async Task EnviarInvitacionPollaAsync(
@@ -55,14 +55,14 @@ namespace WorldCup.Api.Services
             string nombreRemitente,
             string linkInvitacion)
         {
-            var asunto = $"Invitación a la polla {nombrePolla}";
+            var asunto = $"Invitacion a la polla {nombrePolla}";
             var cuerpo =
                 $"Hola {nombreInvitado},\n\n" +
-                $"{nombreRemitente} te invitó a participar en la polla {nombrePolla}.\n\n" +
+                $"{nombreRemitente} te invito a participar en la polla {nombrePolla}.\n\n" +
                 $"Puedes entrar desde este enlace:\n{linkInvitacion}\n\n" +
-                "Si ya tienes cuenta, inicia sesión para aceptar la invitación.";
+                "Si ya tienes cuenta, inicia sesion para aceptar la invitacion.";
 
-            await EnviarCorreoAsync(destino, asunto, cuerpo, linkInvitacion);
+            await EnviarCorreoAsync(destino, asunto, cuerpo, "invitacion-polla");
         }
 
         public async Task EnviarCorreoPruebaAsync(string destino)
@@ -70,7 +70,7 @@ namespace WorldCup.Api.Services
             await EnviarCorreoAsync(
                 destino,
                 "Prueba de correo - WorldCup Polla",
-                "Hola,\n\nEl correo SMTP de WorldCup Polla quedó configurado correctamente.",
+                "Hola,\n\nEl correo SMTP de WorldCup Polla quedo configurado correctamente.",
                 "correo-prueba");
         }
 
@@ -128,7 +128,45 @@ namespace WorldCup.Api.Services
                 Credentials = new NetworkCredential(user, password)
             };
 
-            await client.SendMailAsync(message);
+            try
+            {
+                _logger.LogInformation(
+                    "Enviando correo SMTP a {Email} ({Referencia})",
+                    EnmascararEmail(destino),
+                    logReferencia);
+
+                await client.SendMailAsync(message);
+
+                _logger.LogInformation(
+                    "Correo SMTP enviado correctamente a {Email} ({Referencia})",
+                    EnmascararEmail(destino),
+                    logReferencia);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo SMTP a {Email} ({Referencia})",
+                    EnmascararEmail(destino),
+                    logReferencia);
+                throw;
+            }
+        }
+
+        private static string EnmascararEmail(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return "";
+            }
+
+            var at = email.IndexOf('@');
+            if (at <= 0)
+            {
+                return "***";
+            }
+
+            return $"{email[0]}***{email[at..]}";
         }
     }
 }

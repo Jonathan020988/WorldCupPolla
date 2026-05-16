@@ -20,4 +20,9 @@ namespace WorldCup.App.Shared.DTOs
         public string Email { get; set; } = string.Empty;
         public string Codigo { get; set; } = string.Empty;
     }
+
+    public class ReenviarCodigoCorreoDTO
+    {
+        public string Email { get; set; } = string.Empty;
+    }
 }

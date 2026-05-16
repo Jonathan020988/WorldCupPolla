@@ -13,6 +13,7 @@ namespace WorldCup.Api.Controllers
     [Route("api/[controller]")]
     public class UsuariosController : ControllerBase
     {
+        private const int CodigoConfirmacionHorasVigencia = 2;
         private readonly AppDbContext _context;
         private readonly EmailService _emailService;
 
@@ -92,7 +93,7 @@ namespace WorldCup.Api.Controllers
             {
                 UsuarioId = usuario.Id,
                 TokenHash = CalcularHashToken(codigo),
-                ExpiraEn = ahora.AddMinutes(30),
+                ExpiraEn = ahora.AddHours(CodigoConfirmacionHorasVigencia),
                 CreadoEn = ahora
             });
 
@@ -109,6 +110,61 @@ namespace WorldCup.Api.Controllers
                 usuario.Nombre,
                 usuario.Email,
                 mensaje = "Cuenta creada. Revisa tu correo e ingresa el codigo de 6 digitos para confirmar el registro."
+            });
+        }
+
+        [HttpPost("reenviar-codigo")]
+        public async Task<IActionResult> ReenviarCodigo([FromBody] ReenviarCodigoCorreoDTO dto)
+        {
+            var email = NormalizarEmail(dto.Email);
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return BadRequest("Debes indicar el correo registrado.");
+            }
+
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+
+            if (usuario == null)
+            {
+                return BadRequest("No encontramos una cuenta pendiente con ese correo.");
+            }
+
+            if (usuario.EmailConfirmado)
+            {
+                return Ok(new { mensaje = "La cuenta ya esta confirmada. Puedes iniciar sesion." });
+            }
+
+            var ahora = DateTime.UtcNow;
+            var tokensActivos = await _context.EmailVerificationTokens
+                .Where(t => t.UsuarioId == usuario.Id && !t.Usado && t.ExpiraEn > ahora)
+                .ToListAsync();
+
+            foreach (var tokenActivo in tokensActivos)
+            {
+                tokenActivo.Usado = true;
+            }
+
+            var codigo = GenerarCodigoConfirmacion();
+            _context.EmailVerificationTokens.Add(new EmailVerificationToken
+            {
+                UsuarioId = usuario.Id,
+                TokenHash = CalcularHashToken(codigo),
+                ExpiraEn = ahora.AddHours(CodigoConfirmacionHorasVigencia),
+                CreadoEn = ahora
+            });
+
+            await _context.SaveChangesAsync();
+
+            await _emailService.EnviarConfirmacionRegistroAsync(
+                usuario.Email,
+                usuario.Nombre,
+                codigo);
+
+            return Ok(new
+            {
+                mensaje = "Codigo reenviado. Revisa tu correo y la carpeta de spam."
             });
         }
 

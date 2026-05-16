@@ -43,6 +43,18 @@ namespace WorldCup.App.Shared.Services
             return null;
         }
 
+        public async Task<string?> ReenviarCodigoCorreoAsync(ReenviarCodigoCorreoDTO dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Usuarios/reenviar-codigo", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+
+            return null;
+        }
+
         public async Task<string?> ConfirmarCorreoAsync(string token)
         {
             var response = await _http.GetAsync(
