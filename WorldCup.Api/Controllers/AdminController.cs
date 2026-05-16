@@ -406,6 +406,71 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        [HttpDelete("usuarios/{usuarioId:int}/historial")]
+        public async Task<IActionResult> LimpiarHistorialUsuario(
+            int usuarioId,
+            [FromQuery] int adminUsuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            if (usuarioId == adminUsuarioId)
+                return BadRequest("No puedes limpiar el historial de tu propio usuario administrador.");
+
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null)
+                return NotFound("El usuario no existe");
+
+            if (usuario.Activo)
+                return BadRequest("Primero debes inactivar el usuario antes de limpiar sus registros.");
+
+            var bloqueos = await ObtenerBloqueosLimpiezaUsuario(usuarioId);
+            if (bloqueos.Any())
+            {
+                return BadRequest(
+                    "No se pueden limpiar los registros de este usuario porque todavía tiene " +
+                    string.Join(", ", bloqueos) +
+                    ". Retíralo de las pollas o conserva el usuario inactivo.");
+            }
+
+            var eliminados = 0;
+
+            eliminados += await _context.Predicciones
+                .Where(p => p.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.PrediccionesGrupo
+                .Where(p => p.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.PrediccionesPodio
+                .Where(p => p.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.PrediccionesTerceros
+                .Where(p => p.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.SolicitudesIngresoPolla
+                .Where(s => s.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.PollaInvitaciones
+                .Where(i => i.RemitenteId == usuarioId || i.UsuarioAceptadoId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.AdminReaperturasPrediccion
+                .Where(r => r.UsuarioId == usuarioId || r.AdminUsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.PasswordResetTokens
+                .Where(t => t.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            eliminados += await _context.EmailVerificationTokens
+                .Where(t => t.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+
+            return Ok(new
+            {
+                mensaje = eliminados == 0
+                    ? "El usuario no tenía registros pendientes por limpiar."
+                    : $"Se limpiaron {eliminados} registro(s). Ahora puedes eliminar el usuario."
+            });
+        }
+
         [HttpPut("predicciones/{prediccionId:int}")]
         public async Task<IActionResult> ActualizarPrediccionUsuario(
             int prediccionId,
@@ -489,6 +554,21 @@ namespace WorldCup.Api.Controllers
                 r.AdminUsuarioId == usuarioId);
             if (reaperturas > 0)
                 bloqueos.Add($"{reaperturas} reapertura(s)");
+
+            return bloqueos;
+        }
+
+        private async Task<List<string>> ObtenerBloqueosLimpiezaUsuario(int usuarioId)
+        {
+            var bloqueos = new List<string>();
+
+            var pollas = await _context.PollaMiembros.CountAsync(pm => pm.UsuarioId == usuarioId);
+            if (pollas > 0)
+                bloqueos.Add($"{pollas} polla(s)");
+
+            var pollasCreadas = await _context.Pollas.CountAsync(p => p.CreadorId == usuarioId);
+            if (pollasCreadas > 0)
+                bloqueos.Add($"{pollasCreadas} polla(s) creada(s)");
 
             return bloqueos;
         }

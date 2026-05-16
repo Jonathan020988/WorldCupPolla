@@ -311,6 +311,15 @@ else
                                         </button>
                                         @if (!usuario.Activo)
                                         {
+                                            @if (usuario.Historial > 0)
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary ms-1"
+                                                        disabled="@(!PuedeLimpiarHistorialUsuario(usuario))"
+                                                        title="@TextoLimpiezaHistorial(usuario)"
+                                                        @onclick="() => LimpiarHistorialUsuario(usuario)">
+                                                    Limpiar registros
+                                                </button>
+                                            }
                                             <button class="btn btn-sm btn-outline-danger ms-1"
                                                     disabled="@(!usuario.PuedeEliminar)"
                                                     title="@TextoUsuarioNoEliminable(usuario)"
@@ -919,6 +928,63 @@ else
         {
             await CargarMiembros(pollaSeleccionada);
         }
+    }
+
+    private async Task LimpiarHistorialUsuario(UsuarioAdminDto usuario)
+    {
+        if (!PuedeLimpiarHistorialUsuario(usuario))
+        {
+            mensaje = TextoLimpiezaHistorial(usuario);
+            return;
+        }
+
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Vas a borrar los registros de prueba asociados a {usuario.Nombre}. Esto no se puede deshacer. ¿Continuar?");
+
+        if (!confirmado)
+            return;
+
+        var response = await Http.DeleteAsync(
+            $"api/Admin/usuarios/{usuario.Id}/historial?adminUsuarioId={Sesion.UsuarioId!.Value}");
+
+        mensaje = await LeerMensajeRespuesta(response);
+
+        if (usuarioPredicciones?.UsuarioId == usuario.Id)
+        {
+            usuarioPredicciones = null;
+            prediccionesUsuario.Clear();
+            reaperturasUsuario.Clear();
+        }
+
+        await CargarPanel();
+
+        if (pollaSeleccionada != null)
+        {
+            await CargarMiembros(pollaSeleccionada);
+        }
+    }
+
+    private bool PuedeLimpiarHistorialUsuario(UsuarioAdminDto usuario)
+    {
+        return !usuario.Activo &&
+            usuario.Pollas == 0 &&
+            usuario.PollasCreadas == 0 &&
+            usuario.Historial > 0;
+    }
+
+    private string TextoLimpiezaHistorial(UsuarioAdminDto usuario)
+    {
+        if (PuedeLimpiarHistorialUsuario(usuario))
+            return "Borrar registros de prueba para permitir eliminar el usuario.";
+
+        if (usuario.Activo)
+            return "Primero debes inactivar el usuario.";
+
+        if (usuario.Pollas > 0 || usuario.PollasCreadas > 0)
+            return "Primero retira el usuario de sus pollas y verifica que no sea creador de una polla.";
+
+        return "Este usuario no tiene registros pendientes por limpiar.";
     }
 
     private string TextoUsuarioNoEliminable(UsuarioAdminDto usuario)
