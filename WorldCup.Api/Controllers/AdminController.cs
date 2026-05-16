@@ -64,14 +64,38 @@ namespace WorldCup.Api.Controllers
             if (!await EsAdmin(adminUsuarioId))
                 return Forbid();
 
-            var usuarios = await _context.Usuarios
-                .Select(u => new
+            var usuarios = await (
+                from u in _context.Usuarios
+                let pollas = _context.PollaMiembros.Count(pm => pm.UsuarioId == u.Id)
+                let pollasCreadas = _context.Pollas.Count(p => p.CreadorId == u.Id)
+                let predicciones = _context.Predicciones.Count(p => p.UsuarioId == u.Id)
+                    + _context.PrediccionesGrupo.Count(p => p.UsuarioId == u.Id)
+                    + _context.PrediccionesPodio.Count(p => p.UsuarioId == u.Id)
+                    + _context.PrediccionesTerceros.Count(p => p.UsuarioId == u.Id)
+                let solicitudes = _context.SolicitudesIngresoPolla.Count(s => s.UsuarioId == u.Id)
+                let invitaciones = _context.PollaInvitaciones.Count(i =>
+                    i.RemitenteId == u.Id ||
+                    i.UsuarioAceptadoId == u.Id)
+                let reaperturas = _context.AdminReaperturasPrediccion.Count(r =>
+                    r.UsuarioId == u.Id ||
+                    r.AdminUsuarioId == u.Id)
+                select new
                 {
                     u.Id,
                     u.Nombre,
                     u.Email,
                     u.Activo,
-                    Pollas = _context.PollaMiembros.Count(pm => pm.UsuarioId == u.Id)
+                    Pollas = pollas,
+                    PollasCreadas = pollasCreadas,
+                    Historial = predicciones + solicitudes + invitaciones + reaperturas,
+                    PuedeEliminar =
+                        !u.Activo &&
+                        pollas == 0 &&
+                        pollasCreadas == 0 &&
+                        predicciones == 0 &&
+                        solicitudes == 0 &&
+                        invitaciones == 0 &&
+                        reaperturas == 0
                 })
                 .OrderBy(u => u.Nombre)
                 .ToListAsync();
@@ -344,6 +368,44 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        [HttpDelete("usuarios/{usuarioId:int}")]
+        public async Task<IActionResult> EliminarUsuario(
+            int usuarioId,
+            [FromQuery] int adminUsuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            if (usuarioId == adminUsuarioId)
+                return BadRequest("No puedes eliminar tu propio usuario administrador.");
+
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null)
+                return NotFound("El usuario no existe");
+
+            if (usuario.Activo)
+                return BadRequest("Primero debes inactivar el usuario antes de eliminarlo.");
+
+            var bloqueos = await ObtenerBloqueosEliminacionUsuario(usuarioId);
+            if (bloqueos.Any())
+            {
+                return BadRequest(
+                    "No se puede eliminar este usuario porque tiene historial asociado: " +
+                    string.Join(", ", bloqueos) +
+                    ". Déjalo inactivo para conservar la integridad de las pollas y rankings.");
+            }
+
+            _context.PasswordResetTokens.RemoveRange(
+                _context.PasswordResetTokens.Where(t => t.UsuarioId == usuarioId));
+            _context.EmailVerificationTokens.RemoveRange(
+                _context.EmailVerificationTokens.Where(t => t.UsuarioId == usuarioId));
+
+            _context.Usuarios.Remove(usuario);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
         [HttpPut("predicciones/{prediccionId:int}")]
         public async Task<IActionResult> ActualizarPrediccionUsuario(
             int prediccionId,
@@ -392,6 +454,44 @@ namespace WorldCup.Api.Controllers
 
         private async Task<bool> EsAdmin(int usuarioId) =>
             await _adminAuthorization.EsAdminAsync(usuarioId);
+
+        private async Task<List<string>> ObtenerBloqueosEliminacionUsuario(int usuarioId)
+        {
+            var bloqueos = new List<string>();
+
+            var pollas = await _context.PollaMiembros.CountAsync(pm => pm.UsuarioId == usuarioId);
+            if (pollas > 0)
+                bloqueos.Add($"{pollas} polla(s)");
+
+            var pollasCreadas = await _context.Pollas.CountAsync(p => p.CreadorId == usuarioId);
+            if (pollasCreadas > 0)
+                bloqueos.Add($"{pollasCreadas} polla(s) creada(s)");
+
+            var predicciones = await _context.Predicciones.CountAsync(p => p.UsuarioId == usuarioId)
+                + await _context.PrediccionesGrupo.CountAsync(p => p.UsuarioId == usuarioId)
+                + await _context.PrediccionesPodio.CountAsync(p => p.UsuarioId == usuarioId)
+                + await _context.PrediccionesTerceros.CountAsync(p => p.UsuarioId == usuarioId);
+            if (predicciones > 0)
+                bloqueos.Add($"{predicciones} predicción(es)");
+
+            var solicitudes = await _context.SolicitudesIngresoPolla.CountAsync(s => s.UsuarioId == usuarioId);
+            if (solicitudes > 0)
+                bloqueos.Add($"{solicitudes} solicitud(es)");
+
+            var invitaciones = await _context.PollaInvitaciones.CountAsync(i =>
+                i.RemitenteId == usuarioId ||
+                i.UsuarioAceptadoId == usuarioId);
+            if (invitaciones > 0)
+                bloqueos.Add($"{invitaciones} invitación(es)");
+
+            var reaperturas = await _context.AdminReaperturasPrediccion.CountAsync(r =>
+                r.UsuarioId == usuarioId ||
+                r.AdminUsuarioId == usuarioId);
+            if (reaperturas > 0)
+                bloqueos.Add($"{reaperturas} reapertura(s)");
+
+            return bloqueos;
+        }
 
         private static string? NormalizarFaseReapertura(string fase)
         {

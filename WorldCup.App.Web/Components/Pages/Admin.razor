@@ -3,6 +3,7 @@
 @inject HttpClient Http
 @inject WorldCup.App.Shared.Services.SesionService Sesion
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <h2 class="mb-4">Panel administrador</h2>
 
@@ -233,8 +234,27 @@ else
 
     <div class="row g-4">
         <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header fw-bold">Usuarios</div>
+            <div class="card usuarios-admin">
+                <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span>Usuarios</span>
+                    <div class="btn-group btn-group-sm usuarios-filtro" role="group" aria-label="Filtro de usuarios">
+                        <button type="button"
+                                class="@ClaseFiltroUsuarios("Activos")"
+                                @onclick='() => CambiarFiltroUsuarios("Activos")'>
+                            Activos (@TotalUsuariosActivos)
+                        </button>
+                        <button type="button"
+                                class="@ClaseFiltroUsuarios("Inactivos")"
+                                @onclick='() => CambiarFiltroUsuarios("Inactivos")'>
+                            Inactivos (@TotalUsuariosInactivos)
+                        </button>
+                        <button type="button"
+                                class="@ClaseFiltroUsuarios("Todos")"
+                                @onclick='() => CambiarFiltroUsuarios("Todos")'>
+                            Todos (@usuarios.Count)
+                        </button>
+                    </div>
+                </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0 align-middle">
                         <thead>
@@ -243,14 +263,30 @@ else
                                 <th>Email</th>
                                 <th>Estado</th>
                                 <th class="text-end">Pollas</th>
+                                <th class="text-end">Historial</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var usuario in usuarios)
+                            @if (!UsuariosFiltrados.Any())
                             {
                                 <tr>
-                                    <td>@usuario.Nombre</td>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        No hay usuarios en este filtro.
+                                    </td>
+                                </tr>
+                            }
+
+                            @foreach (var usuario in UsuariosFiltrados)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@usuario.Nombre</div>
+                                        @if (usuario.PollasCreadas > 0)
+                                        {
+                                            <small class="text-muted">Creador de @usuario.PollasCreadas polla(s)</small>
+                                        }
+                                    </td>
                                     <td>@usuario.Email</td>
                                     <td>
                                         <span class="badge @(usuario.Activo ? "bg-success" : "bg-secondary")">
@@ -259,10 +295,29 @@ else
                                     </td>
                                     <td class="text-end">@usuario.Pollas</td>
                                     <td class="text-end">
+                                        @if (usuario.Historial > 0)
+                                        {
+                                            <span class="badge bg-light text-dark border">@usuario.Historial registro(s)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Limpio</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
                                         <button class="btn btn-sm @(usuario.Activo ? "btn-outline-warning" : "btn-outline-success")"
                                                 @onclick="() => CambiarEstadoUsuario(usuario.Id, usuario.Nombre, !usuario.Activo)">
                                             @(usuario.Activo ? "Inactivar" : "Activar")
                                         </button>
+                                        @if (!usuario.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger ms-1"
+                                                    disabled="@(!usuario.PuedeEliminar)"
+                                                    title="@TextoUsuarioNoEliminable(usuario)"
+                                                    @onclick="() => EliminarUsuario(usuario)">
+                                                Eliminar
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -537,6 +592,16 @@ else
         font-weight: 800;
         padding: .15rem .45rem;
     }
+
+    .usuarios-admin th {
+        color: #5f6b7a;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .usuarios-filtro .btn {
+        font-weight: 700;
+    }
 </style>
 
 @code {
@@ -558,6 +623,7 @@ else
     private string? procesandoReapertura;
     private string faseCalendario = "";
     private string faseReapertura = "Grupos";
+    private string filtroUsuarios = "Activos";
     private string correoPrueba = "";
 
     private readonly List<string> fasesCalendario = new()
@@ -570,6 +636,28 @@ else
         "TercerPuesto",
         "Final"
     };
+
+    private int TotalUsuariosActivos => usuarios.Count(u => u.Activo);
+    private int TotalUsuariosInactivos => usuarios.Count(u => !u.Activo);
+
+    private IEnumerable<UsuarioAdminDto> UsuariosFiltrados => filtroUsuarios switch
+    {
+        "Inactivos" => usuarios.Where(u => !u.Activo),
+        "Todos" => usuarios,
+        _ => usuarios.Where(u => u.Activo)
+    };
+
+    private void CambiarFiltroUsuarios(string filtro)
+    {
+        filtroUsuarios = filtro;
+    }
+
+    private string ClaseFiltroUsuarios(string filtro)
+    {
+        return filtroUsuarios == filtro
+            ? "btn btn-primary"
+            : "btn btn-outline-primary";
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -796,6 +884,64 @@ else
         }
     }
 
+    private async Task EliminarUsuario(UsuarioAdminDto usuario)
+    {
+        if (!usuario.PuedeEliminar)
+        {
+            mensaje = TextoUsuarioNoEliminable(usuario);
+            return;
+        }
+
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Vas a eliminar definitivamente a {usuario.Nombre}. Si luego quiere entrar, debe registrarse otra vez. ¿Continuar?");
+
+        if (!confirmado)
+            return;
+
+        var response = await Http.DeleteAsync(
+            $"api/Admin/usuarios/{usuario.Id}?adminUsuarioId={Sesion.UsuarioId!.Value}");
+
+        mensaje = response.IsSuccessStatusCode
+            ? $"{usuario.Nombre} fue eliminado definitivamente."
+            : await response.Content.ReadAsStringAsync();
+
+        if (usuarioPredicciones?.UsuarioId == usuario.Id)
+        {
+            usuarioPredicciones = null;
+            prediccionesUsuario.Clear();
+            reaperturasUsuario.Clear();
+        }
+
+        await CargarPanel();
+
+        if (pollaSeleccionada != null)
+        {
+            await CargarMiembros(pollaSeleccionada);
+        }
+    }
+
+    private string TextoUsuarioNoEliminable(UsuarioAdminDto usuario)
+    {
+        if (usuario.PuedeEliminar)
+            return "Eliminar definitivamente";
+
+        if (usuario.Activo)
+            return "Primero debes inactivar el usuario.";
+
+        var motivos = new List<string>();
+        if (usuario.Pollas > 0)
+            motivos.Add($"{usuario.Pollas} polla(s)");
+        if (usuario.PollasCreadas > 0)
+            motivos.Add($"{usuario.PollasCreadas} polla(s) creada(s)");
+        if (usuario.Historial > 0)
+            motivos.Add($"{usuario.Historial} registro(s) de historial");
+
+        return motivos.Any()
+            ? "No se puede eliminar porque tiene " + string.Join(", ", motivos) + ". Déjalo inactivo para conservar el historial."
+            : "No se puede eliminar este usuario.";
+    }
+
     private async Task EliminarPolla(PollaAdminDto polla)
     {
         var response = await Http.DeleteAsync(
@@ -965,6 +1111,9 @@ else
         public string Email { get; set; } = "";
         public bool Activo { get; set; }
         public int Pollas { get; set; }
+        public int PollasCreadas { get; set; }
+        public int Historial { get; set; }
+        public bool PuedeEliminar { get; set; }
     }
 
     private class PollaAdminDto

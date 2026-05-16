@@ -36,6 +36,17 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Nombre, correo y contrasena son obligatorios");
             }
 
+            var nombre = dto.Nombre.Trim();
+            var nombreExiste = await _context.Usuarios
+                .AnyAsync(u =>
+                    u.Nombre.ToLower() == nombre.ToLower() &&
+                    u.Email.ToLower() != email);
+
+            if (nombreExiste)
+            {
+                return Conflict("El nombre de usuario ya esta registrado. Elige otro nombre.");
+            }
+
             var usuario = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
 
@@ -46,7 +57,7 @@ namespace WorldCup.Api.Controllers
             {
                 usuario = new Usuario
                 {
-                    Nombre = dto.Nombre.Trim(),
+                    Nombre = nombre,
                     Email = email,
                     Activo = true,
                     EmailConfirmado = false,
@@ -57,7 +68,7 @@ namespace WorldCup.Api.Controllers
             }
             else
             {
-                usuario.Nombre = dto.Nombre.Trim();
+                usuario.Nombre = nombre;
                 usuario.Activo = true;
                 usuario.EmailConfirmado = false;
                 usuario.EmailConfirmadoEn = null;
