@@ -92,6 +92,76 @@ else
         </div>
     </div>
 
+    <div class="classification-checklist mt-3">
+        <div class="checklist-header">
+            <div>
+                <span class="checklist-kicker">Revision antes de continuar</span>
+                <h5>Estado de tu clasificacion</h5>
+            </div>
+            <span class="checklist-pill @(ClasificacionCompleta ? "complete" : "pending")">
+                @(ClasificacionCompleta ? "Completa" : "Pendiente")
+            </span>
+        </div>
+
+        <div class="checklist-grid">
+            <div class="checklist-metric">
+                <span>Grupos guardados</span>
+                <strong>@GruposGuardados() / 12</strong>
+            </div>
+            <div class="checklist-metric">
+                <span>Mejores terceros</span>
+                <strong>@gruposTercero.Count / 8</strong>
+            </div>
+            <div class="checklist-metric">
+                <span>Clasificados visibles</span>
+                <strong>@clasificados.Count / 32</strong>
+            </div>
+        </div>
+
+        @if (!ClasificacionCompleta)
+        {
+            <div class="pending-list">
+                @if (GruposPendientes.Any())
+                {
+                    <div class="pending-item">
+                        <strong>Falta guardar posiciones</strong>
+                        <span>@string.Join(", ", GruposPendientes.Select(g => $"Grupo {g}"))</span>
+                    </div>
+                }
+
+                @if (GruposConPosicionesIncompletas.Any())
+                {
+                    <div class="pending-item warning">
+                        <strong>Revisa posiciones repetidas o incompletas</strong>
+                        <span>@string.Join(", ", GruposConPosicionesIncompletas.Select(g => $"Grupo {g}"))</span>
+                    </div>
+                }
+
+                @if (MejoresTercerosFaltantes > 0)
+                {
+                    <div class="pending-item">
+                        <strong>Faltan mejores terceros</strong>
+                        <span>Debes seleccionar @MejoresTercerosFaltantes grupo(s) mas como mejor tercero.</span>
+                    </div>
+                }
+
+                @if (TercerosSeleccionadosSinGuardar.Any())
+                {
+                    <div class="pending-item warning">
+                        <strong>Mejores terceros sin grupo guardado</strong>
+                        <span>Guarda primero @string.Join(", ", TercerosSeleccionadosSinGuardar.Select(g => $"Grupo {g}")).</span>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="complete-message">
+                Todo esta listo: ya guardaste los 12 grupos y elegiste los 8 mejores terceros.
+            </div>
+        }
+    </div>
+
     @{
         var claseAlerta = clasificacionCerrada
             ? (clasificacionReabierta ? "alert-warning" : "alert-danger")
@@ -129,12 +199,17 @@ else
             <div class="col-md-6 mb-4">
 
 
-                <div class="card shadow-sm grupo-card @(grupo.Value.First().bloqueado ? "guardado" : "")">
+                <div class="card shadow-sm grupo-card @GrupoEstadoCss(grupo.Key, grupo.Value)">
 
 
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
 
-                        <strong>Grupo @grupo.Key</strong>
+                        <div class="d-flex align-items-center gap-2">
+                            <strong>Grupo @grupo.Key</strong>
+                            <span class="grupo-status @(grupo.Value.First().bloqueado ? "saved" : "pending")">
+                                @(grupo.Value.First().bloqueado ? "Guardado" : "Pendiente")
+                            </span>
+                        </div>
 
                         <div class="d-flex align-items-center gap-2">
 
@@ -323,6 +398,158 @@ else
 
     .grupo-card.guardado:hover {
     transform: scale(1.02);
+    }
+
+    .classification-checklist {
+        border: 1px solid #d7e6fb;
+        border-radius: 8px;
+        background: linear-gradient(180deg,#f8fbff,#ffffff);
+        box-shadow: 0 8px 24px rgba(13,110,253,.08);
+        padding: 16px;
+    }
+
+    .checklist-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .checklist-header h5 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #10233f;
+    }
+
+    .checklist-kicker {
+        display: block;
+        color: #61718a;
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .checklist-pill {
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 5px 10px;
+        white-space: nowrap;
+    }
+
+    .checklist-pill.complete {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .checklist-pill.pending {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .checklist-grid {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .checklist-metric {
+        border: 1px solid #e4edf9;
+        border-radius: 8px;
+        background: #fff;
+        padding: 10px 12px;
+    }
+
+    .checklist-metric span {
+        display: block;
+        color: #65758d;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+    .checklist-metric strong {
+        color: #10233f;
+        font-size: 1.15rem;
+    }
+
+    .pending-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .pending-item {
+        border-left: 4px solid #0d6efd;
+        border-radius: 6px;
+        background: #f3f8ff;
+        color: #14365f;
+        padding: 9px 12px;
+    }
+
+    .pending-item.warning {
+        border-left-color: #ffc107;
+        background: #fff9e8;
+        color: #5f4600;
+    }
+
+    .pending-item strong,
+    .pending-item span {
+        display: block;
+    }
+
+    .pending-item strong {
+        font-size: .86rem;
+    }
+
+    .pending-item span {
+        font-size: .84rem;
+        margin-top: 2px;
+    }
+
+    .complete-message {
+        border-radius: 6px;
+        background: #eaf7f0;
+        color: #0f5132;
+        font-weight: 700;
+        padding: 10px 12px;
+    }
+
+    .grupo-card.pendiente {
+        border: 1px solid #f2d58b;
+    }
+
+    .grupo-card.incompleto {
+        border: 2px solid #ffc107;
+    }
+
+    .grupo-status {
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 800;
+        padding: 3px 8px;
+    }
+
+    .grupo-status.saved {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .grupo-status.pending {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    @@media (max-width: 768px) {
+        .checklist-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .checklist-header {
+            align-items: stretch;
+            flex-direction: column;
+        }
     }
 
 </style>
@@ -774,6 +1001,81 @@ else
             return 0;
 
         return grupos.Count(g => g.Value.First().bloqueado);
+    }
+
+    private List<string> GruposPendientes
+    {
+        get
+        {
+            if (grupos == null)
+                return new();
+
+            return grupos
+                .Where(g => !g.Value.First().bloqueado)
+                .Select(g => g.Key)
+                .OrderBy(g => g)
+                .ToList();
+        }
+    }
+
+    private List<string> GruposConPosicionesIncompletas
+    {
+        get
+        {
+            if (grupos == null)
+                return new();
+
+            return grupos
+                .Where(g => !GrupoTienePosicionesValidas(g.Value))
+                .Select(g => g.Key)
+                .OrderBy(g => g)
+                .ToList();
+        }
+    }
+
+    private int MejoresTercerosFaltantes => Math.Max(0, 8 - gruposTercero.Count);
+
+    private List<string> TercerosSeleccionadosSinGuardar
+    {
+        get
+        {
+            if (grupos == null)
+                return new();
+
+            return gruposTercero
+                .Where(g => grupos.TryGetValue(g, out var grupo) && !grupo.First().bloqueado)
+                .OrderBy(g => g)
+                .ToList();
+        }
+    }
+
+    private bool ClasificacionCompleta =>
+        grupos != null &&
+        grupos.Count == 12 &&
+        GruposGuardados() == 12 &&
+        gruposTercero.Count == 8 &&
+        !GruposConPosicionesIncompletas.Any() &&
+        !TercerosSeleccionadosSinGuardar.Any();
+
+    private bool GrupoTienePosicionesValidas(List<EquipoGrupo> equipos)
+    {
+        var posiciones = equipos.Select(e => e.posicion).ToList();
+        return posiciones.Count == 4 &&
+            posiciones.All(p => p >= 1 && p <= 4) &&
+            posiciones.Distinct().Count() == 4 &&
+            posiciones.Contains(1) &&
+            posiciones.Contains(2) &&
+            posiciones.Contains(3);
+    }
+
+    private string GrupoEstadoCss(string grupo, List<EquipoGrupo> equipos)
+    {
+        if (!GrupoTienePosicionesValidas(equipos))
+            return "incompleto";
+
+        return equipos.First().bloqueado
+            ? "guardado"
+            : "pendiente";
     }
 
     public class ClasificacionGuardadaDto
