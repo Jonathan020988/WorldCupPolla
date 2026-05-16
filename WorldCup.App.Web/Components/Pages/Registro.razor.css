@@ -24,7 +24,6 @@
     margin-bottom: 1rem;
 }
 
-.registro-icon,
 .modal-icon {
     display: inline-grid;
     place-items: center;
@@ -119,15 +118,6 @@
         border-radius: 10px;
         padding: 1rem;
         box-shadow: 0 10px 24px rgba(16, 38, 31, 0.1);
-    }
-
-    .registro-header {
-        align-items: flex-start;
-    }
-
-    .registro-icon {
-        width: 42px;
-        height: 42px;
     }
 
     .codigo-input {

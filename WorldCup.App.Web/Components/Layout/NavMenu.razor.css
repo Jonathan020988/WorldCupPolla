@@ -28,14 +28,34 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.08rem;
-    line-height: 1.1;
+    justify-content: center;
+    width: 100%;
+    max-width: 210px;
+    min-width: 0;
+    gap: 0.16rem;
+    line-height: 1.05;
+    white-space: normal !important;
+    overflow: hidden;
 }
 
-.app-brand small {
-    font-size: 0.72rem;
+.brand-title,
+.brand-version {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.brand-title {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.brand-version {
+    font-size: 0.68rem;
     color: rgba(255, 255, 255, 0.72);
     font-weight: 500;
+    line-height: 1.1;
 }
 
 .bi {
