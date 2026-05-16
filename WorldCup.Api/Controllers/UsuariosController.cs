@@ -33,64 +33,127 @@ namespace WorldCup.Api.Controllers
                 string.IsNullOrWhiteSpace(email) ||
                 string.IsNullOrWhiteSpace(dto.Password))
             {
-                return BadRequest("Nombre, correo y contraseña son obligatorios");
+                return BadRequest("Nombre, correo y contrasena son obligatorios");
             }
 
-            var existe = await _context.Usuarios
-                .AnyAsync(u => u.Email.ToLower() == email);
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
 
-            if (existe)
-                return Conflict("El correo ya está registrado");
+            if (usuario != null && usuario.EmailConfirmado)
+                return Conflict("El correo ya esta registrado");
 
-            var usuario = new Usuario
+            if (usuario == null)
             {
-                Nombre = dto.Nombre.Trim(),
-                Email = email,
-                Activo = true,
-                EmailConfirmado = false,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
-            };
+                usuario = new Usuario
+                {
+                    Nombre = dto.Nombre.Trim(),
+                    Email = email,
+                    Activo = true,
+                    EmailConfirmado = false,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
+                };
 
-            _context.Usuarios.Add(usuario);
+                _context.Usuarios.Add(usuario);
+            }
+            else
+            {
+                usuario.Nombre = dto.Nombre.Trim();
+                usuario.Activo = true;
+                usuario.EmailConfirmado = false;
+                usuario.EmailConfirmadoEn = null;
+                usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            }
+
             await _context.SaveChangesAsync();
 
-            var token = GenerarTokenSeguro();
+            var ahora = DateTime.UtcNow;
+            var tokensActivos = await _context.EmailVerificationTokens
+                .Where(t => t.UsuarioId == usuario.Id && !t.Usado && t.ExpiraEn > ahora)
+                .ToListAsync();
+
+            foreach (var tokenActivo in tokensActivos)
+            {
+                tokenActivo.Usado = true;
+            }
+
+            var codigo = GenerarCodigoConfirmacion();
             _context.EmailVerificationTokens.Add(new EmailVerificationToken
             {
                 UsuarioId = usuario.Id,
-                TokenHash = CalcularHashToken(token),
-                ExpiraEn = DateTime.UtcNow.AddHours(24),
-                CreadoEn = DateTime.UtcNow
+                TokenHash = CalcularHashToken(codigo),
+                ExpiraEn = ahora.AddMinutes(30),
+                CreadoEn = ahora
             });
 
             await _context.SaveChangesAsync();
 
-            var confirmUrlBase = string.IsNullOrWhiteSpace(dto.ConfirmUrlBase)
-                ? "http://localhost:5000/confirmar-correo"
-                : dto.ConfirmUrlBase.Trim();
-
-            var separador = confirmUrlBase.Contains('?') ? '&' : '?';
-            var confirmLink = $"{confirmUrlBase}{separador}token={Uri.EscapeDataString(token)}";
-
             await _emailService.EnviarConfirmacionRegistroAsync(
                 usuario.Email,
                 usuario.Nombre,
-                confirmLink);
+                codigo);
 
             return Ok(new
             {
                 usuario.Id,
                 usuario.Nombre,
                 usuario.Email,
-                mensaje = "Cuenta creada. Revisa tu correo para confirmar el registro."
+                mensaje = "Cuenta creada. Revisa tu correo e ingresa el codigo de 6 digitos para confirmar el registro."
             });
+        }
+
+        [HttpPost("confirmar-codigo")]
+        public async Task<IActionResult> ConfirmarCodigo([FromBody] ConfirmarCodigoCorreoDTO dto)
+        {
+            var email = NormalizarEmail(dto.Email);
+            var codigo = (dto.Codigo ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || codigo.Length != 6 || !codigo.All(char.IsDigit))
+            {
+                return BadRequest("El codigo de confirmacion no es valido.");
+            }
+
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+
+            if (usuario == null)
+            {
+                return BadRequest("El codigo de confirmacion no es valido.");
+            }
+
+            if (usuario.EmailConfirmado)
+            {
+                return Ok(new { mensaje = "Correo confirmado correctamente. Ya puedes iniciar sesion." });
+            }
+
+            var codigoHash = CalcularHashToken(codigo);
+            var ahora = DateTime.UtcNow;
+
+            var verificacion = await _context.EmailVerificationTokens
+                .FirstOrDefaultAsync(t =>
+                    t.UsuarioId == usuario.Id &&
+                    t.TokenHash == codigoHash &&
+                    !t.Usado &&
+                    t.ExpiraEn > ahora);
+
+            if (verificacion == null)
+            {
+                return BadRequest("El codigo no coincide o ya vencio.");
+            }
+
+            usuario.EmailConfirmado = true;
+            usuario.EmailConfirmadoEn = ahora;
+            verificacion.Usado = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = "Correo confirmado correctamente. Ya puedes iniciar sesion." });
         }
 
         [HttpGet("confirmar-correo")]
         public async Task<IActionResult> ConfirmarCorreo([FromQuery] string token)
         {
             if (string.IsNullOrWhiteSpace(token))
-                return BadRequest("El enlace de confirmación no es válido.");
+                return BadRequest("El enlace de confirmacion no es valido.");
 
             var tokenHash = CalcularHashToken(token.Trim());
             var ahora = DateTime.UtcNow;
@@ -103,7 +166,7 @@ namespace WorldCup.Api.Controllers
                     t.ExpiraEn > ahora);
 
             if (verificacion == null)
-                return BadRequest("El enlace no es válido o ya venció.");
+                return BadRequest("El enlace no es valido o ya vencio.");
 
             verificacion.Usuario.EmailConfirmado = true;
             verificacion.Usuario.EmailConfirmadoEn = ahora;
@@ -111,7 +174,7 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Correo confirmado correctamente. Ya puedes iniciar sesión." });
+            return Ok(new { mensaje = "Correo confirmado correctamente. Ya puedes iniciar sesion." });
         }
 
         private static string NormalizarEmail(string? email)
@@ -119,13 +182,9 @@ namespace WorldCup.Api.Controllers
             return (email ?? "").Trim().ToLowerInvariant();
         }
 
-        private static string GenerarTokenSeguro()
+        private static string GenerarCodigoConfirmacion()
         {
-            var bytes = RandomNumberGenerator.GetBytes(32);
-            return Convert.ToBase64String(bytes)
-                .Replace("+", "-")
-                .Replace("/", "_")
-                .TrimEnd('=');
+            return RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
         }
 
         private static string CalcularHashToken(string token)

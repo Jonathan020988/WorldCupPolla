@@ -24,6 +24,20 @@
     font-size: 1.1rem;
 }
 
+.app-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.08rem;
+    line-height: 1.1;
+}
+
+.app-brand small {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 500;
+}
+
 .bi {
     display: inline-block;
     position: relative;
@@ -101,5 +115,15 @@
         /* Allow sidebar to scroll for tall menus */
         height: calc(100vh - 3.5rem);
         overflow-y: auto;
+    }
+}
+
+@media (max-width: 640.98px) {
+    .top-row {
+        min-height: 4rem;
+    }
+
+    .navbar-toggler {
+        top: 0.75rem;
     }
 }

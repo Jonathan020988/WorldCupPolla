@@ -1,20 +1,36 @@
-﻿@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.DTOs
 @inject WorldCup.App.Shared.Services.UsuariosService UsuariosService
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
 @page "/registro"
 
-<div class="container py-5" style="max-width:480px">
+<div class="registro-page">
+    <div class="registro-card">
+        <div class="registro-header">
+            <span class="registro-icon">WC</span>
+            <div>
+                <h3>Crear cuenta</h3>
+                <p>Regístrate y valida tu correo con un código seguro.</p>
+            </div>
+        </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body p-4">
+        @if (error != null)
+        {
+            <div class="alert alert-danger mt-3">
+                @error
+            </div>
+        }
 
-            <h3 class="text-center mb-3">📝 Crear cuenta</h3>
-            <p class="text-muted text-center small">
-                Regístrate y crea tu propia polla
-            </p>
+        @if (mensaje != null)
+        {
+            <div class="alert alert-success mt-3">
+                @mensaje
+            </div>
+        }
 
+        @if (!codigoEnviado)
+        {
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
                 <input class="form-control" placeholder="Tu nombre" @bind="model.Nombre" />
@@ -27,60 +43,114 @@
 
             <div class="mb-3">
                 <label class="form-label">Contraseña</label>
-                <input type="password" class="form-control" @bind="model.Password" />
+                <input type="@TipoPassword" class="form-control" @bind="model.Password" />
             </div>
 
-            <div class="mb-3">
+            <div class="mb-2">
                 <label class="form-label">Confirmar contraseña</label>
-                <input type="password" class="form-control" @bind="model.ConfirmPassword" />
+                <input type="@TipoPassword" class="form-control" @bind="model.ConfirmPassword" />
             </div>
 
-            @if (error != null)
-            {
-                <div class="alert alert-danger mt-2">
-                    @error
-                </div>
-            }
-
-            @if (registroExitoso)
-            {
-                <div class="alert alert-success mt-2">
-                    Cuenta creada. Revisa tu correo y confirma el registro antes de iniciar sesión.
-                </div>
-            }
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="mostrarPassword" @bind="mostrarPassword" />
+                <label class="form-check-label" for="mostrarPassword">
+                    Mostrar contraseñas
+                </label>
+            </div>
 
             <button class="btn btn-success w-100 mt-2"
-                    disabled="@(cargando || registroExitoso)"
+                    disabled="@cargando"
                     @onclick="Registrar">
-                Crear cuenta
+                @(cargando ? "Enviando código..." : "Crear cuenta")
             </button>
+        }
+        else
+        {
+            <div class="codigo-panel">
+                <span class="codigo-badge">Código enviado</span>
+                <h4>Revisa tu correo</h4>
+                <p>
+                    Enviamos un código de 6 dígitos a <strong>@emailPendiente</strong>.
+                    Escríbelo aquí para activar tu cuenta.
+                </p>
 
+                <label class="form-label">Código de confirmación</label>
+                <input class="form-control codigo-input"
+                       inputmode="numeric"
+                       maxlength="6"
+                       placeholder="000000"
+                       @bind="codigoConfirmacion"
+                       @bind:event="oninput" />
 
-            <div class="text-center mt-3">
-                <small class="text-muted">
-                    ¿Ya tienes cuenta?
-                    <a href="/login">Iniciar sesión</a>
-                </small>
+                <button class="btn btn-primary w-100 mt-3"
+                        disabled="@cargando"
+                        @onclick="ConfirmarCodigo">
+                    @(cargando ? "Validando..." : "Validar código")
+                </button>
+
+                <button class="btn btn-link w-100 mt-2"
+                        disabled="@cargando"
+                        @onclick="CambiarDatos">
+                    Cambiar datos o reenviar código
+                </button>
             </div>
+        }
 
+        <div class="text-center mt-3">
+            <small class="text-muted">
+                ¿Ya tienes cuenta?
+                <a href="/login">Iniciar sesión</a>
+            </small>
         </div>
     </div>
-
 </div>
+
+@if (registroConfirmado)
+{
+    <div class="registro-modal-backdrop">
+        <div class="registro-modal">
+            <span class="modal-icon">OK</span>
+            <h3>Cuenta confirmada</h3>
+            <p>
+                Felicitaciones, tu cuenta ha sido registrada correctamente.
+                Bienvenido a la Polla Mundial.
+            </p>
+            <button class="btn btn-primary w-100" @onclick="IrLogin">
+                Iniciar sesión
+            </button>
+        </div>
+    </div>
+}
 
 @code {
     private RegistroUsuarioDTO model = new();
     private string? error;
-    private bool cargando = false;
-    private bool registroExitoso;
+    private string? mensaje;
+    private bool cargando;
+    private bool codigoEnviado;
+    private bool registroConfirmado;
+    private bool mostrarPassword;
+    private string codigoConfirmacion = "";
+    private string emailPendiente = "";
+
+    private string TipoPassword => mostrarPassword ? "text" : "password";
 
     private async Task Registrar()
     {
         error = null;
+        mensaje = null;
+
+        if (string.IsNullOrWhiteSpace(model.Nombre) ||
+            string.IsNullOrWhiteSpace(model.Email) ||
+            string.IsNullOrWhiteSpace(model.Password))
+        {
+            error = "Nombre, correo y contraseña son obligatorios.";
+            return;
+        }
 
         if (model.Password != model.ConfirmPassword)
         {
-            error = "Las contraseñas no coinciden";
+            error = "Las contraseñas no coinciden.";
             return;
         }
 
@@ -89,14 +159,16 @@
             cargando = true;
 
             await UsuariosService.RegistrarUsuarioAsync(new RegistroUsuarioDTO
-                {
-                    Nombre = model.Nombre,
-                    Email = model.Email,
-                    Password = model.Password,
-                    ConfirmUrlBase = $"{Navigation.BaseUri}confirmar-correo"
-                });
+            {
+                Nombre = model.Nombre,
+                Email = model.Email,
+                Password = model.Password
+            });
 
-            registroExitoso = true;
+            emailPendiente = model.Email.Trim();
+            codigoConfirmacion = "";
+            codigoEnviado = true;
+            mensaje = "Te enviamos un código de 6 dígitos al correo registrado.";
         }
         catch (Exception ex)
         {
@@ -107,5 +179,52 @@
             cargando = false;
         }
     }
-}
 
+    private async Task ConfirmarCodigo()
+    {
+        error = null;
+        mensaje = null;
+
+        var codigo = (codigoConfirmacion ?? "").Trim();
+        if (codigo.Length != 6 || !codigo.All(char.IsDigit))
+        {
+            error = "Escribe el código de 6 dígitos que llegó a tu correo.";
+            return;
+        }
+
+        try
+        {
+            cargando = true;
+            var apiError = await UsuariosService.ConfirmarCodigoCorreoAsync(new ConfirmarCodigoCorreoDTO
+            {
+                Email = emailPendiente,
+                Codigo = codigo
+            });
+
+            if (apiError != null)
+            {
+                error = apiError;
+                return;
+            }
+
+            registroConfirmado = true;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void CambiarDatos()
+    {
+        codigoEnviado = false;
+        codigoConfirmacion = "";
+        mensaje = null;
+        error = null;
+    }
+
+    private void IrLogin()
+    {
+        Navigation.NavigateTo("/login", true);
+    }
+}

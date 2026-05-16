@@ -14,4 +14,10 @@ namespace WorldCup.App.Shared.DTOs
         public string ConfirmPassword { get; set; } = string.Empty;
         public string? ConfirmUrlBase { get; set; }
     }
+
+    public class ConfirmarCodigoCorreoDTO
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+    }
 }

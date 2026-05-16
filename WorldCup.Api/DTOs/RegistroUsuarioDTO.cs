@@ -7,4 +7,10 @@
         public string Password { get; set; } = null!;
         public string? ConfirmUrlBase { get; set; }
     }
+
+    public class ConfirmarCodigoCorreoDTO
+    {
+        public string Email { get; set; } = null!;
+        public string Codigo { get; set; } = null!;
+    }
 }

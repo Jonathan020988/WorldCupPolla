@@ -8,7 +8,14 @@
         <div class="card-body p-4 text-center">
             <h3 class="mb-3">Confirmación de correo</h3>
 
-            @if (cargando)
+            @if (string.IsNullOrWhiteSpace(token))
+            {
+                <div class="alert alert-info">
+                    Ahora la confirmación se realiza con un código de 6 dígitos enviado a tu correo.
+                </div>
+                <a class="btn btn-primary" href="/registro">Ir al registro</a>
+            }
+            else if (cargando)
             {
                 <p class="text-muted">Validando tu enlace...</p>
             }
@@ -41,7 +48,6 @@
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            error = "El enlace de confirmación no es válido.";
             cargando = false;
             return;
         }

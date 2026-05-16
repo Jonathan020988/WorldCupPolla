@@ -7,7 +7,10 @@
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">WorldCup.App</a>
+        <a class="navbar-brand app-brand" href="">
+            <span>WorldCup.App</span>
+            <small>@AppVersion - @AppVersionDate</small>
+        </a>
     </div>
 </div>
 
@@ -117,6 +120,8 @@
 </div>
 
 @code {
+    private const string AppVersion = "Version 1";
+    private const string AppVersionDate = "15/05/2026";
     private int solicitudesPendientes;
 
     protected override void OnInitialized()

@@ -31,6 +31,18 @@ namespace WorldCup.App.Shared.Services
             }
         }
 
+        public async Task<string?> ConfirmarCodigoCorreoAsync(ConfirmarCodigoCorreoDTO dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Usuarios/confirmar-codigo", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+
+            return null;
+        }
+
         public async Task<string?> ConfirmarCorreoAsync(string token)
         {
             var response = await _http.GetAsync(
