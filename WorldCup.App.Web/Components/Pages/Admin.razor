@@ -297,11 +297,21 @@ else
                                     <td class="text-end">
                                         @if (usuario.Historial > 0)
                                         {
-                                            <span class="badge bg-light text-dark border">@usuario.Historial registro(s)</span>
+                                            <button type="button"
+                                                    class="historial-badge"
+                                                    title="Ver registros guardados y faltantes"
+                                                    @onclick="() => CargarHistorialUsuario(usuario)">
+                                                @usuario.Historial registro(s)
+                                            </button>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">Limpio</span>
+                                            <button type="button"
+                                                    class="historial-empty"
+                                                    title="Ver registros faltantes"
+                                                    @onclick="() => CargarHistorialUsuario(usuario)">
+                                                Limpio
+                                            </button>
                                         }
                                     </td>
                                     <td class="text-end">
@@ -537,6 +547,167 @@ else
             </div>
         </div>
     }
+
+    @if (historialUsuario != null || cargandoHistorial)
+    {
+        <div class="admin-modal-backdrop">
+            <div class="admin-modal historial-modal">
+                <div class="admin-modal-header">
+                    <div>
+                        <span class="modal-kicker">Historial de registros</span>
+                        <h4>@(historialUsuario?.Usuario ?? "Cargando...")</h4>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarHistorial"></button>
+                </div>
+
+                @if (cargandoHistorial)
+                {
+                    <div class="p-4 text-muted">
+                        Cargando registros del usuario...
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(errorHistorial))
+                {
+                    <div class="alert alert-danger m-3">@errorHistorial</div>
+                }
+                else if (historialUsuario == null || !historialUsuario.Pollas.Any())
+                {
+                    <div class="empty-history">
+                        Este usuario no pertenece a ninguna polla y no tiene registros asociados.
+                    </div>
+                }
+                else
+                {
+                    <div class="historial-content">
+                        @foreach (var polla in historialUsuario.Pollas)
+                        {
+                            <section class="historial-polla">
+                                <div class="historial-polla-header">
+                                    <div>
+                                        <strong>@polla.PollaNombre</strong>
+                                        <small>@polla.Resumen.TotalGuardado guardados / @polla.Resumen.TotalFaltante faltantes</small>
+                                    </div>
+                                    <span class="checklist-pill @(polla.Resumen.TotalFaltante == 0 ? "complete" : "pending")">
+                                        @(polla.Resumen.TotalFaltante == 0 ? "Completo" : "Pendiente")
+                                    </span>
+                                </div>
+
+                                <div class="historial-summary-grid">
+                                    <div>
+                                        <span>Marcadores</span>
+                                        <strong>@polla.Resumen.MarcadoresGuardados / @(polla.Resumen.MarcadoresGuardados + polla.Resumen.MarcadoresFaltantes)</strong>
+                                    </div>
+                                    <div>
+                                        <span>Grupos</span>
+                                        <strong>@polla.Resumen.GruposGuardados / 12</strong>
+                                    </div>
+                                    <div>
+                                        <span>Mejores terceros</span>
+                                        <strong>@polla.Resumen.TercerosSeleccionados / 8</strong>
+                                    </div>
+                                    <div>
+                                        <span>Podio</span>
+                                        <strong>@(polla.Resumen.PodioGuardado ? "Guardado" : "Falta")</strong>
+                                    </div>
+                                </div>
+
+                                <div class="historial-section">
+                                    <h5>Clasificacion de grupos</h5>
+                                    <div class="chips">
+                                        @if (polla.Clasificacion.Faltantes.Any())
+                                        {
+                                            @foreach (var grupo in polla.Clasificacion.Faltantes)
+                                            {
+                                                <span class="chip missing">Falta Grupo @grupo</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="chip saved">12 grupos guardados</span>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="historial-section">
+                                    <h5>Mejores terceros</h5>
+                                    <div class="chips">
+                                        @foreach (var grupo in polla.MejoresTerceros.Seleccionados)
+                                        {
+                                            <span class="chip saved">Grupo @grupo</span>
+                                        }
+                                        @if (polla.MejoresTerceros.Faltantes > 0)
+                                        {
+                                            <span class="chip missing">Faltan @polla.MejoresTerceros.Faltantes</span>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="historial-section">
+                                    <h5>Podio</h5>
+                                    @if (polla.Podio.Guardado)
+                                    {
+                                        <div class="podio-mini">
+                                            <span>Campeon: <strong>@polla.Podio.Campeon</strong></span>
+                                            <span>Subcampeon: <strong>@polla.Podio.Subcampeon</strong></span>
+                                            <span>Tercero: <strong>@polla.Podio.Tercero</strong></span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="chip missing">Falta guardar podio</span>
+                                    }
+                                </div>
+
+                                <div class="historial-section">
+                                    <h5>Marcadores por fase</h5>
+                                    @foreach (var fase in polla.MarcadoresPorFase)
+                                    {
+                                        <details class="fase-detail" open="@(fase.Faltantes > 0)">
+                                            <summary>
+                                                <strong>@NombreFase(fase.Fase)</strong>
+                                                <span>@fase.Guardados / @fase.Total guardados</span>
+                                                @if (fase.Faltantes > 0)
+                                                {
+                                                    <em>@fase.Faltantes faltantes</em>
+                                                }
+                                            </summary>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm align-middle mb-0 historial-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Partido</th>
+                                                            <th>Estado</th>
+                                                            <th>Pronostico</th>
+                                                            <th>Extras</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var registro in fase.Registros)
+                                                        {
+                                                            <tr class="@(registro.Estado == "Falta" ? "row-missing" : "")">
+                                                                <td>@registro.Partido</td>
+                                                                <td>
+                                                                    <span class="mini-status @(registro.Estado == "Guardado" ? "saved" : "missing")">
+                                                                        @registro.Estado
+                                                                    </span>
+                                                                </td>
+                                                                <td>@(string.IsNullOrWhiteSpace(registro.Pronostico) ? "-" : registro.Pronostico)</td>
+                                                                <td>@ExtrasRegistro(registro)</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </details>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
 }
 
 <style>
@@ -611,6 +782,272 @@ else
     .usuarios-filtro .btn {
         font-weight: 700;
     }
+
+    .historial-badge,
+    .historial-empty {
+        border: 1px solid #d8e2ef;
+        border-radius: 6px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: .82rem;
+        padding: 3px 8px;
+    }
+
+    .historial-badge:hover,
+    .historial-empty:hover {
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+
+    .historial-empty {
+        color: #6c757d;
+        background: transparent;
+    }
+
+    .admin-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1055;
+        background: rgba(15,23,42,.48);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+    }
+
+    .admin-modal {
+        width: min(1120px, 100%);
+        max-height: 92vh;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 24px 80px rgba(15,23,42,.35);
+        overflow: hidden;
+    }
+
+    .admin-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 16px 18px;
+    }
+
+    .admin-modal-header h4 {
+        margin: 0;
+        font-weight: 800;
+        color: #13223a;
+    }
+
+    .modal-kicker {
+        display: block;
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .historial-content {
+        max-height: calc(92vh - 78px);
+        overflow: auto;
+        padding: 14px;
+        background: #f8fafc;
+    }
+
+    .empty-history {
+        color: #64748b;
+        padding: 28px;
+        text-align: center;
+    }
+
+    .historial-polla {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #fff;
+        margin-bottom: 14px;
+        overflow: hidden;
+    }
+
+    .historial-polla-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        border-bottom: 1px solid #edf2f7;
+        padding: 14px;
+    }
+
+    .historial-polla-header strong,
+    .historial-polla-header small {
+        display: block;
+    }
+
+    .historial-polla-header small {
+        color: #64748b;
+        font-weight: 700;
+    }
+
+    .checklist-pill {
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 5px 10px;
+        white-space: nowrap;
+    }
+
+    .checklist-pill.complete {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .checklist-pill.pending {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .historial-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4,minmax(0,1fr));
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .historial-summary-grid div {
+        border: 1px solid #e5edf7;
+        border-radius: 8px;
+        background: #f8fbff;
+        padding: 10px;
+    }
+
+    .historial-summary-grid span {
+        display: block;
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .historial-summary-grid strong {
+        color: #0f172a;
+        font-size: 1.05rem;
+    }
+
+    .historial-section {
+        border-top: 1px solid #edf2f7;
+        padding: 14px;
+    }
+
+    .historial-section h5 {
+        margin: 0 0 10px;
+        color: #1f2f46;
+        font-size: .95rem;
+        font-weight: 800;
+    }
+
+    .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .chip {
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 4px 9px;
+    }
+
+    .chip.saved {
+        background: #e8f5ee;
+        color: #0f5132;
+    }
+
+    .chip.missing {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .podio-mini {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 8px;
+    }
+
+    .podio-mini span {
+        border: 1px solid #e5edf7;
+        border-radius: 8px;
+        background: #f8fbff;
+        padding: 8px 10px;
+    }
+
+    .fase-detail {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #fff;
+        margin-bottom: 8px;
+        overflow: hidden;
+    }
+
+    .fase-detail summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+        background: #f8fafc;
+        padding: 10px 12px;
+    }
+
+    .fase-detail summary span {
+        color: #475569;
+        font-weight: 700;
+    }
+
+    .fase-detail summary em {
+        color: #9a6700;
+        font-style: normal;
+        font-weight: 800;
+    }
+
+    .historial-table th {
+        color: #64748b;
+        font-size: .75rem;
+        text-transform: uppercase;
+    }
+
+    .row-missing {
+        background: #fffaf0;
+    }
+
+    .mini-status {
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 800;
+        padding: 3px 8px;
+    }
+
+    .mini-status.saved {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .mini-status.missing {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    @@media (max-width: 768px) {
+        .historial-summary-grid,
+        .podio-mini {
+            grid-template-columns: 1fr;
+        }
+
+        .fase-detail summary,
+        .historial-polla-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
 </style>
 
 @code {
@@ -625,11 +1062,14 @@ else
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
     private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
     private List<ReaperturaAdminDto> reaperturasUsuario = new();
+    private HistorialUsuarioAdminDto? historialUsuario;
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
     private int? procesandoPartidoFecha;
     private string? procesandoReapertura;
+    private bool cargandoHistorial;
+    private string? errorHistorial;
     private string faseCalendario = "";
     private string faseReapertura = "Grupos";
     private string filtroUsuarios = "Activos";
@@ -891,6 +1331,50 @@ else
         {
             await CargarMiembros(pollaSeleccionada);
         }
+    }
+
+    private async Task CargarHistorialUsuario(UsuarioAdminDto usuario)
+    {
+        historialUsuario = null;
+        errorHistorial = null;
+        cargandoHistorial = true;
+
+        try
+        {
+            historialUsuario = await Http.GetFromJsonAsync<HistorialUsuarioAdminDto>(
+                $"api/Admin/usuarios/{usuario.Id}/historial?adminUsuarioId={Sesion.UsuarioId!.Value}");
+        }
+        catch (Exception ex)
+        {
+            errorHistorial = $"No se pudo cargar el historial: {ex.Message}";
+        }
+        finally
+        {
+            cargandoHistorial = false;
+        }
+    }
+
+    private void CerrarHistorial()
+    {
+        historialUsuario = null;
+        errorHistorial = null;
+        cargandoHistorial = false;
+    }
+
+    private static string ExtrasRegistro(RegistroMarcadorAdminDto registro)
+    {
+        var extras = new List<string>();
+
+        if (registro.Clasificado)
+            extras.Add("clasificado");
+        if (registro.TiempoExtra)
+            extras.Add("extra");
+        if (registro.Penales)
+            extras.Add("penales");
+
+        return extras.Any()
+            ? string.Join(", ", extras)
+            : "-";
     }
 
     private async Task EliminarUsuario(UsuarioAdminDto usuario)
@@ -1180,6 +1664,80 @@ else
         public int PollasCreadas { get; set; }
         public int Historial { get; set; }
         public bool PuedeEliminar { get; set; }
+    }
+
+    private class HistorialUsuarioAdminDto
+    {
+        public int UsuarioId { get; set; }
+        public string Usuario { get; set; } = "";
+        public string Email { get; set; } = "";
+        public bool Activo { get; set; }
+        public List<PollaHistorialAdminDto> Pollas { get; set; } = new();
+    }
+
+    private class PollaHistorialAdminDto
+    {
+        public int PollaId { get; set; }
+        public string PollaNombre { get; set; } = "";
+        public ResumenHistorialAdminDto Resumen { get; set; } = new();
+        public List<FaseMarcadoresAdminDto> MarcadoresPorFase { get; set; } = new();
+        public ClasificacionHistorialAdminDto Clasificacion { get; set; } = new();
+        public TercerosHistorialAdminDto MejoresTerceros { get; set; } = new();
+        public PodioHistorialAdminDto Podio { get; set; } = new();
+    }
+
+    private class ResumenHistorialAdminDto
+    {
+        public int MarcadoresGuardados { get; set; }
+        public int MarcadoresFaltantes { get; set; }
+        public int GruposGuardados { get; set; }
+        public int GruposFaltantes { get; set; }
+        public int TercerosSeleccionados { get; set; }
+        public int TercerosFaltantes { get; set; }
+        public bool PodioGuardado { get; set; }
+        public int TotalGuardado { get; set; }
+        public int TotalFaltante { get; set; }
+    }
+
+    private class FaseMarcadoresAdminDto
+    {
+        public string Fase { get; set; } = "";
+        public int Total { get; set; }
+        public int Guardados { get; set; }
+        public int Faltantes { get; set; }
+        public List<RegistroMarcadorAdminDto> Registros { get; set; } = new();
+    }
+
+    private class RegistroMarcadorAdminDto
+    {
+        public int PartidoId { get; set; }
+        public string Partido { get; set; } = "";
+        public DateTime Fecha { get; set; }
+        public string Estado { get; set; } = "";
+        public string Pronostico { get; set; } = "";
+        public bool Clasificado { get; set; }
+        public bool TiempoExtra { get; set; }
+        public bool Penales { get; set; }
+    }
+
+    private class ClasificacionHistorialAdminDto
+    {
+        public List<string> Guardados { get; set; } = new();
+        public List<string> Faltantes { get; set; } = new();
+    }
+
+    private class TercerosHistorialAdminDto
+    {
+        public List<string> Seleccionados { get; set; } = new();
+        public int Faltantes { get; set; }
+    }
+
+    private class PodioHistorialAdminDto
+    {
+        public bool Guardado { get; set; }
+        public string Campeon { get; set; } = "";
+        public string Subcampeon { get; set; } = "";
+        public string Tercero { get; set; } = "";
     }
 
     private class PollaAdminDto

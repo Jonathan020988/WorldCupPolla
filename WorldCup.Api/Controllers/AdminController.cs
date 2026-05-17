@@ -103,6 +103,230 @@ namespace WorldCup.Api.Controllers
             return Ok(usuarios);
         }
 
+        [HttpGet("usuarios/{usuarioId:int}/historial")]
+        public async Task<IActionResult> GetHistorialUsuario(
+            int usuarioId,
+            [FromQuery] int adminUsuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+
+            if (usuario == null)
+                return NotFound("El usuario no existe");
+
+            var pollaIds = await _context.PollaMiembros
+                .Where(pm => pm.UsuarioId == usuarioId)
+                .Select(pm => pm.PollaId)
+                .Union(_context.Predicciones
+                    .Where(p => p.UsuarioId == usuarioId)
+                    .Select(p => p.PollaId))
+                .Union(_context.PrediccionesGrupo
+                    .Where(p => p.UsuarioId == usuarioId)
+                    .Select(p => p.PollaId))
+                .Union(_context.PrediccionesPodio
+                    .Where(p => p.UsuarioId == usuarioId)
+                    .Select(p => p.PollaId))
+                .Union(_context.PrediccionesTerceros
+                    .Where(p => p.UsuarioId == usuarioId)
+                    .Select(p => p.PollaId))
+                .ToListAsync();
+
+            var pollasUsuario = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => pollaIds.Contains(p.Id))
+                .OrderBy(p => p.Nombre)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Nombre
+                })
+                .ToListAsync();
+
+            var partidos = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Fase,
+                    p.Fecha,
+                    Local = p.Local.Nombre,
+                    Visitante = p.Visitante.Nombre
+                })
+                .ToListAsync();
+
+            partidos = partidos
+                .OrderBy(p => OrdenFaseHistorial(p.Fase))
+                .ThenBy(p => p.Fecha)
+                .ThenBy(p => p.Id)
+                .ToList();
+
+            var gruposEsperados = await _context.Equipos
+                .AsNoTracking()
+                .Where(e => e.Grupo != null && e.Grupo != "")
+                .Select(e => e.Grupo!)
+                .Distinct()
+                .OrderBy(g => g)
+                .ToListAsync();
+
+            var pollas = new List<object>();
+
+            foreach (var polla in pollasUsuario)
+            {
+                var predicciones = await _context.Predicciones
+                    .AsNoTracking()
+                    .Where(p => p.PollaId == polla.Id && p.UsuarioId == usuarioId)
+                    .ToDictionaryAsync(p => p.PartidoId);
+
+                var marcadoresPorFase = partidos
+                    .GroupBy(p => p.Fase)
+                    .Select(fase =>
+                    {
+                        var registros = fase
+                            .Select(partido =>
+                            {
+                                predicciones.TryGetValue(partido.Id, out var prediccion);
+                                var guardado = prediccion != null &&
+                                    prediccion.GolesLocal.HasValue &&
+                                    prediccion.GolesVisitante.HasValue;
+
+                                return new
+                                {
+                                    partidoId = partido.Id,
+                                    partido = $"{partido.Local} vs {partido.Visitante}",
+                                    fecha = partido.Fecha,
+                                    estado = guardado ? "Guardado" : "Falta",
+                                    pronostico = guardado
+                                        ? $"{prediccion!.GolesLocal}-{prediccion.GolesVisitante}"
+                                        : "",
+                                    clasificado = prediccion?.PrediceClasificadoId.HasValue == true,
+                                    tiempoExtra = prediccion?.PrediceTiempoExtra == true,
+                                    penales = prediccion?.PredicePenales == true
+                                };
+                            })
+                            .ToList();
+
+                        return new
+                        {
+                            fase = fase.Key,
+                            total = registros.Count,
+                            guardados = registros.Count(r => r.estado == "Guardado"),
+                            faltantes = registros.Count(r => r.estado == "Falta"),
+                            registros
+                        };
+                    })
+                    .ToList();
+
+                var clasificacionGuardada = await _context.PrediccionesGrupo
+                    .AsNoTracking()
+                    .Where(p => p.PollaId == polla.Id && p.UsuarioId == usuarioId)
+                    .Select(p => p.Grupo)
+                    .ToListAsync();
+                var gruposGuardados = clasificacionGuardada
+                    .Select(g => (g ?? "").Trim().ToUpperInvariant())
+                    .Where(g => !string.IsNullOrWhiteSpace(g))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var gruposFaltantes = gruposEsperados
+                    .Select(g => g.Trim().ToUpperInvariant())
+                    .Where(g => !gruposGuardados.Contains(g))
+                    .OrderBy(g => g)
+                    .ToList();
+
+                var tercerosSeleccionados = await _context.PrediccionesTerceros
+                    .AsNoTracking()
+                    .Where(p => p.PollaId == polla.Id && p.UsuarioId == usuarioId)
+                    .Select(p => p.Grupo)
+                    .ToListAsync();
+                var terceros = tercerosSeleccionados
+                    .Select(g => (g ?? "").Trim().ToUpperInvariant())
+                    .Where(g => !string.IsNullOrWhiteSpace(g))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(g => g)
+                    .ToList();
+
+                var podio = await _context.PrediccionesPodio
+                    .AsNoTracking()
+                    .Where(p => p.PollaId == polla.Id && p.UsuarioId == usuarioId)
+                    .Select(p => new
+                    {
+                        p.CampeonId,
+                        p.SubcampeonId,
+                        p.TerceroId
+                    })
+                    .FirstOrDefaultAsync();
+
+                var equiposPodioIds = podio == null
+                    ? new List<int>()
+                    : new List<int> { podio.CampeonId, podio.SubcampeonId, podio.TerceroId };
+                var nombresPodio = await _context.Equipos
+                    .AsNoTracking()
+                    .Where(e => equiposPodioIds.Contains(e.Id))
+                    .ToDictionaryAsync(e => e.Id, e => e.Nombre);
+
+                var marcadoresGuardados = marcadoresPorFase.Sum(f => f.guardados);
+                var marcadoresFaltantes = marcadoresPorFase.Sum(f => f.faltantes);
+                var tercerosFaltantes = Math.Max(0, 8 - terceros.Count);
+                var clasificacionFaltante = gruposFaltantes.Count;
+                var podioFaltante = podio == null ? 1 : 0;
+
+                pollas.Add(new
+                {
+                    pollaId = polla.Id,
+                    pollaNombre = polla.Nombre,
+                    resumen = new
+                    {
+                        marcadoresGuardados,
+                        marcadoresFaltantes,
+                        gruposGuardados = gruposGuardados.Count,
+                        gruposFaltantes = clasificacionFaltante,
+                        tercerosSeleccionados = terceros.Count,
+                        tercerosFaltantes,
+                        podioGuardado = podio != null,
+                        totalGuardado = marcadoresGuardados + gruposGuardados.Count + terceros.Count + (podio == null ? 0 : 1),
+                        totalFaltante = marcadoresFaltantes + clasificacionFaltante + tercerosFaltantes + podioFaltante
+                    },
+                    marcadoresPorFase,
+                    clasificacion = new
+                    {
+                        guardados = gruposGuardados.OrderBy(g => g).ToList(),
+                        faltantes = gruposFaltantes
+                    },
+                    mejoresTerceros = new
+                    {
+                        seleccionados = terceros,
+                        faltantes = tercerosFaltantes
+                    },
+                    podio = new
+                    {
+                        guardado = podio != null,
+                        campeon = podio != null && nombresPodio.TryGetValue(podio.CampeonId, out var campeon)
+                            ? campeon
+                            : "",
+                        subcampeon = podio != null && nombresPodio.TryGetValue(podio.SubcampeonId, out var subcampeon)
+                            ? subcampeon
+                            : "",
+                        tercero = podio != null && nombresPodio.TryGetValue(podio.TerceroId, out var tercero)
+                            ? tercero
+                            : ""
+                    }
+                });
+            }
+
+            return Ok(new
+            {
+                usuarioId = usuario.Id,
+                usuario = usuario.Nombre,
+                usuario.Email,
+                usuario.Activo,
+                pollas
+            });
+        }
+
         [HttpGet("pollas")]
         public async Task<IActionResult> GetPollas([FromQuery] int adminUsuarioId)
         {
@@ -519,6 +743,18 @@ namespace WorldCup.Api.Controllers
 
         private async Task<bool> EsAdmin(int usuarioId) =>
             await _adminAuthorization.EsAdminAsync(usuarioId);
+
+        private static int OrdenFaseHistorial(string fase) => fase switch
+        {
+            "Grupos" => 1,
+            "Dieciseisavos" => 2,
+            "Octavos" => 3,
+            "Cuartos" => 4,
+            "Semifinales" => 5,
+            "TercerPuesto" => 6,
+            "Final" => 7,
+            _ => 99
+        };
 
         private async Task<List<string>> ObtenerBloqueosEliminacionUsuario(int usuarioId)
         {
