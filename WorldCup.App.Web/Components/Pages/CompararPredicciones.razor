@@ -1,0 +1,1012 @@
+@page "/comparar"
+@rendermode InteractiveServer
+
+@using System.Net.Http.Json
+@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+@inject PollasService PollasService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<section class="compare-page">
+    <div class="compare-hero">
+        <div>
+            <span class="compare-kicker">Mi comparacion</span>
+            <h1>Prediccion vs realidad</h1>
+            <p>
+                Revisa tus marcadores, tus clasificados de grupos y lo que paso realmente.
+            </p>
+        </div>
+
+        @if (Sesion.PollaActivaId.HasValue)
+        {
+            <button class="switch-btn" @onclick="CambiarPolla">
+                Cambiar polla
+            </button>
+        }
+    </div>
+
+    @if (cargando)
+    {
+        <div class="compare-panel">
+            Cargando comparacion...
+        </div>
+    }
+    else if (!Sesion.PollaActivaId.HasValue)
+    {
+        <div class="compare-panel selector-panel">
+            <h2>Selecciona la polla</h2>
+
+            @if (!pollas.Any())
+            {
+                <div class="empty-state">No tienes pollas disponibles todavia.</div>
+            }
+            else
+            {
+                <div class="polla-grid">
+                    @foreach (var polla in pollas)
+                    {
+                        <button class="polla-option"
+                                @onclick="() => SeleccionarPolla(polla)">
+                            <span class="polla-icon">&#x1F3C6;</span>
+                            <span>
+                                <strong>@polla.Nombre</strong>
+                                <small>Comparar mis predicciones</small>
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="active-polla">
+            <span>Trabajando en la polla:</span>
+            <strong>@Sesion.PollaActivaNombre</strong>
+        </div>
+
+        <div class="compare-summary">
+            <div>
+                <span>Marcadores guardados</span>
+                <strong>@detalleUsuario.Count</strong>
+            </div>
+            <div>
+                <span>Partidos con resultado</span>
+                <strong>@detalleUsuario.Count(ResultadoDisponible)</strong>
+            </div>
+            <div>
+                <span>Marcadores exactos</span>
+                <strong>@detalleUsuario.Count(d => d.PuntosExacto > 0)</strong>
+            </div>
+            <div>
+                <span>Puntos visibles</span>
+                <strong>@detalleUsuario.Sum(d => d.Total)</strong>
+            </div>
+        </div>
+
+        <div class="compare-tabs">
+            <button class="@(vista == "marcadores" ? "active" : "")"
+                    @onclick='() => vista = "marcadores"'>
+                Marcadores
+            </button>
+            <button class="@(vista == "grupos" ? "active" : "")"
+                    @onclick='() => vista = "grupos"'>
+                Clasificacion grupos
+            </button>
+        </div>
+
+        @if (vista == "marcadores")
+        {
+            <div class="compare-panel">
+                <div class="panel-title">
+                    <div>
+                        <h2>Mis marcadores vs resultados reales</h2>
+                        <span>@MarcadoresFiltrados().Count() registro(s)</span>
+                    </div>
+                </div>
+
+                <div class="compare-filters">
+                    <div>
+                        <label>Equipo</label>
+                        <select @bind="equipoFiltro">
+                            <option value="">Todos</option>
+                            @foreach (var equipo in EquiposDisponibles())
+                            {
+                                <option value="@equipo">@equipo</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label>Fase</label>
+                        <select @bind="faseFiltro">
+                            <option value="">Todas</option>
+                            @foreach (var fase in FasesDisponibles())
+                            {
+                                <option value="@fase">@NombreFase(fase)</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label>Fecha</label>
+                        <input type="date" @bind="fechaFiltro" />
+                    </div>
+
+                    @if (HayFiltrosMarcadores())
+                    {
+                        <button class="clear-btn" @onclick="LimpiarFiltrosMarcadores">
+                            Limpiar
+                        </button>
+                    }
+                </div>
+
+                <div class="table-wrap">
+                    <table class="compare-table">
+                        <thead>
+                            <tr>
+                                <th>Partido</th>
+                                <th>Fase</th>
+                                <th>Fecha</th>
+                                <th>Mi marcador</th>
+                                <th>Real</th>
+                                <th>Estado</th>
+                                <th class="text-end">Puntos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!MarcadoresFiltrados().Any())
+                            {
+                                <tr>
+                                    <td colspan="7" class="empty-row">
+                                        No hay marcadores con esos filtros.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var d in MarcadoresFiltrados())
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@d.Local</strong> vs <strong>@d.Visitante</strong>
+                                        </td>
+                                        <td><span class="phase-pill">@NombreFase(d.Fase)</span></td>
+                                        <td>@FechaCorta(d.Fecha)</td>
+                                        <td>@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
+                                        <td>@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                        <td>
+                                            <span class="status-pill @EstadoMarcadorCss(d)">
+                                                @EstadoMarcador(d)
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>@d.Total</strong>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="compare-panel">
+                <div class="panel-title">
+                    <div>
+                        <h2>Clasificacion de grupos</h2>
+                        <span>Lo que pusiste contra la tabla real</span>
+                    </div>
+                </div>
+
+                <div class="compare-filters compact">
+                    <div>
+                        <label>Grupo</label>
+                        <select @bind="grupoFiltro">
+                            <option value="">Todos</option>
+                            @foreach (var grupo in LetrasGrupos)
+                            {
+                                <option value="@grupo">Grupo @grupo</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="thirds-box">
+                    <div>
+                        <span>Mis mejores terceros</span>
+                        <strong>@TextoGrupos(tercerosUsuario)</strong>
+                    </div>
+                    <div>
+                        <span>Mejores terceros reales</span>
+                        <strong>@TextoGrupos(TercerosReales())</strong>
+                    </div>
+                </div>
+
+                <div class="group-grid">
+                    @foreach (var grupo in GruposComparados())
+                    {
+                        <div class="group-card">
+                            <div class="group-title">
+                                <strong>Grupo @grupo.Grupo</strong>
+                                <span>@(grupo.TienePrediccion ? "Prediccion guardada" : "Sin prediccion")</span>
+                            </div>
+
+                            <table class="group-table">
+                                <thead>
+                                    <tr>
+                                        <th>Equipo</th>
+                                        <th>Mi pos.</th>
+                                        <th>Real</th>
+                                        <th>Clasifica</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var equipo in grupo.Equipos)
+                                    {
+                                        <tr>
+                                            <td><strong>@equipo.Equipo</strong></td>
+                                            <td>@TextoPosicion(equipo.PosicionPredicha)</td>
+                                            <td>@TextoPosicion(equipo.PosicionReal)</td>
+                                            <td>
+                                                <span class="status-pill @(equipo.ClasificacionCoincide ? "ok" : "miss")">
+                                                    @(equipo.ClasificacionCoincide ? "Coincide" : "Diferente")
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</section>
+
+<style>
+    .compare-page {
+        --ink: #13201c;
+        --muted: #667085;
+        --line: #d9e5df;
+        --green: #116b4f;
+        --soft: #f6faf8;
+        color: var(--ink);
+    }
+
+    .compare-hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 1.2rem 1.4rem;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #10251e, #167456 62%, #d7a21a);
+        color: white;
+        margin-bottom: 1rem;
+        box-shadow: 0 12px 28px rgba(16, 37, 30, .16);
+    }
+
+    .compare-hero h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 850;
+    }
+
+    .compare-hero p {
+        margin: .25rem 0 0;
+        color: rgba(255, 255, 255, .82);
+    }
+
+    .compare-kicker {
+        display: block;
+        color: #f6d779;
+        font-size: .76rem;
+        font-weight: 850;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .switch-btn,
+    .clear-btn {
+        border: 1px solid rgba(255, 255, 255, .55);
+        border-radius: 999px;
+        background: white;
+        color: var(--green);
+        padding: .42rem .85rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .compare-panel,
+    .active-polla,
+    .compare-summary,
+    .compare-tabs,
+    .thirds-box {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 8px 22px rgba(16, 24, 40, .05);
+    }
+
+    .compare-panel {
+        overflow: hidden;
+    }
+
+    .active-polla {
+        display: flex;
+        gap: .45rem;
+        align-items: center;
+        margin-bottom: .85rem;
+        padding: .75rem 1rem;
+        background: #f2fbf5;
+        color: #163c27;
+    }
+
+    .compare-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+        padding: .85rem;
+        margin-bottom: .85rem;
+    }
+
+    .compare-summary div {
+        padding: .75rem;
+        border-radius: 8px;
+        background: var(--soft);
+    }
+
+    .compare-summary span,
+    .thirds-box span {
+        display: block;
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .compare-summary strong {
+        display: block;
+        color: var(--green);
+        font-size: 1.35rem;
+    }
+
+    .compare-tabs {
+        display: inline-flex;
+        gap: .35rem;
+        padding: .35rem;
+        margin-bottom: .85rem;
+    }
+
+    .compare-tabs button {
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        padding: .5rem .85rem;
+        font-weight: 850;
+    }
+
+    .compare-tabs button.active {
+        background: var(--green);
+        color: white;
+    }
+
+    .panel-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border-bottom: 1px solid var(--line);
+        background: #fbfdfc;
+    }
+
+    .panel-title h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 850;
+    }
+
+    .panel-title span {
+        color: var(--muted);
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .compare-filters {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+        gap: .7rem;
+        align-items: end;
+        padding: .9rem 1rem;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .compare-filters.compact {
+        grid-template-columns: minmax(160px, 260px);
+    }
+
+    .compare-filters label {
+        display: block;
+        margin-bottom: .2rem;
+        color: var(--muted);
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .compare-filters select,
+    .compare-filters input {
+        width: 100%;
+        min-height: 36px;
+        border: 1px solid #ccd8d2;
+        border-radius: 6px;
+        padding: .35rem .45rem;
+        font-weight: 650;
+    }
+
+    .clear-btn {
+        border-color: #bfd4cb;
+        background: #f7faf8;
+    }
+
+    .table-wrap {
+        overflow: auto;
+        max-height: 620px;
+    }
+
+    .compare-table,
+    .group-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .compare-table th,
+    .compare-table td,
+    .group-table th,
+    .group-table td {
+        padding: .72rem .8rem;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+    }
+
+    .compare-table th,
+    .group-table th {
+        position: sticky;
+        top: 0;
+        background: #f7faf8;
+        color: var(--muted);
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        z-index: 2;
+    }
+
+    .phase-pill,
+    .prediction-pill,
+    .result-pill,
+    .status-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: .22rem .5rem;
+        font-size: .8rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .phase-pill {
+        background: #e9f1ed;
+        color: #24443a;
+    }
+
+    .prediction-pill {
+        background: #dbeafe;
+        color: #123d7a;
+    }
+
+    .result-pill {
+        background: #16251f;
+        color: white;
+    }
+
+    .status-pill.pending {
+        background: #eef2f7;
+        color: #586579;
+    }
+
+    .status-pill.ok {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .status-pill.partial {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .status-pill.miss {
+        background: #fde8e8;
+        color: #b42318;
+    }
+
+    .empty-row {
+        color: var(--muted);
+        text-align: center;
+        font-weight: 750;
+    }
+
+    .polla-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: .75rem;
+        padding: 1rem;
+    }
+
+    .polla-option {
+        display: flex;
+        gap: .75rem;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: .85rem;
+        text-align: left;
+    }
+
+    .polla-option small {
+        display: block;
+        color: var(--muted);
+    }
+
+    .thirds-box {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .8rem;
+        margin: 0 1rem 1rem;
+        padding: .85rem;
+        background: #fffbeb;
+    }
+
+    .thirds-box strong {
+        display: block;
+        color: #684b00;
+        margin-top: .2rem;
+    }
+
+    .group-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .9rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .group-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .group-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: center;
+        padding: .7rem .8rem;
+        background: #10251e;
+        color: white;
+    }
+
+    .group-title span {
+        color: rgba(255, 255, 255, .78);
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 900px) {
+        .compare-hero,
+        .panel-title,
+        .active-polla {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .compare-summary,
+        .compare-filters,
+        .thirds-box,
+        .group-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private static readonly string[] LetrasGrupos =
+    {
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L"
+    };
+
+    private List<PollaDto> pollas = new();
+    private List<DetalleRankingDto> detalleUsuario = new();
+    private List<ClasificacionGuardadaDto> clasificacionUsuario = new();
+    private HashSet<string> tercerosUsuario = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<TablaGrupoRealDto>> tablasReales = new(StringComparer.OrdinalIgnoreCase);
+    private bool cargando = true;
+    private string vista = "marcadores";
+    private string? equipoFiltro;
+    private string? faseFiltro;
+    private DateTime? fechaFiltro;
+    private string? grupoFiltro;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+
+        if (!Sesion.EstaLogueado)
+        {
+            Navigation.NavigateTo("/login?returnUrl=/comparar", true);
+            return;
+        }
+
+        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+
+        if (Sesion.PollaActivaId.HasValue &&
+            !pollas.Any(p => p.Id == Sesion.PollaActivaId.Value))
+        {
+            await Sesion.LimpiarPollaActivaAsync();
+        }
+
+        if (Sesion.PollaActivaId.HasValue)
+        {
+            await CargarComparacionAsync();
+        }
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task SeleccionarPolla(PollaDto polla)
+    {
+        cargando = true;
+        StateHasChanged();
+
+        await Sesion.SeleccionarPollaAsync(polla.Id, polla.Nombre);
+        await CargarComparacionAsync();
+
+        cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task CambiarPolla()
+    {
+        await Sesion.LimpiarPollaActivaAsync();
+        detalleUsuario.Clear();
+        clasificacionUsuario.Clear();
+        tercerosUsuario.Clear();
+        tablasReales.Clear();
+        LimpiarFiltrosMarcadores();
+        grupoFiltro = null;
+    }
+
+    private async Task CargarComparacionAsync()
+    {
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        var detalle = await PollasService.GetRankingDetalleAsync(Sesion.PollaActivaId.Value);
+        detalleUsuario = detalle
+            .Where(d => d.UsuarioId == Sesion.UsuarioId.Value)
+            .OrderBy(d => OrdenFase(d.Fase))
+            .ThenBy(d => d.Fecha)
+            .ThenBy(d => d.Local)
+            .ToList();
+
+        clasificacionUsuario = await Http.GetFromJsonAsync<List<ClasificacionGuardadaDto>>(
+            $"api/Predicciones/clasificacion?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}") ?? new();
+
+        var terceros = await Http.GetFromJsonAsync<List<string>>(
+            $"api/Predicciones/terceros?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}") ?? new();
+
+        tercerosUsuario = terceros
+            .Select(NormalizarGrupo)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        await CargarTablasRealesAsync();
+    }
+
+    private async Task CargarTablasRealesAsync()
+    {
+        tablasReales.Clear();
+
+        foreach (var grupo in LetrasGrupos)
+        {
+            var tabla = await Http.GetFromJsonAsync<List<TablaGrupoRealDto>>(
+                $"api/Partidos/posiciones/{grupo}") ?? new();
+
+            tablasReales[grupo] = tabla
+                .Select((e, index) =>
+                {
+                    e.PosicionReal = index + 1;
+                    e.Grupo = grupo;
+                    return e;
+                })
+                .ToList();
+        }
+    }
+
+    private IEnumerable<DetalleRankingDto> MarcadoresFiltrados()
+    {
+        var query = detalleUsuario.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(equipoFiltro))
+        {
+            query = query.Where(d =>
+                string.Equals(d.Local, equipoFiltro, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(d.Visitante, equipoFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(faseFiltro))
+        {
+            query = query.Where(d =>
+                string.Equals(d.Fase, faseFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (fechaFiltro.HasValue)
+        {
+            query = query.Where(d => d.Fecha.Date == fechaFiltro.Value.Date);
+        }
+
+        return query;
+    }
+
+    private List<GrupoComparadoDto> GruposComparados()
+    {
+        var tercerosReales = TercerosReales().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var grupos = string.IsNullOrWhiteSpace(grupoFiltro)
+            ? LetrasGrupos
+            : new[] { grupoFiltro };
+
+        return grupos
+            .Select(grupo =>
+            {
+                var prediccion = clasificacionUsuario.FirstOrDefault(c =>
+                    string.Equals(NormalizarGrupo(c.grupo), grupo, StringComparison.OrdinalIgnoreCase));
+
+                tablasReales.TryGetValue(grupo, out var tabla);
+                tabla ??= new();
+
+                return new GrupoComparadoDto
+                {
+                    Grupo = grupo,
+                    TienePrediccion = prediccion != null,
+                    Equipos = tabla
+                        .Select(e =>
+                        {
+                            var posPredicha = PosicionPredicha(e.EquipoId, prediccion);
+                            var clasificaPredicha = posPredicha <= 2 ||
+                                (posPredicha == 3 && tercerosUsuario.Contains(grupo));
+                            var clasificaReal = e.PosicionReal <= 2 ||
+                                (e.PosicionReal == 3 && tercerosReales.Contains(grupo));
+
+                            return new EquipoComparadoDto
+                            {
+                                Equipo = e.Equipo,
+                                PosicionPredicha = posPredicha,
+                                PosicionReal = e.PosicionReal,
+                                ClasificacionCoincide = clasificaPredicha == clasificaReal
+                            };
+                        })
+                        .ToList()
+                };
+            })
+            .ToList();
+    }
+
+    private List<string> TercerosReales()
+    {
+        return tablasReales
+            .SelectMany(g => g.Value.Where(e => e.PosicionReal == 3))
+            .OrderByDescending(e => e.Puntos)
+            .ThenByDescending(e => e.DG)
+            .ThenByDescending(e => e.GF)
+            .ThenBy(e => e.Equipo)
+            .Take(8)
+            .Select(e => e.Grupo)
+            .ToList();
+    }
+
+    private static int PosicionPredicha(int equipoId, ClasificacionGuardadaDto? prediccion)
+    {
+        if (prediccion == null)
+        {
+            return 0;
+        }
+
+        if (prediccion.primeroId == equipoId)
+        {
+            return 1;
+        }
+
+        if (prediccion.segundoId == equipoId)
+        {
+            return 2;
+        }
+
+        return prediccion.terceroId == equipoId ? 3 : 4;
+    }
+
+    private List<string> EquiposDisponibles()
+    {
+        return detalleUsuario
+            .SelectMany(d => new[] { d.Local, d.Visitante })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(e => e)
+            .ToList();
+    }
+
+    private List<string> FasesDisponibles()
+    {
+        return detalleUsuario
+            .Select(d => d.Fase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(OrdenFase)
+            .ToList();
+    }
+
+    private bool HayFiltrosMarcadores()
+    {
+        return !string.IsNullOrWhiteSpace(equipoFiltro) ||
+               !string.IsNullOrWhiteSpace(faseFiltro) ||
+               fechaFiltro.HasValue;
+    }
+
+    private void LimpiarFiltrosMarcadores()
+    {
+        equipoFiltro = null;
+        faseFiltro = null;
+        fechaFiltro = null;
+    }
+
+    private static bool ResultadoDisponible(DetalleRankingDto detalle)
+    {
+        return detalle.ResultadoLocal.HasValue && detalle.ResultadoVisitante.HasValue;
+    }
+
+    private static string EstadoMarcador(DetalleRankingDto detalle)
+    {
+        if (!ResultadoDisponible(detalle))
+        {
+            return "Pendiente";
+        }
+
+        if (detalle.PuntosExacto > 0)
+        {
+            return "Exacto";
+        }
+
+        return detalle.Total > 0 ? "Con puntos" : "Sin puntos";
+    }
+
+    private static string EstadoMarcadorCss(DetalleRankingDto detalle)
+    {
+        if (!ResultadoDisponible(detalle))
+        {
+            return "pending";
+        }
+
+        if (detalle.PuntosExacto > 0)
+        {
+            return "ok";
+        }
+
+        return detalle.Total > 0 ? "partial" : "miss";
+    }
+
+    private static string TextoPosicion(int posicion)
+    {
+        return posicion <= 0 ? "-" : posicion.ToString();
+    }
+
+    private static string TextoGrupos(IEnumerable<string> grupos)
+    {
+        var lista = grupos
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Select(NormalizarGrupo)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g)
+            .ToList();
+
+        return lista.Any()
+            ? string.Join(", ", lista.Select(g => $"Grupo {g}"))
+            : "Sin datos";
+    }
+
+    private static MarkupString Marcador(int? local, int? visitante, string clase)
+    {
+        var texto = local.HasValue && visitante.HasValue
+            ? $"{local} - {visitante}"
+            : "--";
+
+        return new MarkupString($"<span class=\"{clase}\">{texto}</span>");
+    }
+
+    private static string FechaCorta(DateTime fecha)
+    {
+        return fecha == default ? "-" : fecha.ToString("dd/MM/yyyy");
+    }
+
+    private static string NormalizarGrupo(string grupo)
+    {
+        return grupo.Replace("Grupo", "", StringComparison.OrdinalIgnoreCase)
+            .Trim()
+            .ToUpperInvariant();
+    }
+
+    private static int OrdenFase(string fase) => fase switch
+    {
+        "Grupos" => 1,
+        "Dieciseisavos" => 2,
+        "Octavos" => 3,
+        "Cuartos" => 4,
+        "Semifinales" => 5,
+        "TercerPuesto" => 6,
+        "Final" => 7,
+        _ => 99
+    };
+
+    private static string NombreFase(string fase)
+    {
+        return fase == "TercerPuesto"
+            ? "Tercer puesto"
+            : fase;
+    }
+
+    private class ClasificacionGuardadaDto
+    {
+        public string grupo { get; set; } = "";
+        public int primeroId { get; set; }
+        public int segundoId { get; set; }
+        public int terceroId { get; set; }
+        public bool bloqueada { get; set; }
+    }
+
+    private class TablaGrupoRealDto
+    {
+        public int EquipoId { get; set; }
+        public string Equipo { get; set; } = "";
+        public int PJ { get; set; }
+        public int GF { get; set; }
+        public int GC { get; set; }
+        public int DG => GF - GC;
+        public int Puntos { get; set; }
+        public string Grupo { get; set; } = "";
+        public int PosicionReal { get; set; }
+    }
+
+    private class GrupoComparadoDto
+    {
+        public string Grupo { get; set; } = "";
+        public bool TienePrediccion { get; set; }
+        public List<EquipoComparadoDto> Equipos { get; set; } = new();
+    }
+
+    private class EquipoComparadoDto
+    {
+        public string Equipo { get; set; } = "";
+        public int PosicionPredicha { get; set; }
+        public int PosicionReal { get; set; }
+        public bool ClasificacionCoincide { get; set; }
+    }
+}
