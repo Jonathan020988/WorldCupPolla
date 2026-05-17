@@ -4,8 +4,10 @@
 @inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
+@inject ClasificacionDraftService ClasificacionDraft
 @using WorldCup.App.Shared.DTOs
 @using WorldCup.App.Shared.Services
+@using WorldCup.App.Web.Services
 
 <h3 class="mb-4">📊 Clasificación de Grupos</h3>
 
@@ -68,6 +70,18 @@ else
         </div>
     }
 
+    @if (borradorAplicado)
+    {
+        <div class="draft-classification-alert">
+            <div>
+                <span class="draft-kicker">Borrador desde predicciones</span>
+                <strong>Trajimos la tabla calculada, pero todavia no esta guardada.</strong>
+                <p>Revisa las posiciones, ajusta lo que quieras y guarda cada grupo. Luego confirma los mejores terceros.</p>
+            </div>
+            <span class="draft-pill">@gruposDesdeBorrador.Count grupo(s)</span>
+        </div>
+    }
+
     <div class="mb-4">
 
     <div class="d-flex justify-content-between mb-1">
@@ -116,6 +130,17 @@ else
                 <span>Clasificados visibles</span>
                 <strong>@clasificados.Count / 32</strong>
             </div>
+        </div>
+
+        <div class="checklist-actions">
+            <button class="btn btn-sm btn-outline-success"
+                    disabled="@(!PuedeEditarClasificacion || gruposTercero.Count != 8 || TercerosSeleccionadosSinGuardar.Any())"
+                    @onclick="GuardarMejoresTercerosManual">
+                Guardar mejores terceros
+            </button>
+            <span>
+                Selecciona 8 mejores terceros y guarda sus grupos antes de confirmarlos.
+            </span>
         </div>
 
         @if (!ClasificacionCompleta)
@@ -408,6 +433,50 @@ else
         padding: 16px;
     }
 
+    .draft-classification-alert {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #b9e2c6;
+        border-left: 5px solid #198754;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #f2fbf5 0%, #ffffff 100%);
+        color: #163c27;
+    }
+
+    .draft-classification-alert strong {
+        display: block;
+        font-weight: 850;
+    }
+
+    .draft-classification-alert p {
+        margin: .2rem 0 0;
+        color: #52635a;
+        font-size: .9rem;
+    }
+
+    .draft-kicker {
+        display: block;
+        color: #198754;
+        font-size: .75rem;
+        font-weight: 850;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .draft-pill {
+        border-radius: 999px;
+        background: #d1e7dd;
+        color: #0f5132;
+        padding: .35rem .7rem;
+        font-size: .82rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
     .checklist-header {
         display: flex;
         justify-content: space-between;
@@ -473,6 +542,23 @@ else
     .checklist-metric strong {
         color: #10233f;
         font-size: 1.15rem;
+    }
+
+    .checklist-actions {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        margin-bottom: 12px;
+        padding: .65rem .75rem;
+        border: 1px dashed #b9d7f7;
+        border-radius: 8px;
+        background: #f8fbff;
+    }
+
+    .checklist-actions span {
+        color: #65758d;
+        font-size: .84rem;
+        font-weight: 650;
     }
 
     .pending-list {
@@ -546,7 +632,9 @@ else
             grid-template-columns: 1fr;
         }
 
-        .checklist-header {
+        .checklist-header,
+        .checklist-actions,
+        .draft-classification-alert {
             align-items: stretch;
             flex-direction: column;
         }
@@ -568,6 +656,8 @@ else
     private string? mensajeClasificacion;
     private bool clasificacionConError;
     private bool PuedeEditarClasificacion => !clasificacionCerrada || clasificacionReabierta;
+    private bool borradorAplicado;
+    private HashSet<string> gruposDesdeBorrador = new(StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -623,6 +713,8 @@ else
         segundos.Clear();
         terceros.Clear();
         clasificacionReabierta = false;
+        borradorAplicado = false;
+        gruposDesdeBorrador.Clear();
         DetenerContador();
     }
 
@@ -657,10 +749,81 @@ else
 
         await CargarClasificacionGuardada();
         await CargarTerceros();
-        CalcularClasificados();
         await CargarEstadoClasificacion();
         await CargarReaperturaClasificacion();
+        AplicarBorradorDesdePredicciones();
+        CalcularClasificados();
         IniciarContador();
+    }
+
+    private void AplicarBorradorDesdePredicciones()
+    {
+        borradorAplicado = false;
+        gruposDesdeBorrador.Clear();
+
+        if (!Sesion.PollaActivaId.HasValue ||
+            !Sesion.UsuarioId.HasValue ||
+            grupos == null)
+        {
+            return;
+        }
+
+        var borrador = ClasificacionDraft.Take(
+            Sesion.PollaActivaId.Value,
+            Sesion.UsuarioId.Value);
+
+        if (borrador == null)
+        {
+            return;
+        }
+
+        if (!PuedeEditarClasificacion)
+        {
+            mensajeClasificacion = "La clasificacion esta cerrada; no se pudo aplicar el borrador de predicciones.";
+            clasificacionConError = true;
+            return;
+        }
+
+        foreach (var grupoBorrador in borrador.Grupos)
+        {
+            var grupoKey = NormalizarGrupo(grupoBorrador.Grupo);
+
+            if (!grupos.TryGetValue(grupoKey, out var equipos))
+            {
+                continue;
+            }
+
+            foreach (var equipoBorrador in grupoBorrador.Equipos)
+            {
+                var equipo = equipos.FirstOrDefault(e => e.equipoId == equipoBorrador.EquipoId);
+
+                if (equipo == null)
+                {
+                    continue;
+                }
+
+                equipo.posicion = equipoBorrador.Posicion;
+                equipo.bloqueado = false;
+                equipo.grupoGuardado = false;
+            }
+
+            VerificarPosiciones(equipos);
+            gruposDesdeBorrador.Add(grupoKey);
+        }
+
+        gruposTercero = borrador.MejoresTerceros
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Select(NormalizarGrupo)
+            .Take(8)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        borradorAplicado = gruposDesdeBorrador.Any();
+
+        if (borradorAplicado)
+        {
+            mensajeClasificacion = "Borrador aplicado desde predicciones. Revisa, ajusta y guarda cada grupo; despues guarda los mejores terceros.";
+            clasificacionConError = false;
+        }
     }
 
     private async Task CargarClasificacionGuardada()
@@ -790,6 +953,43 @@ else
         );
 
         response.EnsureSuccessStatusCode();
+    }
+
+    private async Task GuardarMejoresTercerosManual()
+    {
+        if (!PuedeEditarClasificacion)
+        {
+            mensajeClasificacion = "La clasificacion de grupos esta cerrada y ya no se puede editar.";
+            clasificacionConError = true;
+            return;
+        }
+
+        if (gruposTercero.Count != 8)
+        {
+            mensajeClasificacion = "Debes seleccionar exactamente 8 mejores terceros antes de guardarlos.";
+            clasificacionConError = true;
+            return;
+        }
+
+        if (TercerosSeleccionadosSinGuardar.Any())
+        {
+            mensajeClasificacion = "Guarda primero los grupos marcados como mejores terceros antes de confirmarlos.";
+            clasificacionConError = true;
+            return;
+        }
+
+        try
+        {
+            await GuardarTerceros();
+            CalcularClasificados();
+            mensajeClasificacion = "Mejores terceros guardados correctamente.";
+            clasificacionConError = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeClasificacion = $"No se pudieron guardar los mejores terceros: {ex.Message}";
+            clasificacionConError = true;
+        }
     }
 
     private HashSet<string> gruposTercero = new(StringComparer.OrdinalIgnoreCase);

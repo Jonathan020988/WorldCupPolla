@@ -1,6 +1,7 @@
 ﻿using WorldCup.App.Shared.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using WorldCup.App.Web.Components;
+using WorldCup.App.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 const string ApiKeyHeaderName = "X-WorldCup-Api-Key";
@@ -41,6 +42,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddScoped<LocalStorageService>();
 
 builder.Services.AddScoped<SesionService>();
+builder.Services.AddScoped<ClasificacionDraftService>();
 
 builder.Services.AddScoped<UsuariosService>();
 
