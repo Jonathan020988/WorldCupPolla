@@ -209,6 +209,54 @@ else
 
                                                 <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
 
+                                                    <div class="detalle-filtros-panel">
+                                                        <div>
+                                                            <label>Equipo</label>
+                                                            <select class="form-select form-select-sm" @bind="detalleEquipoFiltro">
+                                                                <option value="">Todos</option>
+                                                                @foreach (var equipo in EquiposDetalleDisponibles(r.Usuario))
+                                                                {
+                                                                    <option value="@equipo">@equipo</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label>Grupo</label>
+                                                            <select class="form-select form-select-sm" @bind="detalleGrupoFiltro">
+                                                                <option value="">Todos</option>
+                                                                @foreach (var grupoFiltro in GruposDetalleDisponibles(r.Usuario))
+                                                                {
+                                                                    <option value="@grupoFiltro">Grupo @grupoFiltro</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label>Fecha</label>
+                                                            <input class="form-control form-control-sm"
+                                                                   type="date"
+                                                                   @bind="detalleFechaFiltro" />
+                                                        </div>
+                                                        <div>
+                                                            <label>Resumen por fase</label>
+                                                            <select class="form-select form-select-sm" @bind="detalleFaseResumenFiltro">
+                                                                <option value="">Ver partidos</option>
+                                                                @foreach (var faseFiltro in FasesDetalleDisponibles(r.Usuario))
+                                                                {
+                                                                    <option value="@faseFiltro">@NombreFase(faseFiltro)</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+
+                                                        @if (HayFiltrosDetalle())
+                                                        {
+                                                            <button type="button"
+                                                                    class="btn btn-sm btn-outline-secondary"
+                                                                    @onclick="LimpiarFiltrosDetalle">
+                                                                Limpiar
+                                                            </button>
+                                                        }
+                                                    </div>
+
                                                     <table class="table table-bordered table-hover table-sm align-middle detalle-ranking-table">
 
                                                         <thead class="table-dark">
@@ -231,179 +279,159 @@ else
 
                                                         <tbody>
 
-                                                            @foreach (var faseDetalle in rankingDetalle
-                                                           .Where(x => x.Usuario == r.Usuario)
-                                                           .GroupBy(x => x.Fase)
-                                                           .OrderBy(g => OrdenFase(g.Key)))
-                                                            {
-                                                                var faseNombre = faseDetalle.Key;
-                                                                var faseMinimizada = FaseDetalleMinimizada(r.Usuario, faseNombre);
+                                                            @{
+                                                                var detallesFiltrados = DetallesUsuarioFiltrados(r.Usuario).ToList();
+                                                                var resumenFaseActivo = !string.IsNullOrWhiteSpace(detalleFaseResumenFiltro);
+                                                            }
 
-                                                                <tr class="detalle-fase-row">
-                                                                    <td colspan="12">
-                                                                        <div class="detalle-fase-header">
-                                                                            <div>
-                                                                                <strong>@faseNombre</strong>
-                                                                                <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
-                                                                            </div>
-                                                                            <button type="button"
-                                                                                    class="detalle-fase-btn"
-                                                                                    @onclick="() => ToggleFaseDetalle(r.Usuario, faseNombre)">
-                                                                                @(faseMinimizada ? "Mostrar" : "Minimizar")
-                                                                            </button>
-                                                                        </div>
+                                                            @if (!detallesFiltrados.Any())
+                                                            {
+                                                                <tr>
+                                                                    <td colspan="12" class="text-center text-muted fw-bold">
+                                                                        No hay registros con esos filtros.
                                                                     </td>
                                                                 </tr>
-
-                                                                @if (!faseMinimizada)
+                                                            }
+                                                            else if (resumenFaseActivo)
+                                                            {
+                                                                <tr class="detalle-resumen-row">
+                                                                    <td>
+                                                                        <strong>Resumen</strong><br />
+                                                                        <small>@detallesFiltrados.Count partido(s)</small>
+                                                                    </td>
+                                                                    <td><span class="badge bg-light text-dark">@NombreFase(detalleFaseResumenFiltro!)</span></td>
+                                                                    <td>-</td>
+                                                                    <td>-</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExacto), "bg-success")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGanador), "bg-info text-dark")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosDiferencia), "bg-secondary")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGoles), "bg-primary")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosClasificacion), "bg-warning text-dark")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExtras), "bg-dark")</td>
+                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosPodio), "bg-danger")</td>
+                                                                    <td class="text-center fw-bold">@detallesFiltrados.Sum(x => x.Total)</td>
+                                                                </tr>
+                                                            }
+                                                            else
+                                                            {
+                                                                @foreach (var faseDetalle in detallesFiltrados
+                                                                    .GroupBy(x => x.Fase)
+                                                                    .OrderBy(g => OrdenFase(g.Key)))
                                                                 {
-                                                                    @foreach (var d in faseDetalle.OrderBy(x => x.Local))
+                                                                    var faseNombre = faseDetalle.Key;
+                                                                    var faseMinimizada = FaseDetalleMinimizada(r.Usuario, faseNombre);
+
+                                                                    <tr class="detalle-fase-row">
+                                                                        <td colspan="12">
+                                                                            <div class="detalle-fase-header">
+                                                                                <div>
+                                                                                    <strong>@faseNombre</strong>
+                                                                                    <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
+                                                                                </div>
+                                                                                <button type="button"
+                                                                                        class="detalle-fase-btn"
+                                                                                        @onclick="() => ToggleFaseDetalle(r.Usuario, faseNombre)">
+                                                                                    @(faseMinimizada ? "Mostrar" : "Minimizar")
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+
+                                                                    @if (!faseMinimizada)
                                                                     {
-                                                                        <tr>
+                                                                        @foreach (var d in faseDetalle.OrderBy(x => x.Fecha).ThenBy(x => x.Local))
+                                                                        {
+                                                                            <tr>
 
-                                                                            <td>
-                                                                                <strong>@d.Local</strong>
-                                                                                vs
-                                                                                <strong>@d.Visitante</strong>
-                                                                            </td>
+                                                                                <td>
+                                                                                    <strong>@d.Local</strong>
+                                                                                    vs
+                                                                                    <strong>@d.Visitante</strong>
+                                                                                </td>
 
-                                                                            <td>
-                                                                                <span class="badge bg-light text-dark">
-                                                                                    @d.Fase
-                                                                                </span>
-                                                                            </td>
-
-                                                                            <td>
-                                                                                <span class="badge bg-primary">
-                                                                                    @d.PronosticoLocal - @d.PronosticoVisitante
-                                                                                </span>
-                                                                            </td>
-
-                                                                            <td>
-                                                                                <span class="badge bg-dark">
-                                                                                    @d.ResultadoLocal - @d.ResultadoVisitante
-                                                                                </span>
-                                                                            </td>
-
-                                                                            <td class="text-center">
-
-                                                                                @if (d.PuntosExacto > 0)
-                                                                                {
-                                                                                    <span class="badge bg-success">
-                                                                                        +@d.PuntosExacto
+                                                                                <td>
+                                                                                    <span class="badge bg-light text-dark">
+                                                                                        @d.Fase
                                                                                     </span>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
+                                                                                </td>
 
-                                                                            </td>
-
-                                                                            <td class="text-center">
-
-                                                                                @if (d.PuntosGanador > 0)
-                                                                                {
-                                                                                    <span class="badge bg-info text-dark">
-                                                                                        +@d.PuntosGanador
-                                                                                    </span>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
-
-                                                                            </td>
-
-                                                                            <td class="text-center">
-
-                                                                                @if (d.PuntosDiferencia > 0)
-                                                                                {
-                                                                                    <span class="badge bg-secondary">
-                                                                                        +@d.PuntosDiferencia
-                                                                                    </span>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
-
-                                                                            </td>
-
-                                                                            <td class="text-center">
-
-                                                                                @if (d.PuntosGoles > 0)
-                                                                                {
+                                                                                <td>
                                                                                     <span class="badge bg-primary">
-                                                                                        +@d.PuntosGoles
+                                                                                        @d.PronosticoLocal - @d.PronosticoVisitante
                                                                                     </span>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
+                                                                                </td>
 
-                                                                            </td>
+                                                                                <td>
+                                                                                    <span class="badge bg-dark">
+                                                                                        @d.ResultadoLocal - @d.ResultadoVisitante
+                                                                                    </span>
+                                                                                </td>
 
-                                                                            <td class="text-center">
+                                                                                <td class="text-center">@BadgePuntos(d.PuntosExacto, "bg-success")</td>
+                                                                                <td class="text-center">@BadgePuntos(d.PuntosGanador, "bg-info text-dark")</td>
+                                                                                <td class="text-center">@BadgePuntos(d.PuntosDiferencia, "bg-secondary")</td>
+                                                                                <td class="text-center">@BadgePuntos(d.PuntosGoles, "bg-primary")</td>
 
-                                                                                @if (d.PuntosClasificacion > 0)
-                                                                                {
-                                                                                    <button type="button"
-                                                                                            class="badge bg-warning text-dark detalle-puntos-btn"
-                                                                                            title="Ver detalle"
-                                                                                            @onclick='() => AbrirDetallePuntos("Clasificacion", d.PuntosClasificacion, "bg-warning text-dark", d.DetalleClasificacion, d)'>
-                                                                                        +@d.PuntosClasificacion
-                                                                                    </button>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
+                                                                                <td class="text-center">
 
-                                                                            </td>
+                                                                                    @if (d.PuntosClasificacion > 0)
+                                                                                    {
+                                                                                        <button type="button"
+                                                                                                class="badge bg-warning text-dark detalle-puntos-btn"
+                                                                                                title="Ver detalle"
+                                                                                                @onclick='() => AbrirDetallePuntos("Clasificacion", d.PuntosClasificacion, "bg-warning text-dark", d.DetalleClasificacion, d)'>
+                                                                                            +@d.PuntosClasificacion
+                                                                                        </button>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <span class="text-muted">0</span>
+                                                                                    }
 
-                                                                            <td class="text-center">
+                                                                                </td>
 
-                                                                                @if (d.PuntosExtras > 0)
-                                                                                {
-                                                                                    <button type="button"
-                                                                                            class="badge bg-dark detalle-puntos-btn"
-                                                                                            title="Ver detalle"
-                                                                                            @onclick='() => AbrirDetallePuntos("Extras", d.PuntosExtras, "bg-dark", d.DetalleExtras, d)'>
-                                                                                        +@d.PuntosExtras
-                                                                                    </button>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
+                                                                                <td class="text-center">
 
-                                                                            </td>
+                                                                                    @if (d.PuntosExtras > 0)
+                                                                                    {
+                                                                                        <button type="button"
+                                                                                                class="badge bg-dark detalle-puntos-btn"
+                                                                                                title="Ver detalle"
+                                                                                                @onclick='() => AbrirDetallePuntos("Extras", d.PuntosExtras, "bg-dark", d.DetalleExtras, d)'>
+                                                                                            +@d.PuntosExtras
+                                                                                        </button>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <span class="text-muted">0</span>
+                                                                                    }
 
-                                                                            <td class="text-center">
+                                                                                </td>
 
-                                                                                @if (d.PuntosPodio > 0)
-                                                                                {
-                                                                                    <button type="button"
-                                                                                            class="badge bg-danger detalle-puntos-btn"
-                                                                                            title="Ver detalle"
-                                                                                            @onclick='() => AbrirDetallePuntos("Podio", d.PuntosPodio, "bg-danger", d.DetallePodio, d)'>
-                                                                                        +@d.PuntosPodio
-                                                                                    </button>
-                                                                                }
-                                                                                else
-                                                                                {
-                                                                                    <span class="text-muted">0</span>
-                                                                                }
+                                                                                <td class="text-center">
 
-                                                                            </td>
+                                                                                    @if (d.PuntosPodio > 0)
+                                                                                    {
+                                                                                        <button type="button"
+                                                                                                class="badge bg-danger detalle-puntos-btn"
+                                                                                                title="Ver detalle"
+                                                                                                @onclick='() => AbrirDetallePuntos("Podio", d.PuntosPodio, "bg-danger", d.DetallePodio, d)'>
+                                                                                            +@d.PuntosPodio
+                                                                                        </button>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <span class="text-muted">0</span>
+                                                                                    }
 
-                                                                            <td class="text-center fw-bold">
-                                                                                @d.Total
-                                                                            </td>
+                                                                                </td>
 
-                                                                        </tr>
+                                                                                <td class="text-center fw-bold">
+                                                                                    @d.Total
+                                                                                </td>
+
+                                                                            </tr>
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -528,6 +556,37 @@ else
         z-index: 3;
         background: #212529;
         color: #fff;
+    }
+
+    .detalle-filtros-panel {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+        gap: .65rem;
+        align-items: end;
+        margin-bottom: .75rem;
+        padding: .8rem;
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 6px 16px rgba(16, 24, 40, .06);
+    }
+
+    .detalle-filtros-panel label {
+        display: block;
+        margin-bottom: .2rem;
+        color: #667085;
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .detalle-resumen-row {
+        background: #fff8df;
+    }
+
+    .detalle-resumen-row small {
+        color: #667085;
+        font-weight: 700;
     }
 
     .payment-summary {
@@ -672,8 +731,14 @@ else
     }
 
     @@media (max-width: 768px) {
-        .payment-summary {
+        .payment-summary,
+        .detalle-filtros-panel {
             grid-template-columns: 1fr;
+        }
+
+        .detalle-fase-header {
+            align-items: flex-start;
+            flex-direction: column;
         }
     }
 </style>
@@ -694,6 +759,10 @@ else
     private string detallePuntosClase = "";
     private int detallePuntosValor;
     private HashSet<string> fasesDetalleMinimizadas = new(StringComparer.OrdinalIgnoreCase);
+    private string? detalleEquipoFiltro;
+    private string? detalleGrupoFiltro;
+    private DateTime? detalleFechaFiltro;
+    private string? detalleFaseResumenFiltro;
     private bool editandoPolla;
     private decimal? valorInscripcionEdit;
     private string metodoPagoEdit = "";
@@ -706,8 +775,94 @@ else
         }
         else
         {
+            LimpiarFiltrosDetalle();
             usuarioDetalleAbierto = usuario;
         }
+    }
+
+    private IEnumerable<DetalleRankingDto> DetallesUsuarioFiltrados(string usuario)
+    {
+        var query = rankingDetalle
+            .Where(x => x.Usuario == usuario)
+            .AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(detalleEquipoFiltro))
+        {
+            query = query.Where(x =>
+                string.Equals(x.Local, detalleEquipoFiltro, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.Visitante, detalleEquipoFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(detalleGrupoFiltro))
+        {
+            query = query.Where(x =>
+                string.Equals(x.Grupo, detalleGrupoFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (detalleFechaFiltro.HasValue)
+        {
+            query = query.Where(x => x.Fecha.Date == detalleFechaFiltro.Value.Date);
+        }
+
+        if (!string.IsNullOrWhiteSpace(detalleFaseResumenFiltro))
+        {
+            query = query.Where(x =>
+                string.Equals(x.Fase, detalleFaseResumenFiltro, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return query
+            .OrderBy(x => OrdenFase(x.Fase))
+            .ThenBy(x => x.Fecha)
+            .ThenBy(x => x.Local);
+    }
+
+    private List<string> EquiposDetalleDisponibles(string usuario)
+    {
+        return rankingDetalle
+            .Where(x => x.Usuario == usuario)
+            .SelectMany(x => new[] { x.Local, x.Visitante })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    private List<string> GruposDetalleDisponibles(string usuario)
+    {
+        return rankingDetalle
+            .Where(x => x.Usuario == usuario)
+            .Select(x => x.Grupo)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    private List<string> FasesDetalleDisponibles(string usuario)
+    {
+        return rankingDetalle
+            .Where(x => x.Usuario == usuario)
+            .Select(x => x.Fase)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(OrdenFase)
+            .ToList();
+    }
+
+    private bool HayFiltrosDetalle()
+    {
+        return !string.IsNullOrWhiteSpace(detalleEquipoFiltro) ||
+               !string.IsNullOrWhiteSpace(detalleGrupoFiltro) ||
+               detalleFechaFiltro.HasValue ||
+               !string.IsNullOrWhiteSpace(detalleFaseResumenFiltro);
+    }
+
+    private void LimpiarFiltrosDetalle()
+    {
+        detalleEquipoFiltro = null;
+        detalleGrupoFiltro = null;
+        detalleFechaFiltro = null;
+        detalleFaseResumenFiltro = null;
     }
 
     private void AbrirDetallePuntos(
@@ -743,6 +898,20 @@ else
         "Final" => 7,
         _ => 99
     };
+
+    private static string NombreFase(string fase)
+    {
+        return fase == "TercerPuesto"
+            ? "Tercer puesto"
+            : fase;
+    }
+
+    private MarkupString BadgePuntos(int puntos, string clase)
+    {
+        return puntos > 0
+            ? new MarkupString($"<span class=\"badge {clase}\">+{puntos}</span>")
+            : new MarkupString("<span class=\"text-muted\">0</span>");
+    }
 
     private bool FaseDetalleMinimizada(string usuario, string fase)
     {

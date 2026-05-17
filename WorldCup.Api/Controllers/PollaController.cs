@@ -353,6 +353,8 @@ namespace WorldCup.Api.Controllers
                 UsuarioId = prediccion.UsuarioId,
                 Usuario = prediccion.Usuario.Nombre,
                 Fase = prediccion.Partido.Fase,
+                Grupo = grupo,
+                Fecha = prediccion.Partido.Fecha,
                 Local = prediccion.Partido.Local.Nombre,
                 Visitante = prediccion.Partido.Visitante.Nombre,
                 PronosticoLocal = prediccion.GolesLocal,

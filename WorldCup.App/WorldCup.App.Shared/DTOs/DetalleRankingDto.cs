@@ -6,6 +6,8 @@
         public string Usuario { get; set; } = "";
 
         public string Fase { get; set; } = "";
+        public string Grupo { get; set; } = "";
+        public DateTime Fecha { get; set; }
         public string Local { get; set; } = "";
         public string Visitante { get; set; } = "";
 
