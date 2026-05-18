@@ -76,9 +76,26 @@
 
     .admin-result {
         display: grid;
-        grid-template-columns: minmax(130px, 1fr) 90px 90px 90px 90px minmax(220px, auto);
+        grid-template-columns: minmax(130px, 1fr) 90px 90px minmax(120px, auto) 90px 90px minmax(220px, auto);
         gap: .5rem;
         align-items: center;
+    }
+
+    .extra-time-check {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        min-height: 31px;
+        margin: 0;
+        padding: .25rem .45rem;
+        border: 1px solid #d7dee8;
+        border-radius: 6px;
+        background: #f8fafc;
+        color: #344054;
+        font-size: .82rem;
+        font-weight: 800;
+        white-space: nowrap;
     }
 
     .resultado-actions {
@@ -324,6 +341,12 @@
                                     @if (p.Finalizado)
                                     {
                                         @($"{p.GolesLocal} - {p.GolesVisitante}")
+                                        @if (p.Fase != "Grupos" && p.TiempoExtra)
+                                        {
+                                            <div class="small text-muted">
+                                                T. extra
+                                            </div>
+                                        }
                                         @if (p.Fase != "Grupos" &&
                                        p.GolesLocal == p.GolesVisitante &&
                                        p.PenalesLocal.HasValue &&
@@ -386,6 +409,14 @@
                                            placeholder="Visitante"
                                            disabled="@(!resultadoEditable)"
                                            @bind="p.GolesVisitante" />
+
+                                    <label class="extra-time-check">
+                                        <input class="form-check-input mt-0"
+                                               type="checkbox"
+                                               disabled="@(!resultadoEditable || !EsEliminatoria(p))"
+                                               @bind="p.TiempoExtra" />
+                                        <span>T. extra</span>
+                                    </label>
 
                                     <input type="number"
                                            class="form-control form-control-sm"
@@ -611,10 +642,16 @@
 
     private bool PenalesDeshabilitados(PartidoDto partido)
     {
-        return partido.Fase == "Grupos" ||
+        return !EsEliminatoria(partido) ||
+               !partido.TiempoExtra ||
                !partido.GolesLocal.HasValue ||
                !partido.GolesVisitante.HasValue ||
                partido.GolesLocal != partido.GolesVisitante;
+    }
+
+    private static bool EsEliminatoria(PartidoDto partido)
+    {
+        return partido.Fase != "Grupos";
     }
 
     private bool TieneResultadoReal(PartidoDto partido)
@@ -669,8 +706,9 @@
             Estado = partido.Estado,
             GolesLocal = partido.GolesLocal,
             GolesVisitante = partido.GolesVisitante,
-            PenalesLocal = partido.PenalesLocal,
-            PenalesVisitante = partido.PenalesVisitante
+            TiempoExtra = partido.TiempoExtra,
+            PenalesLocal = !PenalesDeshabilitados(partido) ? partido.PenalesLocal : null,
+            PenalesVisitante = !PenalesDeshabilitados(partido) ? partido.PenalesVisitante : null
         };
 
         var response = await Http.PutAsJsonAsync(
@@ -704,6 +742,7 @@
             Estado = "Pendiente",
             GolesLocal = null,
             GolesVisitante = null,
+            TiempoExtra = false,
             PenalesLocal = null,
             PenalesVisitante = null
         };
@@ -773,6 +812,7 @@
                  !partido.PenalesVisitante.HasValue ||
                  partido.PenalesLocal == partido.PenalesVisitante))
             {
+                partido.TiempoExtra = true;
                 AplicarPenalesAleatorios(partido);
             }
 
@@ -817,11 +857,13 @@
 
         if (partido.Fase == "Grupos" || partido.GolesLocal != partido.GolesVisitante)
         {
+            partido.TiempoExtra = false;
             partido.PenalesLocal = null;
             partido.PenalesVisitante = null;
             return;
         }
 
+        partido.TiempoExtra = true;
         AplicarPenalesAleatorios(partido);
     }
 
@@ -842,6 +884,7 @@
         public string Estado { get; set; } = "Pendiente";
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
+        public bool TiempoExtra { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
     }

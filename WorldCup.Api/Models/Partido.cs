@@ -28,6 +28,7 @@
 
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
+        public bool TiempoExtra { get; set; } = false;
 
     }
 }

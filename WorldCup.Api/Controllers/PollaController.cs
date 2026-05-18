@@ -467,19 +467,19 @@ namespace WorldCup.Api.Controllers
             var partes = new List<string>();
             var partido = prediccion.Partido;
 
-            if (partido.GolesLocal == partido.GolesVisitante)
+            if (partido.TiempoExtra)
             {
                 if (prediccion.PrediceTiempoExtra)
                 {
                     partes.Add("+5: acertó tiempo extra");
                 }
+            }
 
-                if (prediccion.PredicePenales &&
-                    partido.PenalesLocal.HasValue &&
-                    partido.PenalesVisitante.HasValue)
-                {
-                    partes.Add("+5: acertó definición por penales");
-                }
+            if (prediccion.PredicePenales &&
+                partido.PenalesLocal.HasValue &&
+                partido.PenalesVisitante.HasValue)
+            {
+                partes.Add("+5: acertó definición por penales");
             }
 
             return string.Join("; ", partes);
@@ -605,19 +605,16 @@ namespace WorldCup.Api.Controllers
                 detalle.Clasificacion = 10;
             }
 
-            if (partido.GolesLocal == partido.GolesVisitante)
+            if (prediccion.PrediceTiempoExtra && partido.TiempoExtra)
             {
-                if (prediccion.PrediceTiempoExtra)
-                {
-                    detalle.Extras += 5;
-                }
+                detalle.Extras += 5;
+            }
 
-                if (prediccion.PredicePenales &&
-                    partido.PenalesLocal.HasValue &&
-                    partido.PenalesVisitante.HasValue)
-                {
-                    detalle.Extras += 5;
-                }
+            if (prediccion.PredicePenales &&
+                partido.PenalesLocal.HasValue &&
+                partido.PenalesVisitante.HasValue)
+            {
+                detalle.Extras += 5;
             }
 
             return detalle;

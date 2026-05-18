@@ -39,6 +39,9 @@ public static class DatabaseBootstrapper
             ALTER TABLE "Partidos"
             ADD COLUMN IF NOT EXISTS "PenalesVisitante" integer NULL;
 
+            ALTER TABLE "Partidos"
+            ADD COLUMN IF NOT EXISTS "TiempoExtra" boolean NOT NULL DEFAULT false;
+
             UPDATE "Partidos"
             SET "Estado" = CASE
                 WHEN "Finalizado" = true THEN 'Finalizado'

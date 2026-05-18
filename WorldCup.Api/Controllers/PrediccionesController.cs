@@ -337,17 +337,14 @@ namespace WorldCup.Api.Controllers
                 puntosClasificacion += 10;
             }
 
-            if (partido.GolesLocal == partido.GolesVisitante)
-            {
-                if (prediccion.PrediceTiempoExtra)
-                    puntosClasificacion += 5;
+            if (prediccion.PrediceTiempoExtra && partido.TiempoExtra)
+                puntosClasificacion += 5;
 
-                if (prediccion.PredicePenales &&
-                    partido.PenalesLocal.HasValue &&
-                    partido.PenalesVisitante.HasValue)
-                {
-                    puntosClasificacion += 5;
-                }
+            if (prediccion.PredicePenales &&
+                partido.PenalesLocal.HasValue &&
+                partido.PenalesVisitante.HasValue)
+            {
+                puntosClasificacion += 5;
             }
 
             return (puntosMarcador, puntosClasificacion);

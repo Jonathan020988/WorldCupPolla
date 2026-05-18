@@ -42,6 +42,7 @@ namespace WorldCup.Api.Controllers
                     Visitante = p.Visitante.Nombre,
                     p.GolesLocal,
                     p.GolesVisitante,
+                    p.TiempoExtra,
                     p.PenalesLocal,
                     p.PenalesVisitante,
                     p.Finalizado,
@@ -72,6 +73,7 @@ namespace WorldCup.Api.Controllers
                 Grupo = p.Local?.Grupo,
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
+                TiempoExtra = p.TiempoExtra,
                 PenalesLocal = p.PenalesLocal,
                 PenalesVisitante = p.PenalesVisitante,
                 Finalizado = p.Finalizado,
@@ -201,31 +203,48 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Para finalizar el partido debes ingresar ambos marcadores.");
             }
 
+            var esEliminatoria = partido.Fase != "Grupos";
+            var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
+
             if (estado == "Finalizado" &&
-                partido.Fase != "Grupos" &&
-                dto.GolesLocal == dto.GolesVisitante)
+                esEliminatoria &&
+                tienePenales)
             {
                 if (!dto.PenalesLocal.HasValue || !dto.PenalesVisitante.HasValue)
                 {
-                    return BadRequest("Un empate en eliminatorias debe tener penales para definir el clasificado real.");
+                    return BadRequest("Debes ingresar ambos marcadores de penales.");
                 }
 
                 if (dto.PenalesLocal == dto.PenalesVisitante)
                 {
                     return BadRequest("Los penales no pueden terminar empatados.");
                 }
+
+                if (dto.GolesLocal != dto.GolesVisitante)
+                {
+                    return BadRequest("Los penales solo aplican cuando el marcador del partido quedó empatado.");
+                }
+            }
+
+            if (estado == "Finalizado" &&
+                esEliminatoria &&
+                dto.GolesLocal == dto.GolesVisitante &&
+                !tienePenales)
+            {
+                return BadRequest("Un empate en eliminatorias debe tener penales para definir el clasificado real.");
             }
 
             partido.Estado = estado;
             partido.Finalizado = estado == "Finalizado";
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
+            partido.TiempoExtra = esEliminatoria && estado == "Finalizado" && (dto.TiempoExtra || tienePenales);
             partido.PenalesLocal =
-                partido.Fase != "Grupos" && dto.GolesLocal == dto.GolesVisitante
+                esEliminatoria && estado == "Finalizado" && tienePenales
                     ? dto.PenalesLocal
                     : null;
             partido.PenalesVisitante =
-                partido.Fase != "Grupos" && dto.GolesLocal == dto.GolesVisitante
+                esEliminatoria && estado == "Finalizado" && tienePenales
                     ? dto.PenalesVisitante
                     : null;
 
@@ -249,6 +268,7 @@ namespace WorldCup.Api.Controllers
                 partido.Estado,
                 partido.GolesLocal,
                 partido.GolesVisitante,
+                partido.TiempoExtra,
                 partido.Finalizado
             });
         }
@@ -422,6 +442,15 @@ namespace WorldCup.Api.Controllers
                     partido.PenalesLocal = null;
                     partido.PenalesVisitante = null;
                 }
+
+                if (partido.Fase == "Grupos")
+                {
+                    partido.TiempoExtra = false;
+                }
+                else if (partido.PenalesLocal.HasValue && partido.PenalesVisitante.HasValue)
+                {
+                    partido.TiempoExtra = true;
+                }
             }
 
             await _context.SaveChangesAsync();
@@ -524,6 +553,7 @@ namespace WorldCup.Api.Controllers
                 partido.GolesVisitante = null;
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
+                partido.TiempoExtra = false;
                 partido.Finalizado = false;
                 partido.Estado = "Pendiente";
             }
@@ -1472,12 +1502,14 @@ namespace WorldCup.Api.Controllers
 
                 partido.PenalesLocal = dto.PenalesLocal;
                 partido.PenalesVisitante = dto.PenalesVisitante;
+                partido.TiempoExtra = true;
             }
             else
             {
                 // Si no hay empate, limpiamos penales
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
+                partido.TiempoExtra = dto.TiempoExtra;
             }
                          
 
@@ -2212,17 +2244,14 @@ namespace WorldCup.Api.Controllers
                 if (pred.PrediceClasificadoId == ganadorReal)
                     puntosClasificacion += 10;
 
-                if (partido.GolesLocal == partido.GolesVisitante)
-                {
-                    if (pred.PrediceTiempoExtra)
-                        puntosClasificacion += 5;
+                if (pred.PrediceTiempoExtra && partido.TiempoExtra)
+                    puntosClasificacion += 5;
 
-                    if (pred.PredicePenales &&
-                        partido.PenalesLocal.HasValue &&
-                        partido.PenalesVisitante.HasValue)
-                    {
-                        puntosClasificacion += 5;
-                    }
+                if (pred.PredicePenales &&
+                    partido.PenalesLocal.HasValue &&
+                    partido.PenalesVisitante.HasValue)
+                {
+                    puntosClasificacion += 5;
                 }
 
                 pred.PuntosMarcador = puntosMarcador;
@@ -2490,11 +2519,13 @@ namespace WorldCup.Api.Controllers
 
                     p.PenalesLocal = pl;
                     p.PenalesVisitante = pv;
+                    p.TiempoExtra = true;
                 }
                 else
                 {
                     p.PenalesLocal = null;
                     p.PenalesVisitante = null;
+                    p.TiempoExtra = false;
                 }
 
                 p.Finalizado = true;
