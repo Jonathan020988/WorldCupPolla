@@ -109,7 +109,14 @@ else
                                step="1000"
                                @bind="valorInscripcionEdit" />
                     </div>
-                    <div class="col-md-8">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Descripción de la polla</label>
+                        <textarea class="form-control"
+                                  rows="3"
+                                  placeholder="Ej: Reglas internas, notas para los participantes o información general de esta polla"
+                                  @bind="descripcionEdit"></textarea>
+                    </div>
+                    <div class="col-12">
                         <label class="form-label fw-bold">Método de pago</label>
                         <textarea class="form-control"
                                   rows="3"
@@ -131,11 +138,15 @@ else
             else
             {
                 <div class="payment-summary mt-3">
-                    <div>
+                    <div class="payment-price">
                         <span>Precio</span>
                         <strong>@FormatoPrecio(polla.ValorInscripcion)</strong>
                     </div>
-                    <div>
+                    <div class="payment-description">
+                        <span>Descripción</span>
+                        <p>@(string.IsNullOrWhiteSpace(polla.Descripcion) ? "Sin descripción por ahora." : polla.Descripcion)</p>
+                    </div>
+                    <div class="payment-method">
                         <span>Método de pago</span>
                         <p>@(string.IsNullOrWhiteSpace(polla.MetodoPago) ? "No definido todavía." : polla.MetodoPago)</p>
                     </div>
@@ -591,15 +602,16 @@ else
 
     .payment-summary {
         display: grid;
-        grid-template-columns: minmax(160px, 220px) 1fr;
-        gap: 1rem;
+        grid-template-columns: 170px minmax(0, 1fr);
+        gap: .75rem;
+        align-items: start;
     }
 
     .payment-summary > div {
         border: 1px solid #e4e7ec;
         border-radius: 8px;
-        background: #f8fafc;
-        padding: .8rem;
+        background: #fbfcfd;
+        padding: .72rem .85rem;
     }
 
     .payment-summary span {
@@ -614,12 +626,38 @@ else
         display: block;
         margin-top: .2rem;
         color: #146c43;
-        font-size: 1.2rem;
+        font-size: 1rem;
+        line-height: 1.2;
     }
 
     .payment-summary p {
         margin: .25rem 0 0;
+        color: #182230;
+        line-height: 1.45;
         white-space: pre-line;
+    }
+
+    .payment-price {
+        background: #f4fbf7 !important;
+        border-color: #cfe8da !important;
+    }
+
+    .payment-description {
+        min-height: 0;
+    }
+
+    .payment-method {
+        grid-column: 1 / -1;
+    }
+
+    @@media (max-width: 768px) {
+        .payment-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .payment-method {
+            grid-column: auto;
+        }
     }
 
     .detalle-fase-row td {
@@ -765,6 +803,7 @@ else
     private string? detalleFaseResumenFiltro;
     private bool editandoPolla;
     private decimal? valorInscripcionEdit;
+    private string descripcionEdit = "";
     private string metodoPagoEdit = "";
 
     private void ToggleDetalleUsuario(string usuario)
@@ -992,6 +1031,7 @@ else
     private void PrepararDatosPolla()
     {
         valorInscripcionEdit = polla?.ValorInscripcion;
+        descripcionEdit = polla?.Descripcion ?? "";
         metodoPagoEdit = polla?.MetodoPago ?? "";
     }
 
@@ -1021,7 +1061,7 @@ else
                 new CrearPollaDto
                 {
                     Nombre = polla.Nombre,
-                    Descripcion = polla.Descripcion,
+                    Descripcion = descripcionEdit,
                     CreadorId = Sesion.UsuarioId.Value,
                     MaximoMiembros = polla.MaximoMiembros,
                     PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
@@ -1033,7 +1073,7 @@ else
             polla = await PollasService.GetPollaAsync(PollaId);
             PrepararDatosPolla();
             editandoPolla = false;
-            mensaje = "Datos de pago actualizados.";
+            mensaje = "Datos de la polla actualizados.";
             esError = false;
         }
         catch (Exception ex)
