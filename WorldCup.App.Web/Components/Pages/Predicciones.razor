@@ -1377,9 +1377,21 @@ else
                 predicciones[p.Id] = new GuardarPrediccionItemDto
                     {
                         PartidoId = p.Id
-                    };
+                };
             }
         }
+
+        MinimizarFasesFinalizadasAlCargar();
+    }
+
+    private void MinimizarFasesFinalizadasAlCargar()
+    {
+        fasesMinimizadas = partidos?
+            .GroupBy(p => p.Fase)
+            .Where(g => g.Any() && g.All(p => p.Finalizado))
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     private bool EstaBloqueado(PartidoDto partido)
