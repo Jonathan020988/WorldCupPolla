@@ -42,6 +42,9 @@ public static class DatabaseBootstrapper
             ALTER TABLE "Partidos"
             ADD COLUMN IF NOT EXISTS "TiempoExtra" boolean NOT NULL DEFAULT false;
 
+            ALTER TABLE "Partidos"
+            ADD COLUMN IF NOT EXISTS "ClasificadoId" integer NULL;
+
             UPDATE "Partidos"
             SET "Estado" = CASE
                 WHEN "Finalizado" = true THEN 'Finalizado'

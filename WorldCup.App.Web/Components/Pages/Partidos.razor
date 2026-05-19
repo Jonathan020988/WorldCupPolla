@@ -76,7 +76,7 @@
 
     .admin-result {
         display: grid;
-        grid-template-columns: minmax(130px, 1fr) 90px 90px minmax(120px, auto) 90px 90px minmax(220px, auto);
+        grid-template-columns: minmax(120px, 1.2fr) 80px 80px minmax(112px, auto) minmax(145px, 1fr) 86px 86px minmax(220px, auto);
         gap: .5rem;
         align-items: center;
     }
@@ -103,6 +103,24 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: .35rem;
+    }
+
+    .admin-result-hint {
+        grid-column: 1 / -1;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .45rem .65rem;
+        border-radius: 8px;
+        background: #ecfdf3;
+        color: #146c43;
+        font-size: .84rem;
+        font-weight: 800;
+    }
+
+    .admin-result-hint.warning {
+        background: #fff8e6;
+        color: #8a5f00;
     }
 
     .admin-test-tools {
@@ -179,6 +197,12 @@
     @@media (max-width: 576px) {
         .admin-result {
             grid-template-columns: 1fr 1fr;
+        }
+
+        .admin-qualifier-select,
+        .resultado-actions,
+        .admin-result-hint {
+            grid-column: 1 / -1;
         }
 
         .team-filter {
@@ -356,6 +380,12 @@
                                                 Pen. @p.PenalesLocal - @p.PenalesVisitante
                                             </div>
                                         }
+                                        @if (p.Fase != "Grupos" && p.ClasificadoId.HasValue)
+                                        {
+                                            <div class="small text-success">
+                                                Clasifica @NombreEquipoPorId(p, p.ClasificadoId.Value)
+                                            </div>
+                                        }
                                     }
                                     else
                                     {
@@ -418,6 +448,14 @@
                                         <span>T. extra</span>
                                     </label>
 
+                                    <select class="form-select form-select-sm admin-qualifier-select"
+                                            disabled="@(!resultadoEditable || !EsEliminatoria(p))"
+                                            @bind="p.ClasificadoId">
+                                        <option value="">Clasifica</option>
+                                        <option value="@p.LocalId">@p.Local</option>
+                                        <option value="@p.VisitanteId">@p.Visitante</option>
+                                    </select>
+
                                     <input type="number"
                                            class="form-control form-control-sm"
                                            min="0"
@@ -451,6 +489,17 @@
                                             Eliminar marcador
                                         </button>
                                     </div>
+
+                                    @if (EsEliminatoria(p))
+                                    {
+                                        var pistaClasificado = MensajeClasificadoAdmin(p);
+                                        if (!string.IsNullOrWhiteSpace(pistaClasificado))
+                                        {
+                                            <div class="@ClaseMensajeClasificadoAdmin(p)">
+                                                @pistaClasificado
+                                            </div>
+                                        }
+                                    }
                                 </div>
 
                                 @if (erroresPartido.ContainsKey(p.Id))
@@ -654,6 +703,103 @@
         return partido.Fase != "Grupos";
     }
 
+    private static bool TieneMarcadorCompleto(PartidoDto partido)
+    {
+        return partido.GolesLocal.HasValue &&
+               partido.GolesVisitante.HasValue;
+    }
+
+    private string EstadoParaGuardar(PartidoDto partido)
+    {
+        if (partido.Estado == "Pendiente" && TieneMarcadorCompleto(partido))
+        {
+            return "Finalizado";
+        }
+
+        return partido.Estado;
+    }
+
+    private int? ClasificadoParaGuardar(PartidoDto partido)
+    {
+        if (!EsEliminatoria(partido) || !TieneMarcadorCompleto(partido))
+        {
+            return null;
+        }
+
+        if (partido.ClasificadoId.HasValue)
+        {
+            return partido.ClasificadoId;
+        }
+
+        if (partido.GolesLocal > partido.GolesVisitante)
+        {
+            return partido.LocalId;
+        }
+
+        if (partido.GolesVisitante > partido.GolesLocal)
+        {
+            return partido.VisitanteId;
+        }
+
+        if (!PenalesDeshabilitados(partido) &&
+            partido.PenalesLocal.HasValue &&
+            partido.PenalesVisitante.HasValue &&
+            partido.PenalesLocal != partido.PenalesVisitante)
+        {
+            return partido.PenalesLocal > partido.PenalesVisitante
+                ? partido.LocalId
+                : partido.VisitanteId;
+        }
+
+        return null;
+    }
+
+    private string MensajeClasificadoAdmin(PartidoDto partido)
+    {
+        if (!TieneMarcadorCompleto(partido))
+        {
+            return "";
+        }
+
+        var clasificadoId = ClasificadoParaGuardar(partido);
+
+        if (clasificadoId.HasValue)
+        {
+            return $"Clasifica: {NombreEquipoPorId(partido, clasificadoId.Value)}";
+        }
+
+        if (partido.GolesLocal == partido.GolesVisitante)
+        {
+            return partido.TiempoExtra
+                ? "Empate con tiempo extra: selecciona quién clasificó o ingresa penales."
+                : "Empate en eliminatoria: marca tiempo extra o ingresa penales para definir quién clasifica.";
+        }
+
+        return "";
+    }
+
+    private string ClaseMensajeClasificadoAdmin(PartidoDto partido)
+    {
+        return ClasificadoParaGuardar(partido).HasValue
+            ? "admin-result-hint"
+            : "admin-result-hint warning";
+    }
+
+    private static string NombreEquipoPorId(PartidoDto partido, int equipoId)
+    {
+        if (equipoId == partido.LocalId)
+        {
+            return partido.Local;
+        }
+
+        if (equipoId == partido.VisitanteId)
+        {
+            return partido.Visitante;
+        }
+
+        return "equipo seleccionado";
+    }
+
     private bool TieneResultadoReal(PartidoDto partido)
     {
         return resultadosPersistidos.Contains(partido.Id);
@@ -681,6 +827,7 @@
                partido.GolesVisitante.HasValue ||
                partido.PenalesLocal.HasValue ||
                partido.PenalesVisitante.HasValue ||
+               partido.ClasificadoId.HasValue ||
                partido.Finalizado ||
                partido.Estado != "Pendiente";
     }
@@ -699,14 +846,26 @@
         }
 
         erroresPartido.Remove(partido.Id);
+        var estado = EstadoParaGuardar(partido);
+        var clasificadoId = ClasificadoParaGuardar(partido);
+
+        if (estado == "Finalizado" &&
+            EsEliminatoria(partido) &&
+            !clasificadoId.HasValue)
+        {
+            erroresPartido[partido.Id] =
+                "Selecciona el equipo que clasificó. Si el marcador quedó empatado y fue por penales, ingresa ambos penales.";
+            return;
+        }
 
         var dto = new AdminResultadoDto
         {
             AdminUsuarioId = Sesion.UsuarioId.Value,
-            Estado = partido.Estado,
+            Estado = estado,
             GolesLocal = partido.GolesLocal,
             GolesVisitante = partido.GolesVisitante,
             TiempoExtra = partido.TiempoExtra,
+            ClasificadoId = clasificadoId,
             PenalesLocal = !PenalesDeshabilitados(partido) ? partido.PenalesLocal : null,
             PenalesVisitante = !PenalesDeshabilitados(partido) ? partido.PenalesVisitante : null
         };
@@ -743,6 +902,7 @@
             GolesLocal = null,
             GolesVisitante = null,
             TiempoExtra = false,
+            ClasificadoId = null,
             PenalesLocal = null,
             PenalesVisitante = null
         };
@@ -817,6 +977,7 @@
             }
 
             partido.Estado = "Finalizado";
+            partido.ClasificadoId = ClasificadoParaGuardar(partido);
             resultadosEnEdicion.Add(partido.Id);
             await GuardarResultadoAdmin(partido);
         }
@@ -858,6 +1019,11 @@
         if (partido.Fase == "Grupos" || partido.GolesLocal != partido.GolesVisitante)
         {
             partido.TiempoExtra = false;
+            partido.ClasificadoId = partido.Fase == "Grupos"
+                ? null
+                : partido.GolesLocal > partido.GolesVisitante
+                    ? partido.LocalId
+                    : partido.VisitanteId;
             partido.PenalesLocal = null;
             partido.PenalesVisitante = null;
             return;
@@ -865,6 +1031,9 @@
 
         partido.TiempoExtra = true;
         AplicarPenalesAleatorios(partido);
+        partido.ClasificadoId = partido.PenalesLocal > partido.PenalesVisitante
+            ? partido.LocalId
+            : partido.VisitanteId;
     }
 
     private static void AplicarPenalesAleatorios(PartidoDto partido)
@@ -885,6 +1054,7 @@
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
         public bool TiempoExtra { get; set; }
+        public int? ClasificadoId { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
     }

@@ -11,6 +11,7 @@ namespace WorldCup.App.Shared.Models
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
         public bool TiempoExtra { get; set; }
+        public int? ClasificadoId { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
         public bool Finalizado { get; set; }

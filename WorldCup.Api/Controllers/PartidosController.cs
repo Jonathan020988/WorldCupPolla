@@ -43,6 +43,7 @@ namespace WorldCup.Api.Controllers
                     p.GolesLocal,
                     p.GolesVisitante,
                     p.TiempoExtra,
+                    p.ClasificadoId,
                     p.PenalesLocal,
                     p.PenalesVisitante,
                     p.Finalizado,
@@ -74,6 +75,7 @@ namespace WorldCup.Api.Controllers
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
                 TiempoExtra = p.TiempoExtra,
+                ClasificadoId = p.ClasificadoId,
                 PenalesLocal = p.PenalesLocal,
                 PenalesVisitante = p.PenalesVisitante,
                 Finalizado = p.Finalizado,
@@ -132,6 +134,9 @@ namespace WorldCup.Api.Controllers
             partido.GolesVisitante = dto.GolesVisitante;
             partido.Finalizado = true;
             partido.Estado = "Finalizado";
+            partido.ClasificadoId = partido.Fase == "Grupos"
+                ? null
+                : ObtenerGanadorIdSeguro(partido);
 
             await _context.SaveChangesAsync();
 
@@ -197,14 +202,21 @@ namespace WorldCup.Api.Controllers
                 return NotFound("Partido no encontrado");
             }
 
-            if (estado == "Finalizado" &&
-                (!dto.GolesLocal.HasValue || !dto.GolesVisitante.HasValue))
+            var esEliminatoria = partido.Fase != "Grupos";
+            var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
+            var tieneMarcadorCompleto = dto.GolesLocal.HasValue && dto.GolesVisitante.HasValue;
+
+            if (estado == "Pendiente" && tieneMarcadorCompleto)
+            {
+                estado = "Finalizado";
+            }
+
+            if (estado == "Finalizado" && !tieneMarcadorCompleto)
             {
                 return BadRequest("Para finalizar el partido debes ingresar ambos marcadores.");
             }
 
-            var esEliminatoria = partido.Fase != "Grupos";
-            var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
+            int? clasificadoId = null;
 
             if (estado == "Finalizado" &&
                 esEliminatoria &&
@@ -226,19 +238,71 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            if (estado == "Finalizado" &&
-                esEliminatoria &&
-                dto.GolesLocal == dto.GolesVisitante &&
-                !tienePenales)
+            if (estado == "Finalizado" && esEliminatoria)
             {
-                return BadRequest("Un empate en eliminatorias debe tener penales para definir el clasificado real.");
+                if (dto.ClasificadoId.HasValue &&
+                    dto.ClasificadoId != partido.LocalId &&
+                    dto.ClasificadoId != partido.VisitanteId)
+                {
+                    return BadRequest("El equipo clasificado debe pertenecer al partido.");
+                }
+
+                if (tienePenales)
+                {
+                    var ganadorPenales = dto.PenalesLocal!.Value > dto.PenalesVisitante!.Value
+                        ? partido.LocalId
+                        : partido.VisitanteId;
+
+                    if (dto.ClasificadoId.HasValue &&
+                        dto.ClasificadoId.Value != ganadorPenales)
+                    {
+                        return BadRequest("El equipo clasificado debe coincidir con el ganador por penales.");
+                    }
+
+                    clasificadoId = dto.ClasificadoId ?? ganadorPenales;
+                }
+                else if (dto.GolesLocal == dto.GolesVisitante)
+                {
+                    if (!dto.TiempoExtra)
+                    {
+                        return BadRequest("Un empate en eliminatorias debe indicar tiempo extra o penales.");
+                    }
+
+                    if (!dto.ClasificadoId.HasValue)
+                    {
+                        return BadRequest("Selecciona el equipo que clasificó en tiempo extra.");
+                    }
+
+                    clasificadoId = dto.ClasificadoId.Value;
+                }
+                else
+                {
+                    var ganadorMarcador = dto.GolesLocal > dto.GolesVisitante
+                        ? partido.LocalId
+                        : partido.VisitanteId;
+
+                    if (dto.ClasificadoId.HasValue &&
+                        dto.ClasificadoId.Value != ganadorMarcador)
+                    {
+                        return BadRequest("El equipo clasificado debe coincidir con el ganador del marcador.");
+                    }
+
+                    clasificadoId = ganadorMarcador;
+                }
             }
 
             partido.Estado = estado;
             partido.Finalizado = estado == "Finalizado";
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
-            partido.TiempoExtra = esEliminatoria && estado == "Finalizado" && (dto.TiempoExtra || tienePenales);
+            partido.TiempoExtra =
+                esEliminatoria &&
+                estado == "Finalizado" &&
+                (dto.TiempoExtra || tienePenales);
+            partido.ClasificadoId =
+                esEliminatoria && estado == "Finalizado"
+                    ? clasificadoId
+                    : null;
             partido.PenalesLocal =
                 esEliminatoria && estado == "Finalizado" && tienePenales
                     ? dto.PenalesLocal
@@ -269,6 +333,7 @@ namespace WorldCup.Api.Controllers
                 partido.GolesLocal,
                 partido.GolesVisitante,
                 partido.TiempoExtra,
+                partido.ClasificadoId,
                 partido.Finalizado
             });
         }
@@ -338,10 +403,7 @@ namespace WorldCup.Api.Controllers
                     p.Fase != "Grupos" &&
                     p.GolesLocal.HasValue &&
                     p.GolesVisitante.HasValue &&
-                    p.GolesLocal == p.GolesVisitante &&
-                    (!p.PenalesLocal.HasValue ||
-                     !p.PenalesVisitante.HasValue ||
-                     p.PenalesLocal == p.PenalesVisitante));
+                    !ObtenerGanadorIdSeguro(p).HasValue);
                 var fasesPosteriores = ObtenerFasesPosteriores(fase);
                 var partidosPosteriores = await _context.Partidos
                     .CountAsync(p => fasesPosteriores.Contains(p.Fase));
@@ -416,19 +478,16 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Faltan marcadores en: " + string.Join(", ", sinMarcador));
             }
 
-            var penalesInvalidos = partidos
+            var clasificadosInvalidos = partidos
                 .Where(p =>
                     p.Fase != "Grupos" &&
-                    p.GolesLocal == p.GolesVisitante &&
-                    (!p.PenalesLocal.HasValue ||
-                     !p.PenalesVisitante.HasValue ||
-                     p.PenalesLocal == p.PenalesVisitante))
+                    !ObtenerGanadorIdSeguro(p).HasValue)
                 .Select(NombrePartido)
                 .ToList();
 
-            if (penalesInvalidos.Any())
+            if (clasificadosInvalidos.Any())
             {
-                return BadRequest("Faltan penales válidos en: " + string.Join(", ", penalesInvalidos));
+                return BadRequest("Falta definir quién clasifica en: " + string.Join(", ", clasificadosInvalidos));
             }
 
             foreach (var partido in partidos)
@@ -446,10 +505,16 @@ namespace WorldCup.Api.Controllers
                 if (partido.Fase == "Grupos")
                 {
                     partido.TiempoExtra = false;
+                    partido.ClasificadoId = null;
                 }
-                else if (partido.PenalesLocal.HasValue && partido.PenalesVisitante.HasValue)
+                else
                 {
-                    partido.TiempoExtra = true;
+                    partido.ClasificadoId = ObtenerGanadorId(partido);
+
+                    if (partido.PenalesLocal.HasValue && partido.PenalesVisitante.HasValue)
+                    {
+                        partido.TiempoExtra = true;
+                    }
                 }
             }
 
@@ -554,6 +619,7 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
                 partido.TiempoExtra = false;
+                partido.ClasificadoId = null;
                 partido.Finalizado = false;
                 partido.Estado = "Pendiente";
             }
@@ -1490,15 +1556,40 @@ namespace WorldCup.Api.Controllers
 
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
+            int? clasificadoId;
 
             // Si hay empate → validar penales
             if (dto.GolesLocal == dto.GolesVisitante)
             {
-                if (dto.PenalesLocal == null || dto.PenalesVisitante == null)
-                    return BadRequest("Empate requiere penales");
+                if (dto.ClasificadoId.HasValue &&
+                    dto.ClasificadoId != partido.LocalId &&
+                    dto.ClasificadoId != partido.VisitanteId)
+                {
+                    return BadRequest("El equipo clasificado no pertenece al partido");
+                }
 
-                if (dto.PenalesLocal == dto.PenalesVisitante)
-                    return BadRequest("Los penales no pueden empatar");
+                if (dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue)
+                {
+                    if (dto.PenalesLocal == null || dto.PenalesVisitante == null)
+                        return BadRequest("Debes ingresar ambos marcadores de penales");
+
+                    if (dto.PenalesLocal == dto.PenalesVisitante)
+                        return BadRequest("Los penales no pueden empatar");
+
+                    clasificadoId = dto.PenalesLocal.Value > dto.PenalesVisitante.Value
+                        ? partido.LocalId
+                        : partido.VisitanteId;
+                }
+                else
+                {
+                    if (!dto.TiempoExtra)
+                        return BadRequest("Empate en eliminatorias requiere tiempo extra o penales");
+
+                    if (!dto.ClasificadoId.HasValue)
+                        return BadRequest("Selecciona el equipo que clasificó");
+
+                    clasificadoId = dto.ClasificadoId.Value;
+                }
 
                 partido.PenalesLocal = dto.PenalesLocal;
                 partido.PenalesVisitante = dto.PenalesVisitante;
@@ -1506,16 +1597,22 @@ namespace WorldCup.Api.Controllers
             }
             else
             {
+                clasificadoId = dto.GolesLocal > dto.GolesVisitante
+                    ? partido.LocalId
+                    : partido.VisitanteId;
+
                 // Si no hay empate, limpiamos penales
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
                 partido.TiempoExtra = dto.TiempoExtra;
             }
+            partido.ClasificadoId = clasificadoId;
                          
 
             // calcula punto despues de grupos
             CalcularPuntosEliminatoria(partido);
             partido.Finalizado = true;
+            partido.Estado = "Finalizado";
             await _context.SaveChangesAsync(); // ✅ AHORA SÍ SE GUARDA TODO
 
 
@@ -1529,6 +1626,7 @@ namespace WorldCup.Api.Controllers
                 partido.Id,
                 partido.GolesLocal,
                 partido.GolesVisitante,
+                partido.ClasificadoId,
                 partido.PenalesLocal,
                 partido.PenalesVisitante
             });
@@ -1536,6 +1634,12 @@ namespace WorldCup.Api.Controllers
 
         private int ObtenerGanador(Partido p)
         {
+            if (p.ClasificadoId.HasValue &&
+                (p.ClasificadoId == p.LocalId || p.ClasificadoId == p.VisitanteId))
+            {
+                return p.ClasificadoId.Value;
+            }
+
             if (p.GolesLocal > p.GolesVisitante)
                 return p.LocalId;
 
@@ -1614,14 +1718,44 @@ namespace WorldCup.Api.Controllers
 
         private int ObtenerGanadorId(Partido p)
         {
+            var ganador = ObtenerGanadorIdSeguro(p);
+            if (!ganador.HasValue)
+            {
+                throw new InvalidOperationException(
+                    $"El partido {p.Id} no tiene clasificado definido.");
+            }
+
+            return ganador.Value;
+        }
+
+        private int? ObtenerGanadorIdSeguro(Partido p)
+        {
+            if (p.ClasificadoId.HasValue)
+            {
+                return p.ClasificadoId == p.LocalId || p.ClasificadoId == p.VisitanteId
+                    ? p.ClasificadoId.Value
+                    : null;
+            }
+
+            if (!p.GolesLocal.HasValue || !p.GolesVisitante.HasValue)
+            {
+                return null;
+            }
+
             if (p.GolesLocal > p.GolesVisitante)
                 return p.LocalId;
 
             if (p.GolesVisitante > p.GolesLocal)
                 return p.VisitanteId;
 
-            // Empate → penales
-            return p.PenalesLocal > p.PenalesVisitante
+            if (!p.PenalesLocal.HasValue ||
+                !p.PenalesVisitante.HasValue ||
+                p.PenalesLocal == p.PenalesVisitante)
+            {
+                return null;
+            }
+
+            return p.PenalesLocal.Value > p.PenalesVisitante.Value
                 ? p.LocalId
                 : p.VisitanteId;
         }
@@ -2520,15 +2654,18 @@ namespace WorldCup.Api.Controllers
                     p.PenalesLocal = pl;
                     p.PenalesVisitante = pv;
                     p.TiempoExtra = true;
+                    p.ClasificadoId = pl > pv ? p.LocalId : p.VisitanteId;
                 }
                 else
                 {
                     p.PenalesLocal = null;
                     p.PenalesVisitante = null;
                     p.TiempoExtra = false;
+                    p.ClasificadoId = gl > gv ? p.LocalId : p.VisitanteId;
                 }
 
                 p.Finalizado = true;
+                p.Estado = "Finalizado";
 
                 // 👉 CALCULAR PUNTOS ELIMINATORIA
                 CalcularPuntosEliminatoria(p);

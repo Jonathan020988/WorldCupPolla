@@ -1175,20 +1175,67 @@ else
         }
 
         .prediction-card-main {
-            grid-template-columns: 1fr;
-            text-align: center;
+            grid-template-columns: minmax(0, 1fr) 82px;
+            grid-template-areas:
+                "local local-score"
+                "visitor visitor-score"
+                "actions actions";
+            gap: .65rem .75rem;
+            text-align: left;
         }
 
-        .prediction-team,
-        .prediction-team-local,
-        .prediction-team-visitor,
+        .prediction-team {
+            min-height: 44px;
+            padding: .45rem .55rem;
+            border: 1px solid #e4e9ef;
+            border-radius: 8px;
+            background: #ffffff;
+            justify-content: flex-start;
+            text-align: left;
+        }
+
+        .prediction-team-local {
+            grid-area: local;
+            flex-direction: row-reverse;
+        }
+
+        .prediction-team-visitor {
+            grid-area: visitor;
+        }
+
+        .prediction-team span {
+            white-space: normal;
+        }
+
         .prediction-actions {
+            grid-area: actions;
             justify-content: center;
             text-align: center;
         }
 
         .score-panel {
-            justify-content: center;
+            display: contents;
+        }
+
+        .score-panel .score-input:first-child {
+            grid-area: local-score;
+        }
+
+        .score-panel .score-input:last-child {
+            grid-area: visitor-score;
+        }
+
+        .score-input {
+            width: 82px;
+            height: 44px;
+            justify-self: end;
+            border-color: #cfd8e3;
+            background: #f4f7fa;
+            font-size: 1.05rem;
+        }
+
+        .score-separator {
+            display: none;
         }
 
         .prediction-footer,

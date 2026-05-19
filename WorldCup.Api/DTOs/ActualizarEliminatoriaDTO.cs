@@ -5,6 +5,7 @@
         public int GolesLocal { get; set; }
         public int GolesVisitante { get; set; }
         public bool TiempoExtra { get; set; }
+        public int? ClasificadoId { get; set; }
 
         // Solo si hay empate
         public int? PenalesLocal { get; set; }

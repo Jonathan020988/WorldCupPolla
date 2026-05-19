@@ -141,6 +141,13 @@ namespace WorldCup.Api.Controllers
 
         private int ObtenerGanadorId(Models.Partido p)
         {
+            if (p.ClasificadoId.HasValue &&
+                (p.ClasificadoId == p.LocalId ||
+                 p.ClasificadoId == p.VisitanteId))
+            {
+                return p.ClasificadoId.Value;
+            }
+
             if (p.GolesLocal > p.GolesVisitante)
                 return p.LocalId;
 

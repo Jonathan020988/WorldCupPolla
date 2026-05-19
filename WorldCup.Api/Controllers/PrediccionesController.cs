@@ -110,8 +110,11 @@ namespace WorldCup.Api.Controllers
                 }
                 else
                 {
-                    if (prediccion.Bloqueada && !reaperturaMarcadores)
+                    if (PrediccionRealmenteBloqueada(partido) &&
+                        !reaperturaMarcadores)
+                    {
                         return Conflict("La predicción ya está bloqueada");
+                    }
                 }
 
                 // 6️⃣ Guardar datos
@@ -225,9 +228,7 @@ namespace WorldCup.Api.Controllers
                 "Marcadores");
 
             if (!reaperturaMarcadores &&
-                (prediccion.Bloqueada ||
-                 prediccion.Partido.Finalizado ||
-                 PartidoCerrado(prediccion.Partido)))
+                PrediccionRealmenteBloqueada(prediccion.Partido))
             {
                 return Conflict("La predicción ya está bloqueada y no se puede eliminar");
             }
@@ -252,6 +253,14 @@ namespace WorldCup.Api.Controllers
         private static bool PartidoCerrado(Partido partido)
         {
             return ColombiaClock.Now() >= ColombiaClock.ToColombia(partido.Fecha).AddHours(-1);
+        }
+
+        private static bool PrediccionRealmenteBloqueada(Partido partido)
+        {
+            // La marca persistida puede quedar prendida por pruebas/reinicios de fase;
+            // el cierre real siempre lo manda el partido y su hora de bloqueo.
+            return partido.Finalizado ||
+                   PartidoCerrado(partido);
         }
 
         private async Task<bool> TieneReaperturaActivaAsync(
@@ -352,6 +361,13 @@ namespace WorldCup.Api.Controllers
 
         private static int? ObtenerGanadorId(Partido partido)
         {
+            if (partido.ClasificadoId.HasValue &&
+                (partido.ClasificadoId == partido.LocalId ||
+                 partido.ClasificadoId == partido.VisitanteId))
+            {
+                return partido.ClasificadoId.Value;
+            }
+
             if (!partido.GolesLocal.HasValue || !partido.GolesVisitante.HasValue)
                 return null;
 

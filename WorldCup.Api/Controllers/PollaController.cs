@@ -622,6 +622,13 @@ namespace WorldCup.Api.Controllers
 
         private static int? ObtenerGanadorId(Partido partido)
         {
+            if (partido.ClasificadoId.HasValue &&
+                (partido.ClasificadoId == partido.LocalId ||
+                 partido.ClasificadoId == partido.VisitanteId))
+            {
+                return partido.ClasificadoId.Value;
+            }
+
             if (!partido.GolesLocal.HasValue || !partido.GolesVisitante.HasValue)
             {
                 return null;
