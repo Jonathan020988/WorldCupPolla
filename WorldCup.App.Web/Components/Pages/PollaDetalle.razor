@@ -204,12 +204,12 @@ else
         </div>
     </div>
 
-    <div class="row g-3 mt-4">
+    <div class="row g-3 mt-4 @(usuarioDetalleAbierto == null ? "" : "polla-detail-open")">
 
         <!-- 📊 Ranking -->
-        <div class="col-md-8">
+        <div class="ranking-col @(usuarioDetalleAbierto == null ? "col-md-8" : "col-12")">
             <div class="card shadow-sm">
-                <div class="card-body">
+                <div class="card-body ranking-card-body">
                     <h5 class="mb-3">📊 Ranking</h5>
                     <hr />
 
@@ -221,13 +221,13 @@ else
                     }
                     else
                     {
-                        <table class="table table-sm align-middle">
+                        <table class="table table-sm align-middle ranking-table">
                             <thead>
                                 <tr>
-                                    <th>#</th>
+                                    <th class="ranking-position-col">#</th>
                                     <th>Usuario</th>
-                                    <th class="text-end">Puntos</th>
-                                    <th style="width:140px;"></th>
+                                    <th class="text-end ranking-points-col">Puntos</th>
+                                    <th class="ranking-action-col"></th>
                                 </tr>
                             </thead>
 
@@ -240,7 +240,7 @@ else
                                             @(ranking.IndexOf(r) + 1)
                                         </td>
 
-                                        <td class="fw-bold">
+                                        <td class="fw-bold ranking-user-col">
                                             @r.Usuario
                                         </td>
 
@@ -265,7 +265,7 @@ else
                                     @if (usuarioDetalleAbierto == r.Usuario)
                                     {
                                         <tr>
-                                            <td colspan="4">
+                                            <td colspan="4" class="ranking-detail-cell">
 
                                                 <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
 
@@ -523,7 +523,7 @@ else
         </div>
 
         <!-- 👥 Participantes -->
-        <div class="col-md-4">
+        <div class="participants-col @(usuarioDetalleAbierto == null ? "col-md-4" : "col-12")">
             <div class="card shadow-sm">
                 <div class="card-body">
                     <h5 class="mb-3">👥 Participantes</h5>
@@ -605,9 +605,63 @@ else
 }
 
 <style>
+    .ranking-card-body {
+        overflow: hidden;
+    }
+
+    .ranking-col,
+    .participants-col {
+        min-width: 0;
+    }
+
+    .polla-detail-open .ranking-col,
+    .polla-detail-open .participants-col {
+        flex: 0 0 100%;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .ranking-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .ranking-position-col {
+        width: 58px;
+    }
+
+    .ranking-points-col {
+        width: 92px;
+    }
+
+    .ranking-action-col {
+        width: 150px;
+    }
+
+    .ranking-user-col {
+        overflow-wrap: anywhere;
+    }
+
+    .ranking-detail-cell {
+        width: 100%;
+        overflow: hidden;
+        padding: .75rem 0 1rem !important;
+    }
+
     .detalle-ranking-scroll {
+        display: block;
+        width: 100%;
+        max-width: 100%;
         max-height: 520px;
         overflow: auto;
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+    .detalle-ranking-table {
+        min-width: 1080px;
+        margin-bottom: 0;
     }
 
     .detalle-ranking-table thead th {
@@ -629,6 +683,7 @@ else
         border-radius: 8px;
         background: #fff;
         box-shadow: 0 6px 16px rgba(16, 24, 40, .06);
+        min-width: 1080px;
     }
 
     .detalle-filtros-panel label {
@@ -821,6 +876,19 @@ else
         .payment-summary,
         .detalle-filtros-panel {
             grid-template-columns: 1fr;
+        }
+
+        .ranking-action-col {
+            width: 124px;
+        }
+
+        .ranking-points-col {
+            width: 76px;
+        }
+
+        .detalle-ranking-table,
+        .detalle-filtros-panel {
+            min-width: 860px;
         }
 
         .detalle-fase-header {

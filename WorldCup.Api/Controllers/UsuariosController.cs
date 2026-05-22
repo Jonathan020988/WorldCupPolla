@@ -38,43 +38,32 @@ namespace WorldCup.Api.Controllers
             }
 
             var nombre = dto.Nombre.Trim();
+            var correoExiste = await _context.Usuarios
+                .AnyAsync(u => u.Email.ToLower() == email);
+
+            if (correoExiste)
+            {
+                return Conflict("El correo ya esta registrado. Si no has confirmado tu cuenta, usa la opcion de reenviar codigo.");
+            }
+
             var nombreExiste = await _context.Usuarios
-                .AnyAsync(u =>
-                    u.Nombre.ToLower() == nombre.ToLower() &&
-                    u.Email.ToLower() != email);
+                .AnyAsync(u => u.Nombre.ToLower() == nombre.ToLower());
 
             if (nombreExiste)
             {
                 return Conflict("El nombre de usuario ya esta registrado. Elige otro nombre.");
             }
 
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
-
-            if (usuario != null && usuario.EmailConfirmado)
-                return Conflict("El correo ya esta registrado");
-
-            if (usuario == null)
+            var usuario = new Usuario
             {
-                usuario = new Usuario
-                {
-                    Nombre = nombre,
-                    Email = email,
-                    Activo = true,
-                    EmailConfirmado = false,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
-                };
+                Nombre = nombre,
+                Email = email,
+                Activo = true,
+                EmailConfirmado = false,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
+            };
 
-                _context.Usuarios.Add(usuario);
-            }
-            else
-            {
-                usuario.Nombre = nombre;
-                usuario.Activo = true;
-                usuario.EmailConfirmado = false;
-                usuario.EmailConfirmadoEn = null;
-                usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-            }
+            _context.Usuarios.Add(usuario);
 
             await _context.SaveChangesAsync();
 

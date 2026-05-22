@@ -242,6 +242,7 @@ namespace WorldCup.Api.Controllers
                     UsuarioId = pm.UsuarioId,
                     Usuario = pm.Usuario.Nombre
                 })
+                .Distinct()
                 .ToListAsync();
 
             var detalles = await ObtenerDetalleRanking(pollaId);
@@ -842,7 +843,7 @@ namespace WorldCup.Api.Controllers
                     Nombre = pm.Usuario.Nombre
                     
                 })
-
+                .Distinct()
                 .ToListAsync();
 
             return Ok(participantes);
@@ -1325,13 +1326,20 @@ namespace WorldCup.Api.Controllers
             if (!solicitud.Usuario.Activo)
                 return BadRequest("El usuario está inactivo");
 
-            // agregar como miembro
-            _context.PollaMiembros.Add(new PollaMiembro
+            var yaEsMiembro = await _context.PollaMiembros
+                .AnyAsync(pm =>
+                    pm.PollaId == solicitud.PollaId &&
+                    pm.UsuarioId == solicitud.UsuarioId);
+
+            if (!yaEsMiembro)
             {
-                PollaId = solicitud.PollaId,
-                UsuarioId = solicitud.UsuarioId,
-                FechaIngreso = DateTime.UtcNow
-            });
+                _context.PollaMiembros.Add(new PollaMiembro
+                {
+                    PollaId = solicitud.PollaId,
+                    UsuarioId = solicitud.UsuarioId,
+                    FechaIngreso = DateTime.UtcNow
+                });
+            }
 
             solicitud.Estado = "Aprobada";
 

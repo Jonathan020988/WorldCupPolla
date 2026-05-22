@@ -58,11 +58,23 @@ namespace WorldCup.Api.Data
                 .HasForeignKey(p => p.CreadorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Usuario>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<Usuario>()
+                .HasIndex(u => u.Nombre)
+                .IsUnique();
+
             // Relación Usuario -> Miembro de pollas
             modelBuilder.Entity<PollaMiembro>()
                 .HasOne(pm => pm.Usuario)
                 .WithMany(u => u.PollaMiembros)
                 .HasForeignKey(pm => pm.UsuarioId);
+
+            modelBuilder.Entity<PollaMiembro>()
+                .HasIndex(pm => new { pm.PollaId, pm.UsuarioId })
+                .IsUnique();
 
             // Relación Polla -> Miembros
             modelBuilder.Entity<PollaMiembro>()
