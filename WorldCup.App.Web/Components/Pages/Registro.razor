@@ -104,7 +104,7 @@
         <div class="text-center mt-3">
             <small class="text-muted">
                 Ya tienes cuenta?
-                <a href="/login">Iniciar sesion</a>
+                <a href="@LoginUrl">Iniciar sesion</a>
             </small>
         </div>
     </div>
@@ -138,7 +138,13 @@
     private string codigoConfirmacion = "";
     private string emailPendiente = "";
 
+    [Parameter, SupplyParameterFromQuery]
+    public string? returnUrl { get; set; }
+
     private string TipoPassword => mostrarPassword ? "text" : "password";
+    private string LoginUrl => string.IsNullOrWhiteSpace(returnUrl)
+        ? "/login"
+        : $"/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
     private async Task Registrar()
     {
@@ -264,6 +270,6 @@
 
     private void IrLogin()
     {
-        Navigation.NavigateTo("/login", true);
+        Navigation.NavigateTo(LoginUrl, true);
     }
 }

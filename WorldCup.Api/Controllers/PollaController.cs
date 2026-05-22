@@ -155,6 +155,30 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        [HttpPut("{pollaId:int}/nombre")]
+        public async Task<IActionResult> ActualizarNombrePolla(
+            int pollaId,
+            [FromBody] ActualizarNombrePollaDTO dto)
+        {
+            var polla = await _context.Pollas.FindAsync(pollaId);
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            if (polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el creador puede editar el nombre de esta polla");
+
+            var nombre = (dto.Nombre ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(nombre))
+                return BadRequest("Nombre obligatorio");
+
+            polla.Nombre = nombre;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
         // =========================================================
         // =========================================================
         // DELETE: api/Polla/{id}

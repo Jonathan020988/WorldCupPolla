@@ -7,4 +7,10 @@ namespace WorldCup.Api.DTOs
         public int MaximoMiembros { get; set; }
         public bool PermitirEmpatesEnEliminatoria { get; set; }
     }
+
+    public class ActualizarNombrePollaDTO
+    {
+        public string Nombre { get; set; } = "";
+        public int SolicitanteId { get; set; }
+    }
 }

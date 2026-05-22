@@ -8,17 +8,58 @@
 @inject NavigationManager Navigation
 @inject HttpClient Http
 
-<div class="d-flex align-items-center gap-3 mb-4">
+<div class="d-flex align-items-start gap-3 mb-4 flex-wrap">
     <button class="btn btn-outline-primary btn-lg"
             @onclick="VolverADashboard">
         ⬅ Mis pollas
     </button>
 
-    <div>
+    <div class="flex-grow-1">
         <h2 class="mb-0">🏆 Detalle de la Polla</h2>
         <small class="text-muted">
             Estás viendo el detalle de esta polla
         </small>
+
+        @if (polla != null)
+        {
+            <div class="mt-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="fw-bold">Nombre:</span>
+                    <span class="fs-5">@polla.Nombre</span>
+
+                    @if (EsCreador && !editandoNombrePolla)
+                    {
+                        <button class="btn btn-sm btn-outline-primary"
+                                @onclick="EditarNombrePolla">
+                            Editar nombre
+                        </button>
+                    }
+                </div>
+
+                @if (editandoNombrePolla)
+                {
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-7">
+                            <input class="form-control"
+                                   maxlength="120"
+                                   @bind="nombrePollaEdit"
+                                   @bind:event="oninput"
+                                   placeholder="Nombre de la polla" />
+                        </div>
+                        <div class="col-md-5 d-flex align-items-center gap-2">
+                            <button class="btn btn-success btn-sm"
+                                    @onclick="GuardarNombrePolla">
+                                Guardar nombre
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    @onclick="CancelarNombrePolla">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     </div>
 </div>
 
@@ -801,6 +842,8 @@ else
     private string? detalleGrupoFiltro;
     private DateTime? detalleFechaFiltro;
     private string? detalleFaseResumenFiltro;
+    private bool editandoNombrePolla;
+    private string nombrePollaEdit = "";
     private bool editandoPolla;
     private decimal? valorInscripcionEdit;
     private string descripcionEdit = "";
@@ -1030,14 +1073,72 @@ else
 
     private void PrepararDatosPolla()
     {
+        nombrePollaEdit = polla?.Nombre ?? "";
         valorInscripcionEdit = polla?.ValorInscripcion;
         descripcionEdit = polla?.Descripcion ?? "";
         metodoPagoEdit = polla?.MetodoPago ?? "";
     }
 
+    private void EditarNombrePolla()
+    {
+        PrepararDatosPolla();
+        editandoPolla = false;
+        editandoNombrePolla = true;
+    }
+
+    private void CancelarNombrePolla()
+    {
+        editandoNombrePolla = false;
+        nombrePollaEdit = polla?.Nombre ?? "";
+    }
+
+    private async Task GuardarNombrePolla()
+    {
+        if (polla == null || !Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para editar el nombre de la polla.";
+            esError = true;
+            return;
+        }
+
+        var nombre = nombrePollaEdit.Trim();
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            mensaje = "El nombre de la polla es obligatorio.";
+            esError = true;
+            return;
+        }
+
+        try
+        {
+            await PollasService.ActualizarNombrePollaAsync(
+                PollaId,
+                Sesion.UsuarioId.Value,
+                nombre);
+
+            polla = await PollasService.GetPollaAsync(PollaId);
+            PrepararDatosPolla();
+            editandoNombrePolla = false;
+
+            if (polla != null)
+            {
+                await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+            }
+
+            mensaje = "Nombre de la polla actualizado.";
+            esError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
+    }
+
     private void EditarDatosPolla()
     {
         PrepararDatosPolla();
+        editandoNombrePolla = false;
         editandoPolla = true;
     }
 

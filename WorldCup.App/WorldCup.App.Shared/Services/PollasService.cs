@@ -84,6 +84,25 @@ namespace WorldCup.App.Shared.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task ActualizarNombrePollaAsync(
+            int pollaId,
+            int solicitanteId,
+            string nombre)
+        {
+            var response = await _http.PutAsJsonAsync(
+                $"api/Polla/{pollaId}/nombre",
+                new
+                {
+                    Nombre = nombre,
+                    SolicitanteId = solicitanteId
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+        }
+
         public async Task EliminarPollaAsync(int pollaId, int solicitanteId)
         {
             var response = await _http.DeleteAsync($"api/Polla/{pollaId}?solicitanteId={solicitanteId}");
