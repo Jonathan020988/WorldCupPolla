@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "WorldCup.Api/1.0.0": {
+      "WorldCup.Api/1.0.1": {
         "dependencies": {
           "BCrypt.Net-Next": "4.0.3",
           "ClosedXML": "0.105.0",
@@ -384,7 +384,7 @@
     }
   },
   "libraries": {
-    "WorldCup.Api/1.0.0": {
+    "WorldCup.Api/1.0.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

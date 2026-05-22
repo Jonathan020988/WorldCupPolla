@@ -142,6 +142,14 @@ else
             @if (editandoPolla)
             {
                 <div class="row g-3 mt-2">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Nombre de la polla</label>
+                        <input class="form-control"
+                               maxlength="120"
+                               @bind="nombrePollaEdit"
+                               @bind:event="oninput"
+                               placeholder="Nombre de la polla" />
+                    </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Precio</label>
                         <input type="number"
@@ -1157,11 +1165,19 @@ else
 
         try
         {
+            var nombre = nombrePollaEdit.Trim();
+            if (string.IsNullOrWhiteSpace(nombre))
+            {
+                mensaje = "El nombre de la polla es obligatorio.";
+                esError = true;
+                return;
+            }
+
             await PollasService.ActualizarPollaAsync(
                 PollaId,
                 new CrearPollaDto
                 {
-                    Nombre = polla.Nombre,
+                    Nombre = nombre,
                     Descripcion = descripcionEdit,
                     CreadorId = Sesion.UsuarioId.Value,
                     MaximoMiembros = polla.MaximoMiembros,
@@ -1174,6 +1190,12 @@ else
             polla = await PollasService.GetPollaAsync(PollaId);
             PrepararDatosPolla();
             editandoPolla = false;
+
+            if (polla != null)
+            {
+                await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+            }
+
             mensaje = "Datos de la polla actualizados.";
             esError = false;
         }
