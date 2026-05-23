@@ -47,6 +47,51 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
+        public async Task<PollaPagosResumenDto?> GetControlPagosAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            return await _http.GetFromJsonAsync<PollaPagosResumenDto>(
+                $"api/Polla/{pollaId}/pagos?solicitanteId={solicitanteId}"
+            );
+        }
+
+        public async Task<PollaPagoParticipanteDto> ActualizarPagoParticipanteAsync(
+            int pollaId,
+            int usuarioId,
+            ActualizarPagoParticipanteDto dto)
+        {
+            var response = await _http.PutAsJsonAsync(
+                $"api/Polla/{pollaId}/pagos/{usuarioId}",
+                dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<PollaPagoParticipanteDto>()
+                ?? new PollaPagoParticipanteDto();
+        }
+
+        public async Task<string> NotificarPagoPendienteAsync(
+            int pollaId,
+            int usuarioId,
+            NotificarPagoPendienteDto dto)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/pagos/{usuarioId}/notificar",
+                dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<MensajeRespuestaDto>();
+            return result?.Mensaje ?? "Aviso enviado.";
+        }
+
         public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
         {
             await _http.PostAsync(
@@ -201,6 +246,11 @@ namespace WorldCup.App.Shared.Services
         private class InvitacionCreadaDto
         {
             public string LinkInvitacion { get; set; } = "";
+        }
+
+        private class MensajeRespuestaDto
+        {
+            public string Mensaje { get; set; } = "";
         }
 
         public async Task<List<DetalleRankingDto>> GetRankingDetalleAsync(int pollaId)

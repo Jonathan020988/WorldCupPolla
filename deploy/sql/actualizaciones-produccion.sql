@@ -17,6 +17,21 @@ ADD COLUMN IF NOT EXISTS "ValorInscripcion" numeric(12,2) NULL;
 ALTER TABLE "Pollas"
 ADD COLUMN IF NOT EXISTS "MetodoPago" text NULL;
 
+ALTER TABLE "PollaMiembros"
+ADD COLUMN IF NOT EXISTS "ValorAPagar" numeric(12,2) NULL;
+
+ALTER TABLE "PollaMiembros"
+ADD COLUMN IF NOT EXISTS "AbonoPagado" numeric(12,2) NOT NULL DEFAULT 0;
+
+ALTER TABLE "PollaMiembros"
+ADD COLUMN IF NOT EXISTS "NotaPago" text NULL;
+
+ALTER TABLE "PollaMiembros"
+ADD COLUMN IF NOT EXISTS "PagoActualizadoEn" timestamp with time zone NULL;
+
+ALTER TABLE "PollaMiembros"
+ADD COLUMN IF NOT EXISTS "PagoNotificadoEn" timestamp with time zone NULL;
+
 ALTER TABLE "Partidos"
 ADD COLUMN IF NOT EXISTS "Estado" text NOT NULL DEFAULT 'Pendiente';
 

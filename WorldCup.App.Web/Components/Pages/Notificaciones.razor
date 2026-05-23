@@ -93,6 +93,13 @@ else
                         Ir a predicciones
                     </button>
                 }
+                else if (notificacion.Tipo == "PagoPendiente")
+                {
+                    <button class="btn btn-warning btn-sm mt-2"
+                            @onclick="() => IrAPolla(notificacion)">
+                        Ver detalle de pago
+                    </button>
+                }
 
                 @if (notificacion.Tipo == "SolicitudIngreso")
                 {
@@ -189,6 +196,20 @@ else
         Navigation.NavigateTo("/predicciones");
     }
 
+    private async Task IrAPolla(NotificacionDto notificacion)
+    {
+        if (!notificacion.PollaId.HasValue)
+        {
+            return;
+        }
+
+        await Sesion.SeleccionarPollaAsync(
+            notificacion.PollaId.Value,
+            notificacion.PollaNombre);
+
+        Navigation.NavigateTo($"/polla/{notificacion.PollaId.Value}");
+    }
+
     private Task ActualizarEstadoLocal(int id, string estado, string tipo)
     {
         var notificacion = notificaciones.FirstOrDefault(x =>
@@ -209,6 +230,7 @@ else
             "SolicitudIngreso" => "Solicitud de ingreso",
             "Invitacion" => "Invitacion a una polla",
             "PrediccionPendiente" => "Prediccion pendiente",
+            "PagoPendiente" => "Pago pendiente",
             _ => "Notificacion"
         };
 
@@ -218,6 +240,7 @@ else
             "SolicitudIngreso" => "Solicitud",
             "Invitacion" => "Invitacion",
             "PrediccionPendiente" => "Alerta",
+            "PagoPendiente" => "Pago",
             _ => "Aviso"
         };
 
@@ -227,6 +250,7 @@ else
             "SolicitudIngreso" => "bg-primary",
             "Invitacion" => "bg-success",
             "PrediccionPendiente" => "bg-warning text-dark",
+            "PagoPendiente" => "bg-danger",
             _ => "bg-secondary"
         };
 

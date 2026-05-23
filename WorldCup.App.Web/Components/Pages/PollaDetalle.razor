@@ -204,6 +204,130 @@ else
         </div>
     </div>
 
+    @if (EsCreador)
+    {
+        <div class="card mt-3 payment-control-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Control de pagos</h5>
+                        <small class="text-muted">Seguimiento de valor, abonos, saldo y avisos por participante.</small>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-secondary"
+                            disabled="@cargandoControlPagos"
+                            @onclick="CargarControlPagos">
+                        Actualizar
+                    </button>
+                </div>
+
+                @if (cargandoControlPagos)
+                {
+                    <div class="alert alert-info mt-3 mb-0">
+                        Cargando control de pagos...
+                    </div>
+                }
+                else if (controlPagos == null)
+                {
+                    <div class="alert alert-light border mt-3 mb-0">
+                        El control se cargará al iniciar sesión como creador de la polla.
+                    </div>
+                }
+                else
+                {
+                    <div class="payment-kpis mt-3">
+                        <div>
+                            <span>Total esperado</span>
+                            <strong>@FormatoPrecio(controlPagos.TotalEsperado)</strong>
+                        </div>
+                        <div>
+                            <span>Total recibido</span>
+                            <strong>@FormatoPrecio(controlPagos.TotalPagado)</strong>
+                        </div>
+                        <div>
+                            <span>Total pendiente</span>
+                            <strong>@FormatoPrecio(controlPagos.TotalPendiente)</strong>
+                        </div>
+                        <div>
+                            <span>Estado</span>
+                            <strong>@controlPagos.ParticipantesPagados pagados / @controlPagos.TotalParticipantes</strong>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mt-3 payment-control-scroll">
+                        <table class="table table-sm align-middle payment-control-table">
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Valor</th>
+                                    <th>Abono / pagado</th>
+                                    <th>Debe</th>
+                                    <th>Estado</th>
+                                    <th>Nota</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pago in controlPagos.Participantes)
+                                {
+                                    <tr>
+                                        <td class="fw-bold">@pago.Nombre</td>
+                                        <td>
+                                            <input type="number"
+                                                   class="form-control form-control-sm payment-money-input"
+                                                   min="0"
+                                                   step="1000"
+                                                   @bind="pago.ValorAPagar" />
+                                        </td>
+                                        <td>
+                                            <input type="number"
+                                                   class="form-control form-control-sm payment-money-input"
+                                                   min="0"
+                                                   step="1000"
+                                                   @bind="pago.AbonoPagado" />
+                                        </td>
+                                        <td class="fw-bold">@FormatoPrecio(pago.SaldoPendiente)</td>
+                                        <td>
+                                            <span class="badge @ClaseEstadoPago(pago.EstadoPago)">
+                                                @pago.EstadoPago
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <input class="form-control form-control-sm payment-note-input"
+                                                   maxlength="180"
+                                                   placeholder="Ej: pagó por Nequi"
+                                                   @bind="pago.NotaPago" />
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-2 flex-wrap">
+                                                <button class="btn btn-sm btn-success"
+                                                        disabled="@PagoEnProceso(pago.UsuarioId)"
+                                                        @onclick="() => GuardarPago(pago)">
+                                                    Guardar
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-warning"
+                                                        disabled="@(PagoEnProceso(pago.UsuarioId) || pago.SaldoPendiente <= 0)"
+                                                        @onclick="() => NotificarPagoPendiente(pago)">
+                                                    Avisar pago
+                                                </button>
+                                            </div>
+                                            @if (pago.PagoNotificadoEn.HasValue)
+                                            {
+                                                <small class="text-muted d-block mt-1">
+                                                    Último aviso: @pago.PagoNotificadoEn.Value.ToString("dd/MM/yyyy hh:mm tt")
+                                                </small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
     <div class="row g-3 mt-4 @(usuarioDetalleAbierto == null ? "" : "polla-detail-open")">
 
         <!-- 📊 Ranking -->
@@ -704,6 +828,64 @@ else
         font-weight: 700;
     }
 
+    .payment-control-card {
+        border-color: #cfe8da;
+    }
+
+    .payment-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: .75rem;
+    }
+
+    .payment-kpis > div {
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #f8fbfa;
+        padding: .8rem .9rem;
+    }
+
+    .payment-kpis span {
+        display: block;
+        color: #667085;
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .payment-kpis strong {
+        display: block;
+        margin-top: .2rem;
+        color: #0f5132;
+        font-size: 1.05rem;
+        line-height: 1.2;
+    }
+
+    .payment-control-scroll {
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+    }
+
+    .payment-control-table {
+        min-width: 980px;
+        margin-bottom: 0;
+    }
+
+    .payment-control-table thead th {
+        background: #f1f7f4;
+        color: #344054;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .payment-money-input {
+        min-width: 120px;
+    }
+
+    .payment-note-input {
+        min-width: 170px;
+    }
+
     .payment-summary {
         display: grid;
         grid-template-columns: 170px minmax(0, 1fr);
@@ -874,6 +1056,7 @@ else
 
     @@media (max-width: 768px) {
         .payment-summary,
+        .payment-kpis,
         .detalle-filtros-panel {
             grid-template-columns: 1fr;
         }
@@ -1091,6 +1274,10 @@ else
     }
 
     private List<ParticipanteDto> participantes = new();
+    private PollaPagosResumenDto? controlPagos;
+    private bool cargandoControlPagos;
+    private int? pagoGuardandoUsuarioId;
+    private int? pagoNotificandoUsuarioId;
 
     private string emailInvitado = "";
     private string? linkInvitacion;
@@ -1128,6 +1315,12 @@ else
         if (polla != null)
         {
             await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+
+            if (EsCreador)
+            {
+                await CargarControlPagos();
+            }
+
             StateHasChanged();
         }
     }
@@ -1258,6 +1451,7 @@ else
             polla = await PollasService.GetPollaAsync(PollaId);
             PrepararDatosPolla();
             editandoPolla = false;
+            await CargarControlPagos();
 
             if (polla != null)
             {
@@ -1360,6 +1554,7 @@ else
 
             // refrescar lista
             participantes = await PollasService.GetParticipantesAsync(PollaId);
+            await CargarControlPagos();
 
             mensaje = $"❌ {usuarioAEliminarNombre} fue expulsado de la polla.";
             esError = false;
@@ -1379,6 +1574,135 @@ else
     private void CancelarEliminar()
     {
         mostrarConfirmacion = false;
+    }
+
+    private async Task CargarControlPagos()
+    {
+        if (!EsCreador || !Sesion.UsuarioId.HasValue)
+        {
+            controlPagos = null;
+            return;
+        }
+
+        try
+        {
+            cargandoControlPagos = true;
+            controlPagos = await PollasService.GetControlPagosAsync(PollaId, Sesion.UsuarioId.Value);
+        }
+        finally
+        {
+            cargandoControlPagos = false;
+        }
+    }
+
+    private async Task GuardarPago(PollaPagoParticipanteDto pago)
+    {
+        var guardado = await GuardarPagoInterno(pago);
+
+        if (guardado)
+        {
+            mensaje = $"Pago de {pago.Nombre} actualizado.";
+            esError = false;
+        }
+    }
+
+    private async Task<bool> GuardarPagoInterno(PollaPagoParticipanteDto pago)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para actualizar pagos.";
+            esError = true;
+            return false;
+        }
+
+        try
+        {
+            pagoGuardandoUsuarioId = pago.UsuarioId;
+
+            await PollasService.ActualizarPagoParticipanteAsync(
+                PollaId,
+                pago.UsuarioId,
+                new ActualizarPagoParticipanteDto
+                {
+                    SolicitanteId = Sesion.UsuarioId.Value,
+                    ValorAPagar = pago.ValorAPagar,
+                    AbonoPagado = pago.AbonoPagado,
+                    NotaPago = pago.NotaPago
+                });
+
+            await CargarControlPagos();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+            return false;
+        }
+        finally
+        {
+            pagoGuardandoUsuarioId = null;
+        }
+    }
+
+    private async Task NotificarPagoPendiente(PollaPagoParticipanteDto pago)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para enviar avisos de pago.";
+            esError = true;
+            return;
+        }
+
+        try
+        {
+            pagoNotificandoUsuarioId = pago.UsuarioId;
+
+            var guardado = await GuardarPagoInterno(pago);
+            if (!guardado)
+            {
+                return;
+            }
+
+            mensaje = await PollasService.NotificarPagoPendienteAsync(
+                PollaId,
+                pago.UsuarioId,
+                new NotificarPagoPendienteDto
+                {
+                    SolicitanteId = Sesion.UsuarioId.Value
+                });
+
+            await CargarControlPagos();
+            esError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
+        finally
+        {
+            pagoNotificandoUsuarioId = null;
+        }
+    }
+
+    private bool PagoEnProceso(int usuarioId)
+    {
+        return pagoGuardandoUsuarioId == usuarioId ||
+               pagoNotificandoUsuarioId == usuarioId ||
+               cargandoControlPagos;
+    }
+
+    private static string ClaseEstadoPago(string estado)
+    {
+        return estado switch
+        {
+            "Pagado" => "bg-success",
+            "Abono" => "bg-warning text-dark",
+            "Pendiente" => "bg-danger",
+            "Sin valor" => "bg-secondary",
+            _ => "bg-secondary"
+        };
     }
 
 

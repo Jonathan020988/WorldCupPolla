@@ -15,6 +15,12 @@
         // Marcador acumulado del usuario en esta polla
         public int Puntos { get; set; } = 0;
 
+        public decimal? ValorAPagar { get; set; }
+        public decimal AbonoPagado { get; set; } = 0;
+        public string? NotaPago { get; set; }
+        public DateTime? PagoActualizadoEn { get; set; }
+        public DateTime? PagoNotificadoEn { get; set; }
+
         // Fecha en que entró a la polla
         public DateTime FechaIngreso { get; set; } = DateTime.UtcNow;
     }

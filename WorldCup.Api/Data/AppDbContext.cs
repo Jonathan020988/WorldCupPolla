@@ -76,6 +76,14 @@ namespace WorldCup.Api.Data
                 .HasIndex(pm => new { pm.PollaId, pm.UsuarioId })
                 .IsUnique();
 
+            modelBuilder.Entity<PollaMiembro>()
+                .Property(pm => pm.ValorAPagar)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<PollaMiembro>()
+                .Property(pm => pm.AbonoPagado)
+                .HasPrecision(12, 2);
+
             // Relación Polla -> Miembros
             modelBuilder.Entity<PollaMiembro>()
                 .HasOne(pm => pm.Polla)

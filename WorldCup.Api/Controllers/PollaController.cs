@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
@@ -849,6 +850,117 @@ namespace WorldCup.Api.Controllers
             return Ok(participantes);
         }
 
+        // ================= CONTROL DE PAGOS =================
+        [HttpGet("{pollaId:int}/pagos")]
+        public async Task<IActionResult> GetControlPagos(
+            int pollaId,
+            [FromQuery] int solicitanteId)
+        {
+            var polla = await _context.Pollas
+                .Include(p => p.Miembros)
+                    .ThenInclude(pm => pm.Usuario)
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            if (polla.CreadorId != solicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede ver el control de pagos");
+
+            var valorBase = polla.ValorInscripcion ?? 0;
+            var participantesPago = polla.Miembros
+                .Where(pm => pm.Usuario.Activo)
+                .GroupBy(pm => pm.UsuarioId)
+                .Select(g => g.OrderBy(pm => pm.Id).First())
+                .OrderBy(pm => pm.Usuario.Nombre)
+                .Select(pm => CrearPagoParticipanteDto(pm, valorBase))
+                .ToList();
+
+            return Ok(new PollaPagosResumenDto
+            {
+                PollaId = pollaId,
+                ValorBase = valorBase,
+                TotalParticipantes = participantesPago.Count,
+                TotalEsperado = participantesPago.Sum(p => p.ValorAPagar),
+                TotalPagado = participantesPago.Sum(p => p.AbonoPagado),
+                TotalPendiente = participantesPago.Sum(p => p.SaldoPendiente),
+                ParticipantesPagados = participantesPago.Count(p => p.EstadoPago == "Pagado"),
+                ParticipantesConAbono = participantesPago.Count(p => p.EstadoPago == "Abono"),
+                ParticipantesSinPago = participantesPago.Count(p => p.EstadoPago == "Pendiente"),
+                Participantes = participantesPago
+            });
+        }
+
+        [HttpPut("{pollaId:int}/pagos/{usuarioId:int}")]
+        public async Task<IActionResult> ActualizarPagoParticipante(
+            int pollaId,
+            int usuarioId,
+            [FromBody] ActualizarPagoParticipanteDto dto)
+        {
+            if (dto.ValorAPagar < 0 || dto.AbonoPagado < 0)
+                return BadRequest("El valor y el abono no pueden ser negativos");
+
+            var miembro = await _context.PollaMiembros
+                .Include(pm => pm.Polla)
+                .Include(pm => pm.Usuario)
+                .FirstOrDefaultAsync(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId);
+
+            if (miembro == null)
+                return NotFound("El usuario no pertenece a la polla");
+
+            if (miembro.Polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede actualizar pagos");
+
+            miembro.ValorAPagar = dto.ValorAPagar;
+            miembro.AbonoPagado = dto.AbonoPagado;
+            miembro.NotaPago = string.IsNullOrWhiteSpace(dto.NotaPago)
+                ? null
+                : dto.NotaPago.Trim();
+            miembro.PagoActualizadoEn = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(CrearPagoParticipanteDto(
+                miembro,
+                miembro.Polla.ValorInscripcion ?? 0));
+        }
+
+        [HttpPost("{pollaId:int}/pagos/{usuarioId:int}/notificar")]
+        public async Task<IActionResult> NotificarPagoPendiente(
+            int pollaId,
+            int usuarioId,
+            [FromBody] NotificarPagoPendienteDto dto)
+        {
+            var miembro = await _context.PollaMiembros
+                .Include(pm => pm.Polla)
+                .Include(pm => pm.Usuario)
+                .FirstOrDefaultAsync(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId);
+
+            if (miembro == null)
+                return NotFound("El usuario no pertenece a la polla");
+
+            if (miembro.Polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede enviar avisos de pago");
+
+            var valorBase = miembro.Polla.ValorInscripcion ?? 0;
+            var pago = CrearPagoParticipanteDto(miembro, valorBase);
+
+            if (pago.SaldoPendiente <= 0)
+                return BadRequest("El usuario no tiene saldo pendiente");
+
+            miembro.PagoNotificadoEn = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Aviso enviado a {miembro.Usuario.Nombre}. Saldo pendiente: {FormatoMoneda(pago.SaldoPendiente)}"
+            });
+        }
+
         // ================= SOLICITUDES DE INGRESO =================
         [HttpGet("{pollaId:int}/solicitudes")]
         public async Task<IActionResult> GetSolicitudesIngreso(int pollaId)
@@ -1237,6 +1349,42 @@ namespace WorldCup.Api.Controllers
                 Mensaje = $"{i.Remitente.Nombre} te invitó a la polla {i.Polla.Nombre}"
             }));
 
+            var avisosPago = await _context.PollaMiembros
+                .Include(pm => pm.Polla)
+                .Include(pm => pm.Usuario)
+                .Where(pm =>
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo &&
+                    pm.PagoNotificadoEn.HasValue)
+                .ToListAsync();
+
+            foreach (var miembro in avisosPago)
+            {
+                var valorBase = miembro.Polla.ValorInscripcion ?? 0;
+                var pago = CrearPagoParticipanteDto(miembro, valorBase);
+
+                if (pago.SaldoPendiente <= 0)
+                {
+                    continue;
+                }
+
+                var fechaAvisoPago = miembro.PagoNotificadoEn.GetValueOrDefault();
+                notificaciones.Add(new NotificacionDto
+                {
+                    Id = miembro.Id,
+                    Tipo = "PagoPendiente",
+                    PollaId = miembro.PollaId,
+                    PollaNombre = miembro.Polla.Nombre,
+                    UsuarioId = miembro.UsuarioId,
+                    UsuarioNombre = miembro.Usuario.Nombre,
+                    Estado = "Pendiente",
+                    FechaSolicitud = ColombiaClock.ToColombia(fechaAvisoPago),
+                    RequiereAccion = true,
+                    Link = $"/polla/{miembro.PollaId}",
+                    Mensaje = $"Tienes pendiente por pagar {FormatoMoneda(pago.SaldoPendiente)} en la polla {miembro.Polla.Nombre}. Valor total: {FormatoMoneda(pago.ValorAPagar)}. Abonado: {FormatoMoneda(pago.AbonoPagado)}."
+                });
+            }
+
             var ahora = ColombiaClock.Now();
             var limite = ahora.AddHours(2);
             var pollasUsuario = await _context.PollaMiembros
@@ -1380,6 +1528,48 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        private static PollaPagoParticipanteDto CrearPagoParticipanteDto(
+            PollaMiembro miembro,
+            decimal valorBase)
+        {
+            var valor = miembro.ValorAPagar ?? valorBase;
+            var abono = miembro.AbonoPagado;
+            var saldo = Math.Max(valor - abono, 0);
+
+            return new PollaPagoParticipanteDto
+            {
+                UsuarioId = miembro.UsuarioId,
+                Nombre = miembro.Usuario.Nombre,
+                ValorAPagar = valor,
+                AbonoPagado = abono,
+                SaldoPendiente = saldo,
+                EstadoPago = EstadoPago(valor, abono, saldo),
+                NotaPago = miembro.NotaPago ?? "",
+                PagoActualizadoEn = miembro.PagoActualizadoEn.HasValue
+                    ? ColombiaClock.ToColombia(miembro.PagoActualizadoEn.Value)
+                    : null,
+                PagoNotificadoEn = miembro.PagoNotificadoEn.HasValue
+                    ? ColombiaClock.ToColombia(miembro.PagoNotificadoEn.Value)
+                    : null
+            };
+        }
+
+        private static string EstadoPago(decimal valor, decimal abono, decimal saldo)
+        {
+            if (valor <= 0)
+                return "Sin valor";
+
+            if (saldo <= 0)
+                return "Pagado";
+
+            return abono > 0 ? "Abono" : "Pendiente";
+        }
+
+        private static string FormatoMoneda(decimal valor)
+        {
+            return string.Format(CultureInfo.GetCultureInfo("es-CO"), "{0:C0}", valor);
         }
 
         private static string NormalizarEmail(string? email)
