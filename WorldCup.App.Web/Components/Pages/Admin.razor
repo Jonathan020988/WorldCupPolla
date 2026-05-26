@@ -80,6 +80,92 @@ else
         </div>
     </div>
 
+    <div class="card mb-4">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Solicitudes de ampliación de cupos</span>
+            <small class="text-muted">@solicitudesCupos.Count solicitud(es)</small>
+        </div>
+        <div class="card-body p-0">
+            @if (!solicitudesCupos.Any())
+            {
+                <div class="alert alert-light mb-0">
+                    No hay solicitudes de ampliación por ahora.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Celular</th>
+                                <th>Plan</th>
+                                <th>Estado</th>
+                                <th>Código</th>
+                                <th class="text-end">Permitir hasta</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var solicitud in solicitudesCupos)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@solicitud.UsuarioNombre</div>
+                                        <small class="text-muted">@solicitud.UsuarioEmail</small>
+                                    </td>
+                                    <td>@solicitud.Celular</td>
+                                    <td>
+                                        <div>@solicitud.CantidadUsuariosSolicitada usuarios</div>
+                                        <small class="text-muted">@solicitud.PlanNombre - @FormatoPrecio(solicitud.ValorPlan)</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge @ClaseEstadoSolicitudCupos(solicitud.Estado)">
+                                            @solicitud.Estado
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (string.IsNullOrWhiteSpace(solicitud.CodigoHabilitacion))
+                                        {
+                                            <span class="text-muted">Sin código</span>
+                                        }
+                                        else
+                                        {
+                                            <code>@solicitud.CodigoHabilitacion</code>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <input type="number"
+                                               class="form-control form-control-sm text-end"
+                                               min="6"
+                                               style="width:110px; margin-left:auto"
+                                               @bind="solicitud.MaximoMiembrosAutorizado" />
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-success"
+                                                disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                @onclick="() => GenerarCodigoCupos(solicitud)">
+                                            Generar código
+                                        </button>
+                                        @if (solicitud.Estado != "Rechazada" && solicitud.Estado != "Habilitada")
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger ms-1"
+                                                    disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                    @onclick="() => RechazarSolicitudCupos(solicitud)">
+                                                Rechazar
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
     <div class="card mb-4 phase-control">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>Control del torneo por fases</span>
@@ -1062,11 +1148,13 @@ else
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
     private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
     private List<ReaperturaAdminDto> reaperturasUsuario = new();
+    private List<SolicitudCuposAdminDto> solicitudesCupos = new();
     private HistorialUsuarioAdminDto? historialUsuario;
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
     private int? procesandoPartidoFecha;
+    private int? procesandoSolicitudCupos;
     private string? procesandoReapertura;
     private bool cargandoHistorial;
     private string? errorHistorial;
@@ -1145,6 +1233,8 @@ else
             $"api/Admin/usuarios?adminUsuarioId={adminId}") ?? new();
         pollas = await Http.GetFromJsonAsync<List<PollaAdminDto>>(
             $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
+        solicitudesCupos = await Http.GetFromJsonAsync<List<SolicitudCuposAdminDto>>(
+            $"api/Admin/cupos/solicitudes?adminUsuarioId={adminId}") ?? new();
     }
 
     private async Task CargarCalendario()
@@ -1208,6 +1298,66 @@ else
         mensaje = response.IsSuccessStatusCode
             ? "Correo de prueba solicitado. Revisa la bandeja de entrada y spam."
             : await response.Content.ReadAsStringAsync();
+    }
+
+    private async Task GenerarCodigoCupos(SolicitudCuposAdminDto solicitud)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+            return;
+
+        var maximo = solicitud.MaximoMiembrosAutorizado ?? solicitud.CantidadUsuariosSolicitada;
+        if (maximo < 6)
+        {
+            mensaje = "La cantidad autorizada debe ser mayor a 5 usuarios.";
+            return;
+        }
+
+        procesandoSolicitudCupos = solicitud.Id;
+
+        var response = await Http.PostAsJsonAsync(
+            $"api/Admin/cupos/solicitudes/{solicitud.Id}/codigo",
+            new AdminGenerarCodigoCuposRequestDto
+            {
+                AdminUsuarioId = Sesion.UsuarioId.Value,
+                MaximoMiembrosAutorizado = maximo
+            });
+
+        mensaje = await LeerMensajeRespuesta(response);
+        await CargarPanel();
+        procesandoSolicitudCupos = null;
+    }
+
+    private async Task RechazarSolicitudCupos(SolicitudCuposAdminDto solicitud)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+            return;
+
+        procesandoSolicitudCupos = solicitud.Id;
+
+        var response = await Http.PostAsync(
+            $"api/Admin/cupos/solicitudes/{solicitud.Id}/rechazar?adminUsuarioId={Sesion.UsuarioId.Value}",
+            null);
+
+        mensaje = await LeerMensajeRespuesta(response);
+        await CargarPanel();
+        procesandoSolicitudCupos = null;
+    }
+
+    private static string FormatoPrecio(decimal valor)
+    {
+        return $"${valor:N0}";
+    }
+
+    private static string ClaseEstadoSolicitudCupos(string estado)
+    {
+        return estado switch
+        {
+            "Pendiente" => "bg-warning text-dark",
+            "CodigoGenerado" => "bg-primary",
+            "Habilitada" => "bg-success",
+            "Rechazada" => "bg-danger",
+            _ => "bg-secondary"
+        };
     }
 
     private async Task FinalizarFase(FaseAdminDto fase)
@@ -1616,6 +1766,32 @@ else
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; }
+    }
+
+    private class AdminGenerarCodigoCuposRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public int MaximoMiembrosAutorizado { get; set; }
+    }
+
+    private class SolicitudCuposAdminDto
+    {
+        public int Id { get; set; }
+        public int UsuarioId { get; set; }
+        public string UsuarioNombre { get; set; } = "";
+        public string UsuarioEmail { get; set; } = "";
+        public string Celular { get; set; } = "";
+        public int CantidadUsuariosSolicitada { get; set; }
+        public string PlanNombre { get; set; } = "";
+        public decimal ValorPlan { get; set; }
+        public string Estado { get; set; } = "";
+        public string? CodigoHabilitacion { get; set; }
+        public int? MaximoMiembrosAutorizado { get; set; }
+        public DateTime FechaSolicitud { get; set; }
+        public DateTime? FechaCodigo { get; set; }
+        public DateTime? FechaActivacion { get; set; }
+        public int MaximoMiembrosPorPolla { get; set; }
+        public bool CuposIlimitados { get; set; }
     }
 
     private class PartidoCalendarioAdminDto

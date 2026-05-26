@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using System.Security.Cryptography;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
@@ -14,15 +15,23 @@ namespace WorldCup.Api.Controllers
     [Route("api/[controller]")]
     public class PollaController : ControllerBase
     {
+        private const int CupoBasePolla = 5;
+        private const int CupoIlimitado = 100000;
         private readonly AppDbContext _context;
         private readonly EmailService _emailService;
+        private readonly AdminAuthorizationService _adminAuthorization;
+        private readonly IConfiguration _configuration;
 
         public PollaController(
             AppDbContext context,
-            EmailService emailService)
+            EmailService emailService,
+            AdminAuthorizationService adminAuthorization,
+            IConfiguration configuration)
         {
             _context = context;
             _emailService = emailService;
+            _adminAuthorization = adminAuthorization;
+            _configuration = configuration;
         }
 
         // =========================================================
@@ -44,7 +53,8 @@ namespace WorldCup.Api.Controllers
                     MaximoMiembros = p.MaximoMiembros,
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
-                    MetodoPago = p.MetodoPago
+                    MetodoPago = p.MetodoPago,
+                    CuposIlimitados = p.Creador.CuposIlimitados
                 })
                 .ToListAsync();
 
@@ -74,6 +84,7 @@ namespace WorldCup.Api.Controllers
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
+                CuposIlimitados = polla.Creador?.CuposIlimitados == true,
                 PinIngreso = polla.PinIngreso // 👈 CLAVE
             });
         }
@@ -82,17 +93,22 @@ namespace WorldCup.Api.Controllers
         public async Task<IActionResult> CrearPolla([FromBody] CrearPollaDTO dto)
         {
             // ✅ Validar creador
-            var usuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.Id == dto.CreadorId && u.Activo);
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == dto.CreadorId && u.Activo);
 
-            if (!usuarioExiste)
+            if (usuario == null)
                 return BadRequest("Usuario creador no existe o está inactivo");
 
             if (string.IsNullOrWhiteSpace(dto.Nombre))
                 return BadRequest("Nombre obligatorio");
 
-            if (dto.MaximoMiembros <= 0)
+            var maximoSolicitado = dto.MaximoMiembros.GetValueOrDefault(CupoBasePolla);
+            if (maximoSolicitado <= 0)
                 return BadRequest("Máximo de miembros inválido");
+
+            var errorCupos = ValidarCupoSolicitado(usuario, maximoSolicitado);
+            if (errorCupos != null)
+                return BadRequest(errorCupos);
 
             if (string.IsNullOrWhiteSpace(dto.PinIngreso) || dto.PinIngreso.Length != 4)
                 return BadRequest("El PIN debe tener 4 dígitos");
@@ -102,7 +118,7 @@ namespace WorldCup.Api.Controllers
                 Nombre = dto.Nombre,
                 Descripcion = dto.Descripcion,
                 CreadorId = dto.CreadorId,   // 🔥 AHORA SÍ
-                MaximoMiembros = dto.MaximoMiembros,
+                MaximoMiembros = maximoSolicitado,
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = dto.ValorInscripcion,
                 MetodoPago = dto.MetodoPago,
@@ -135,7 +151,9 @@ namespace WorldCup.Api.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarPolla(int id, [FromBody] CrearPollaDTO dto)
         {
-            var polla = await _context.Pollas.FindAsync(id);
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (polla == null)
                 return NotFound();
 
@@ -145,9 +163,17 @@ namespace WorldCup.Api.Controllers
             if (string.IsNullOrWhiteSpace(dto.Nombre))
                 return BadRequest("Nombre obligatorio");
 
+            var maximoSolicitado = dto.MaximoMiembros.GetValueOrDefault(CupoBasePolla);
+            if (maximoSolicitado <= 0)
+                return BadRequest("Máximo de miembros inválido");
+
+            var errorCupos = ValidarCupoSolicitado(polla.Creador, maximoSolicitado);
+            if (errorCupos != null)
+                return BadRequest(errorCupos);
+
             polla.Nombre = dto.Nombre;
             polla.Descripcion = dto.Descripcion;
-            polla.MaximoMiembros = dto.MaximoMiembros;
+            polla.MaximoMiembros = maximoSolicitado;
             polla.PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria;
             polla.ValorInscripcion = dto.ValorInscripcion;
             polla.MetodoPago = dto.MetodoPago;
@@ -180,6 +206,140 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        [HttpGet("cupos/{usuarioId:int}")]
+        public async Task<IActionResult> GetCuposUsuario(int usuarioId)
+        {
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == usuarioId && u.Activo);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado");
+
+            var solicitudPendiente = await _context.SolicitudesAmpliacionCupos
+                .AsNoTracking()
+                .Where(s =>
+                    s.UsuarioId == usuarioId &&
+                    (s.Estado == "Pendiente" || s.Estado == "CodigoGenerado"))
+                .OrderByDescending(s => s.FechaSolicitud)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Estado
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                usuarioId = usuario.Id,
+                usuario.MaximoMiembrosPorPolla,
+                usuario.CuposIlimitados,
+                cupoBase = CupoBasePolla,
+                solicitudPendienteId = solicitudPendiente?.Id,
+                solicitudPendienteEstado = solicitudPendiente?.Estado ?? ""
+            });
+        }
+
+        [HttpPost("cupos/solicitudes")]
+        public async Task<IActionResult> SolicitarAmpliacionCupos(
+            [FromBody] SolicitarAmpliacionCuposDTO dto)
+        {
+            var celular = (dto.Celular ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(celular) || celular.Length < 7)
+                return BadRequest("Debes indicar un número de celular válido para que el administrador te contacte.");
+
+            if (dto.CantidadUsuarios <= CupoBasePolla)
+                return BadRequest("La ampliación aplica para pollas de más de 5 usuarios.");
+
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == dto.UsuarioId && u.Activo);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado");
+
+            var plan = CalcularPlanCupos(dto.CantidadUsuarios);
+            var solicitud = new SolicitudAmpliacionCupos
+            {
+                UsuarioId = usuario.Id,
+                Celular = celular,
+                CantidadUsuariosSolicitada = dto.CantidadUsuarios,
+                PlanNombre = plan.Nombre,
+                ValorPlan = plan.Valor,
+                Estado = "Pendiente",
+                FechaSolicitud = DateTime.UtcNow,
+                MaximoMiembrosAutorizado = plan.MaximoSugerido
+            };
+
+            _context.SolicitudesAmpliacionCupos.Add(solicitud);
+            await _context.SaveChangesAsync();
+
+            var adminEmails = _configuration
+                .GetSection("AdminSettings:Emails")
+                .Get<string[]>() ?? Array.Empty<string>();
+
+            await _emailService.EnviarSolicitudAmpliacionCuposAsync(
+                adminEmails,
+                usuario.Nombre,
+                usuario.Email,
+                celular,
+                dto.CantidadUsuarios,
+                plan.Nombre,
+                plan.Valor);
+
+            return Ok(new
+            {
+                mensaje = $"Solicitud enviada al administrador. Plan: {plan.Nombre} por {FormatoMoneda(plan.Valor)}."
+            });
+        }
+
+        [HttpPost("cupos/activar")]
+        public async Task<IActionResult> ActivarCupos([FromBody] ActivarCuposDTO dto)
+        {
+            var codigo = NormalizarCodigoCupos(dto.Codigo);
+            if (codigo.Length != 10 || !codigo.All(char.IsLetterOrDigit))
+                return BadRequest("El código debe ser alfanumérico de 10 caracteres.");
+
+            var solicitud = await _context.SolicitudesAmpliacionCupos
+                .Include(s => s.Usuario)
+                .FirstOrDefaultAsync(s =>
+                    s.UsuarioId == dto.UsuarioId &&
+                    s.CodigoHabilitacion == codigo &&
+                    s.Estado == "CodigoGenerado");
+
+            if (solicitud == null)
+                return BadRequest("El código no existe, ya fue usado o no corresponde a tu usuario.");
+
+            var maximoAutorizado = Math.Max(
+                CupoBasePolla,
+                solicitud.MaximoMiembrosAutorizado ?? solicitud.CantidadUsuariosSolicitada);
+
+            solicitud.Usuario.MaximoMiembrosPorPolla = Math.Max(
+                solicitud.Usuario.MaximoMiembrosPorPolla,
+                maximoAutorizado);
+            solicitud.Usuario.CuposIlimitados = maximoAutorizado >= CupoIlimitado;
+            solicitud.Estado = "Habilitada";
+            solicitud.FechaActivacion = DateTime.UtcNow;
+
+            var pollasUsuario = await _context.Pollas
+                .Where(p => p.CreadorId == dto.UsuarioId)
+                .ToListAsync();
+
+            foreach (var polla in pollasUsuario)
+            {
+                if (!polla.MaximoMiembros.HasValue || polla.MaximoMiembros.Value < maximoAutorizado)
+                {
+                    polla.MaximoMiembros = maximoAutorizado;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Felicitaciones, has habilitado la opción de agregar más usuarios a tus pollas."
+            });
+        }
+
         // =========================================================
         // =========================================================
         // DELETE: api/Polla/{id}
@@ -189,7 +349,9 @@ namespace WorldCup.Api.Controllers
             int id,
             [FromQuery] int solicitanteId)
         {
-            var polla = await _context.Pollas.FindAsync(id);
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (polla == null)
                 return NotFound();
 
@@ -821,7 +983,8 @@ namespace WorldCup.Api.Controllers
                     MaximoMiembros = p.MaximoMiembros,
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
-                    MetodoPago = p.MetodoPago
+                    MetodoPago = p.MetodoPago,
+                    CuposIlimitados = p.Creador.CuposIlimitados
                 })
                 .ToListAsync();
 
@@ -833,21 +996,73 @@ namespace WorldCup.Api.Controllers
 
         // ================= PARTICIPANTES =================
         [HttpGet("{pollaId}/participantes")]
-        public async Task<IActionResult> GetParticipantes(int pollaId)
+        public async Task<IActionResult> GetParticipantes(
+            int pollaId,
+            [FromQuery] int? solicitanteId = null)
         {
+            var creadorId = await _context.Pollas
+                .Where(p => p.Id == pollaId)
+                .Select(p => (int?)p.CreadorId)
+                .FirstOrDefaultAsync();
+
+            if (!creadorId.HasValue)
+                return NotFound("La polla no existe");
+
+            var puedeVerObservaciones = solicitanteId.HasValue &&
+                solicitanteId.Value == creadorId.Value;
+
             var participantes = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
                 .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
-                .Select(pm => new
+                .OrderBy(pm => pm.Usuario.Nombre)
+                .Select(pm => new ParticipanteDto
                 {
-                    Id = pm.UsuarioId,       // ✅ ESTE ES EL CORRECTO
-                    Nombre = pm.Usuario.Nombre
-                    
+                    Id = pm.UsuarioId,
+                    Nombre = pm.Usuario.Nombre,
+                    ObservacionAdmin = puedeVerObservaciones
+                        ? (pm.ObservacionAdmin ?? "")
+                        : ""
                 })
-                .Distinct()
                 .ToListAsync();
 
             return Ok(participantes);
+        }
+
+        [HttpPut("{pollaId:int}/participantes/{usuarioId:int}/observacion")]
+        public async Task<IActionResult> ActualizarObservacionParticipante(
+            int pollaId,
+            int usuarioId,
+            [FromBody] ActualizarObservacionParticipanteDto dto)
+        {
+            var miembro = await _context.PollaMiembros
+                .Include(pm => pm.Polla)
+                .Include(pm => pm.Usuario)
+                .FirstOrDefaultAsync(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId);
+
+            if (miembro == null)
+                return NotFound("El usuario no pertenece a la polla");
+
+            if (miembro.Polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede editar observaciones");
+
+            var observacion = (dto.Observacion ?? "").Trim();
+            if (observacion.Length > 1000)
+                return BadRequest("La observación no puede superar 1000 caracteres");
+
+            miembro.ObservacionAdmin = string.IsNullOrWhiteSpace(observacion)
+                ? null
+                : observacion;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new ParticipanteDto
+            {
+                Id = miembro.UsuarioId,
+                Nombre = miembro.Usuario.Nombre,
+                ObservacionAdmin = miembro.ObservacionAdmin ?? ""
+            });
         }
 
         // ================= CONTROL DE PAGOS =================
@@ -1022,6 +1237,13 @@ namespace WorldCup.Api.Controllers
         [HttpPost("{pollaId}/invitar/{usuarioId}")]
         public async Task<IActionResult> InvitarUsuario(int pollaId, int usuarioId)
         {
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
             var existe = await _context.PollaMiembros
                 .AnyAsync(x => x.PollaId == pollaId && x.UsuarioId == usuarioId);
 
@@ -1033,6 +1255,10 @@ namespace WorldCup.Api.Controllers
 
             if (!usuarioActivo)
                 return BadRequest("El usuario no existe o está inactivo");
+
+            var errorCupos = await ValidarCupoDisponibleAsync(polla);
+            if (errorCupos != null)
+                return Conflict(errorCupos);
 
             _context.PollaMiembros.Add(new PollaMiembro
             {
@@ -1058,6 +1284,10 @@ namespace WorldCup.Api.Controllers
 
             if (polla.CreadorId != dto.RemitenteId)
                 return Forbid("Solo el creador puede invitar usuarios a esta polla");
+
+            var errorCupos = await ValidarCupoDisponibleAsync(polla);
+            if (errorCupos != null)
+                return Conflict(errorCupos);
 
             var email = NormalizarEmail(dto.EmailInvitado);
             if (string.IsNullOrWhiteSpace(email))
@@ -1129,6 +1359,7 @@ namespace WorldCup.Api.Controllers
         {
             var invitacion = await _context.PollaInvitaciones
                 .Include(i => i.Polla)
+                    .ThenInclude(p => p.Creador)
                 .FirstOrDefaultAsync(i => i.Id == invitacionId);
 
             if (invitacion == null)
@@ -1151,6 +1382,10 @@ namespace WorldCup.Api.Controllers
 
             if (!yaEsMiembro)
             {
+                var errorCupos = await ValidarCupoDisponibleAsync(invitacion.Polla);
+                if (errorCupos != null)
+                    return Conflict(errorCupos);
+
                 _context.PollaMiembros.Add(new PollaMiembro
                 {
                     PollaId = invitacion.PollaId,
@@ -1218,7 +1453,9 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             [FromBody] UnirsePollaDTO dto)
         {
-            var polla = await _context.Pollas.FindAsync(pollaId);
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
             if (polla == null)
                 return NotFound("La polla no existe");
 
@@ -1238,6 +1475,10 @@ namespace WorldCup.Api.Controllers
             // PIN correcto → entra directo
             if (polla.PinIngreso == dto.PinIngreso)
             {
+                var errorCupos = await ValidarCupoDisponibleAsync(polla);
+                if (errorCupos != null)
+                    return Conflict(errorCupos);
+
                 _context.PollaMiembros.Add(new PollaMiembro
                 {
                     PollaId = pollaId,
@@ -1306,6 +1547,33 @@ namespace WorldCup.Api.Controllers
                 return NotFound("Usuario no encontrado");
 
             var notificaciones = new List<NotificacionDto>();
+
+            if (await _adminAuthorization.EsAdminAsync(usuarioId))
+            {
+                var solicitudesCupos = await _context.SolicitudesAmpliacionCupos
+                    .Include(s => s.Usuario)
+                    .Where(s => s.Estado == "Pendiente" || s.Estado == "CodigoGenerado")
+                    .OrderByDescending(s => s.FechaSolicitud)
+                    .ToListAsync();
+
+                notificaciones.AddRange(solicitudesCupos.Select(s => new NotificacionDto
+                {
+                    Id = s.Id,
+                    Tipo = "SolicitudAmpliacionCupos",
+                    UsuarioId = s.UsuarioId,
+                    UsuarioNombre = s.Usuario.Nombre,
+                    Estado = s.Estado,
+                    FechaSolicitud = s.FechaSolicitud,
+                    RequiereAccion = s.Estado == "Pendiente",
+                    Link = "/admin",
+                    Celular = s.Celular,
+                    CantidadUsuarios = s.CantidadUsuariosSolicitada,
+                    PlanNombre = s.PlanNombre,
+                    ValorPlan = s.ValorPlan,
+                    CodigoHabilitacion = s.CodigoHabilitacion ?? "",
+                    Mensaje = $"{s.Usuario.Nombre} solicita ampliación para {s.CantidadUsuariosSolicitada} usuarios. Celular: {s.Celular}. Plan: {s.PlanNombre} ({FormatoMoneda(s.ValorPlan)})."
+                }));
+            }
 
             var solicitudes = await _context.SolicitudesIngresoPolla
                 .Include(s => s.Usuario)
@@ -1463,6 +1731,7 @@ namespace WorldCup.Api.Controllers
             var solicitud = await _context.SolicitudesIngresoPolla
                 .Include(s => s.Usuario)
                 .Include(s => s.Polla)
+                    .ThenInclude(p => p.Creador)
                 .FirstOrDefaultAsync(s => s.Id == solicitudId);
 
             if (solicitud == null)
@@ -1481,6 +1750,10 @@ namespace WorldCup.Api.Controllers
 
             if (!yaEsMiembro)
             {
+                var errorCupos = await ValidarCupoDisponibleAsync(solicitud.Polla);
+                if (errorCupos != null)
+                    return Conflict(errorCupos);
+
                 _context.PollaMiembros.Add(new PollaMiembro
                 {
                     PollaId = solicitud.PollaId,
@@ -1529,6 +1802,80 @@ namespace WorldCup.Api.Controllers
 
             return NoContent();
         }
+
+        private string? ValidarCupoSolicitado(Usuario usuario, int maximoSolicitado)
+        {
+            if (usuario.CuposIlimitados)
+            {
+                return null;
+            }
+
+            var permitido = Math.Max(CupoBasePolla, usuario.MaximoMiembrosPorPolla);
+            return maximoSolicitado <= permitido
+                ? null
+                : MensajeAmpliacionCupos(permitido);
+        }
+
+        private async Task<string?> ValidarCupoDisponibleAsync(Polla polla)
+        {
+            if (polla.Creador?.CuposIlimitados == true)
+            {
+                return null;
+            }
+
+            var limite = Math.Max(CupoBasePolla, polla.MaximoMiembros.GetValueOrDefault(CupoBasePolla));
+            var activos = await _context.PollaMiembros
+                .CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo);
+
+            return activos < limite
+                ? null
+                : MensajePollaLlena(limite);
+        }
+
+        private static string MensajeAmpliacionCupos(int permitido)
+        {
+            return $"Solo puedes crear pollas de hasta {permitido} usuarios. Para ampliarla debes solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000 o 50 o más por $120.000.";
+        }
+
+        private static string MensajePollaLlena(int limite)
+        {
+            return $"Esta polla ya llegó al límite de {limite} usuarios. Para ampliarla, el creador debe solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000 o 50 o más por $120.000.";
+        }
+
+        private static PlanCupos CalcularPlanCupos(int cantidadUsuarios)
+        {
+            if (cantidadUsuarios <= 20)
+            {
+                return new PlanCupos("20 usuarios", 30000, 20);
+            }
+
+            if (cantidadUsuarios <= 50)
+            {
+                return new PlanCupos("50 usuarios", 70000, 50);
+            }
+
+            return new PlanCupos("50 o más usuarios", 120000, cantidadUsuarios);
+        }
+
+        private static string GenerarCodigoCupos()
+        {
+            const string caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            Span<char> codigo = stackalloc char[10];
+
+            for (var i = 0; i < codigo.Length; i++)
+            {
+                codigo[i] = caracteres[RandomNumberGenerator.GetInt32(caracteres.Length)];
+            }
+
+            return new string(codigo);
+        }
+
+        private static string NormalizarCodigoCupos(string? codigo)
+        {
+            return (codigo ?? "").Trim().Replace("-", "").Replace(" ", "").ToUpperInvariant();
+        }
+
+        private sealed record PlanCupos(string Nombre, decimal Valor, int MaximoSugerido);
 
         private static PollaPagoParticipanteDto CrearPagoParticipanteDto(
             PollaMiembro miembro,

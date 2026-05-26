@@ -12,6 +12,7 @@
         public bool PermitirEmpatesEnEliminatoria { get; set; }
         public decimal? ValorInscripcion { get; set; }
         public string? MetodoPago { get; set; }
+        public bool CuposIlimitados { get; set; }
 
         public string? PinIngreso { get; set; }
 

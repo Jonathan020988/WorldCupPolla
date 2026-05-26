@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
@@ -38,7 +39,9 @@ namespace WorldCup.Api.Controllers
                 usuariosInactivos = await _context.Usuarios.CountAsync(u => !u.Activo),
                 pollas = await _context.Pollas.CountAsync(),
                 partidosFinalizados = await _context.Partidos.CountAsync(p => p.Finalizado),
-                partidosPendientes = await _context.Partidos.CountAsync(p => !p.Finalizado)
+                partidosPendientes = await _context.Partidos.CountAsync(p => !p.Finalizado),
+                solicitudesCuposPendientes = await _context.SolicitudesAmpliacionCupos
+                    .CountAsync(s => s.Estado == "Pendiente" || s.Estado == "CodigoGenerado")
             });
         }
 
@@ -58,6 +61,95 @@ namespace WorldCup.Api.Controllers
             return Ok("Correo de prueba enviado. Si SMTP no está completo, revisa los logs de la API.");
         }
 
+        [HttpGet("cupos/solicitudes")]
+        public async Task<IActionResult> GetSolicitudesCupos([FromQuery] int adminUsuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var solicitudes = await _context.SolicitudesAmpliacionCupos
+                .Include(s => s.Usuario)
+                .OrderByDescending(s => s.Estado == "Pendiente")
+                .ThenByDescending(s => s.FechaSolicitud)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UsuarioId,
+                    UsuarioNombre = s.Usuario.Nombre,
+                    UsuarioEmail = s.Usuario.Email,
+                    s.Celular,
+                    s.CantidadUsuariosSolicitada,
+                    s.PlanNombre,
+                    s.ValorPlan,
+                    s.Estado,
+                    s.CodigoHabilitacion,
+                    s.MaximoMiembrosAutorizado,
+                    s.FechaSolicitud,
+                    s.FechaCodigo,
+                    s.FechaActivacion,
+                    s.Usuario.MaximoMiembrosPorPolla,
+                    s.Usuario.CuposIlimitados
+                })
+                .ToListAsync();
+
+            return Ok(solicitudes);
+        }
+
+        [HttpPost("cupos/solicitudes/{solicitudId:int}/codigo")]
+        public async Task<IActionResult> GenerarCodigoCupos(
+            int solicitudId,
+            [FromBody] AdminGenerarCodigoCuposDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            if (dto.MaximoMiembrosAutorizado < 6)
+                return BadRequest("La cantidad autorizada debe ser mayor a 5 usuarios.");
+
+            var solicitud = await _context.SolicitudesAmpliacionCupos
+                .Include(s => s.Usuario)
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+            if (solicitud == null)
+                return NotFound("Solicitud no encontrada");
+
+            var codigo = await GenerarCodigoCuposUnicoAsync();
+            solicitud.CodigoHabilitacion = codigo;
+            solicitud.MaximoMiembrosAutorizado = dto.MaximoMiembrosAutorizado;
+            solicitud.Estado = "CodigoGenerado";
+            solicitud.AdminUsuarioId = dto.AdminUsuarioId;
+            solicitud.FechaCodigo = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Código generado para {solicitud.Usuario.Nombre}: {codigo}",
+                codigo
+            });
+        }
+
+        [HttpPost("cupos/solicitudes/{solicitudId:int}/rechazar")]
+        public async Task<IActionResult> RechazarSolicitudCupos(
+            int solicitudId,
+            [FromQuery] int adminUsuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var solicitud = await _context.SolicitudesAmpliacionCupos
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+            if (solicitud == null)
+                return NotFound("Solicitud no encontrada");
+
+            solicitud.Estado = "Rechazada";
+            solicitud.AdminUsuarioId = adminUsuarioId;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = "Solicitud rechazada." });
+        }
+
         [HttpGet("usuarios")]
         public async Task<IActionResult> GetUsuarios([FromQuery] int adminUsuarioId)
         {
@@ -73,6 +165,9 @@ namespace WorldCup.Api.Controllers
                     + _context.PrediccionesPodio.Count(p => p.UsuarioId == u.Id)
                     + _context.PrediccionesTerceros.Count(p => p.UsuarioId == u.Id)
                 let solicitudes = _context.SolicitudesIngresoPolla.Count(s => s.UsuarioId == u.Id)
+                let solicitudesCupos = _context.SolicitudesAmpliacionCupos.Count(s =>
+                    s.UsuarioId == u.Id ||
+                    s.AdminUsuarioId == u.Id)
                 let invitaciones = _context.PollaInvitaciones.Count(i =>
                     i.RemitenteId == u.Id ||
                     i.UsuarioAceptadoId == u.Id)
@@ -85,15 +180,18 @@ namespace WorldCup.Api.Controllers
                     u.Nombre,
                     u.Email,
                     u.Activo,
+                    u.MaximoMiembrosPorPolla,
+                    u.CuposIlimitados,
                     Pollas = pollas,
                     PollasCreadas = pollasCreadas,
-                    Historial = predicciones + solicitudes + invitaciones + reaperturas,
+                    Historial = predicciones + solicitudes + solicitudesCupos + invitaciones + reaperturas,
                     PuedeEliminar =
                         !u.Activo &&
                         pollas == 0 &&
                         pollasCreadas == 0 &&
                         predicciones == 0 &&
                         solicitudes == 0 &&
+                        solicitudesCupos == 0 &&
                         invitaciones == 0 &&
                         reaperturas == 0
                 })
@@ -674,6 +772,9 @@ namespace WorldCup.Api.Controllers
             eliminados += await _context.SolicitudesIngresoPolla
                 .Where(s => s.UsuarioId == usuarioId)
                 .ExecuteDeleteAsync();
+            eliminados += await _context.SolicitudesAmpliacionCupos
+                .Where(s => s.UsuarioId == usuarioId || s.AdminUsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
             eliminados += await _context.PollaInvitaciones
                 .Where(i => i.RemitenteId == usuarioId || i.UsuarioAceptadoId == usuarioId)
                 .ExecuteDeleteAsync();
@@ -741,6 +842,32 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        private async Task<string> GenerarCodigoCuposUnicoAsync()
+        {
+            string codigo;
+            do
+            {
+                codigo = GenerarCodigoCupos();
+            }
+            while (await _context.SolicitudesAmpliacionCupos
+                .AnyAsync(s => s.CodigoHabilitacion == codigo));
+
+            return codigo;
+        }
+
+        private static string GenerarCodigoCupos()
+        {
+            const string caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            Span<char> codigo = stackalloc char[10];
+
+            for (var i = 0; i < codigo.Length; i++)
+            {
+                codigo[i] = caracteres[RandomNumberGenerator.GetInt32(caracteres.Length)];
+            }
+
+            return new string(codigo);
+        }
+
         private async Task<bool> EsAdmin(int usuarioId) =>
             await _adminAuthorization.EsAdminAsync(usuarioId);
 
@@ -778,6 +905,12 @@ namespace WorldCup.Api.Controllers
             var solicitudes = await _context.SolicitudesIngresoPolla.CountAsync(s => s.UsuarioId == usuarioId);
             if (solicitudes > 0)
                 bloqueos.Add($"{solicitudes} solicitud(es)");
+
+            var solicitudesCupos = await _context.SolicitudesAmpliacionCupos.CountAsync(s =>
+                s.UsuarioId == usuarioId ||
+                s.AdminUsuarioId == usuarioId);
+            if (solicitudesCupos > 0)
+                bloqueos.Add($"{solicitudesCupos} solicitud(es) de cupos");
 
             var invitaciones = await _context.PollaInvitaciones.CountAsync(i =>
                 i.RemitenteId == usuarioId ||

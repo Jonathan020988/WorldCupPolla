@@ -76,6 +76,109 @@ else
     {
         <div class="card mt-3">
             <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Capacidad de la polla</h5>
+                        <small class="text-muted">
+                            @participantes.Count participante@(participantes.Count == 1 ? "" : "s") / @TextoCupoPolla
+                        </small>
+                    </div>
+                    <span class="badge @(polla.CuposIlimitados ? "bg-success" : "bg-secondary")">
+                        @(polla.CuposIlimitados ? "Cupos ilimitados" : "Plan actual")
+                    </span>
+                </div>
+
+                @if (!polla.CuposIlimitados && (polla.MaximoMiembros ?? 5) <= 5)
+                {
+                    <div class="cupos-panel cupos-panel-warning mt-3">
+                        <div class="d-flex justify-content-between gap-3 flex-wrap">
+                            <div>
+                                <div class="fw-bold">Solo pueden ingresar 5 usuarios gratis</div>
+                                <small>Para ampliar esta polla, solicita uno de estos planes.</small>
+                            </div>
+                            <span class="cupos-badge">Ampliación</span>
+                        </div>
+
+                        <div class="cupos-plan-grid mt-3">
+                            <div class="cupos-plan">
+                                <span>20 usuarios</span>
+                                <strong>$30.000</strong>
+                            </div>
+                            <div class="cupos-plan">
+                                <span>50 usuarios</span>
+                                <strong>$70.000</strong>
+                            </div>
+                            <div class="cupos-plan cupos-plan-featured">
+                                <span>50 o más</span>
+                                <strong>$120.000</strong>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(mensajeCupos))
+                {
+                    <div class="alert @(errorCupos ? "alert-danger" : "alert-success") mt-3">
+                        @mensajeCupos
+                    </div>
+                }
+
+                <div class="cupos-panel mt-3">
+                    <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap">
+                        <div>
+                            <h6 class="fw-bold mb-1">Ampliar cupos</h6>
+                            <small class="text-muted">Envía la solicitud al administrador y activa el código cuando lo recibas.</small>
+                        </div>
+                        <span class="cupos-badge cupos-badge-soft">Admin</span>
+                    </div>
+
+                <div class="row g-2 mt-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Celular</label>
+                        <input class="form-control"
+                               placeholder="Ej: 3001234567"
+                               @bind="celularAmpliacion" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Cantidad de usuarios</label>
+                        <input type="number"
+                               class="form-control"
+                               min="6"
+                               @bind="cantidadAmpliacion" />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-outline-primary w-100"
+                                disabled="@procesandoCupos"
+                                @onclick="SolicitarAmpliacion">
+                            Enviar correo
+                        </button>
+                    </div>
+                </div>
+
+                <div class="codigo-cupos mt-3">
+                    <label class="form-label">Código alfanumérico de 10 caracteres</label>
+                    <div class="input-group">
+                        <input class="form-control"
+                               maxlength="10"
+                               placeholder="Ej: A1B2C3D4E5"
+                               @bind="codigoCupos"
+                               @bind:event="oninput" />
+                        <button class="btn btn-success"
+                                disabled="@procesandoCupos"
+                                @onclick="ActivarCodigoCupos">
+                            Activar código
+                        </button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (EsCreador)
+    {
+        <div class="card mt-3">
+            <div class="card-body">
                 <h5>Invitar a la polla</h5>
 
                 <input class="form-control mb-2"
@@ -652,19 +755,43 @@ else
                 <div class="card-body">
                     <h5 class="mb-3">👥 Participantes</h5>
 
-                    <ul class="list-group list-group-flush">
+                    <ul class="list-group list-group-flush participantes-lista">
                         @foreach (var u in participantes)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                <span>👤 @u.Nombre</span>
+                            <li class="list-group-item participante-item px-0">
+                                <div class="participante-resumen">
+                                    <div>
+                                        <span class="fw-semibold">👤 @u.Nombre</span>
+                                        @if (u.Id == polla.CreadorId)
+                                        {
+                                            <span class="badge bg-primary ms-2">Creador</span>
+                                        }
+                                    </div>
 
-                                @* ❌ SOLO EL CREADOR VE EL BOTÓN *@
-                                @if (EsCreador && u.Id != polla.CreadorId)
+                                    @if (EsCreador && u.Id != polla.CreadorId)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
+                                            ❌ Eliminar Usuario
+                                        </button>
+                                    }
+                                </div>
+
+                                @if (EsCreador)
                                 {
-                                    <button class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
-                                        ❌ Eliminar Usuario
-                                    </button>
+                                    <div class="observacion-admin">
+                                        <textarea class="form-control form-control-sm"
+                                                  rows="2"
+                                                  maxlength="1000"
+                                                  placeholder="Observación privada"
+                                                  @bind="u.ObservacionAdmin"
+                                                  @bind:event="oninput"></textarea>
+                                        <button class="btn btn-sm btn-outline-primary observacion-btn"
+                                                disabled="@(observacionGuardandoUsuarioId == u.Id)"
+                                                @onclick="() => GuardarObservacionParticipante(u)">
+                                            @(observacionGuardandoUsuarioId == u.Id ? "Guardando..." : "Guardar")
+                                        </button>
+                                    </div>
                                 }
                             </li>
                         }
@@ -1054,6 +1181,104 @@ else
         white-space: pre-line;
     }
 
+    .cupos-panel {
+        border: 1px solid #d9e2f1;
+        border-radius: 12px;
+        background: #f8fafc;
+        padding: 1rem;
+    }
+
+    .cupos-panel-warning {
+        border-color: #f2c86b;
+        background: linear-gradient(180deg, #fff8df 0%, #fff3c4 100%);
+        color: #533b00;
+    }
+
+    .cupos-badge {
+        border-radius: 999px;
+        background: #111827;
+        color: #fff;
+        font-size: .75rem;
+        font-weight: 700;
+        padding: .35rem .7rem;
+        white-space: nowrap;
+    }
+
+    .cupos-badge-soft {
+        background: #e7f0ff;
+        color: #174ea6;
+    }
+
+    .cupos-plan-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .65rem;
+    }
+
+    .cupos-plan {
+        border: 1px solid rgba(15, 23, 42, .12);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, .72);
+        padding: .75rem;
+    }
+
+    .cupos-plan span,
+    .cupos-plan strong {
+        display: block;
+    }
+
+    .cupos-plan span {
+        color: #475569;
+        font-size: .85rem;
+    }
+
+    .cupos-plan strong {
+        color: #111827;
+        font-size: 1.05rem;
+    }
+
+    .cupos-plan-featured {
+        border-color: #2563eb;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .18);
+    }
+
+    .codigo-cupos {
+        border-top: 1px solid #e2e8f0;
+        padding-top: .9rem;
+    }
+
+    .participante-item {
+        display: grid;
+        gap: .7rem;
+    }
+
+    .participante-resumen {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .observacion-admin {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .5rem;
+        align-items: start;
+        padding: .65rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+    }
+
+    .observacion-admin textarea {
+        min-height: 58px;
+        resize: vertical;
+    }
+
+    .observacion-btn {
+        min-width: 82px;
+    }
+
     @@media (max-width: 768px) {
         .payment-summary,
         .payment-kpis,
@@ -1075,6 +1300,16 @@ else
         }
 
         .detalle-fase-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .cupos-plan-grid,
+        .observacion-admin {
+            grid-template-columns: 1fr;
+        }
+
+        .participante-resumen {
             align-items: flex-start;
             flex-direction: column;
         }
@@ -1107,6 +1342,18 @@ else
     private decimal? valorInscripcionEdit;
     private string descripcionEdit = "";
     private string metodoPagoEdit = "";
+    private CuposUsuarioDto? cuposUsuario;
+    private string celularAmpliacion = "";
+    private int cantidadAmpliacion = 20;
+    private string codigoCupos = "";
+    private string? mensajeCupos;
+    private bool errorCupos;
+    private bool procesandoCupos;
+
+    private string TextoCupoPolla =>
+        polla?.CuposIlimitados == true
+            ? "ilimitado"
+            : (polla?.MaximoMiembros ?? 5).ToString();
 
     private void ToggleDetalleUsuario(string usuario)
     {
@@ -1278,6 +1525,7 @@ else
     private bool cargandoControlPagos;
     private int? pagoGuardandoUsuarioId;
     private int? pagoNotificandoUsuarioId;
+    private int? observacionGuardandoUsuarioId;
 
     private string emailInvitado = "";
     private string? linkInvitacion;
@@ -1294,7 +1542,7 @@ else
             await Http.GetFromJsonAsync<List<DetalleRankingDto>>(
                 $"api/Polla/{PollaId}/ranking-detalle"
             ) ?? new();
-        participantes = await PollasService.GetParticipantesAsync(PollaId);
+        await CargarParticipantes();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1318,6 +1566,9 @@ else
 
             if (EsCreador)
             {
+                cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.GetValueOrDefault());
+                cantidadAmpliacion = Math.Max(20, (polla.MaximoMiembros ?? 5) + 1);
+                await CargarParticipantes();
                 await CargarControlPagos();
             }
 
@@ -1514,6 +1765,72 @@ else
         }
     }
 
+    private async Task SolicitarAmpliacion()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensajeCupos = "Debes iniciar sesión para solicitar ampliación.";
+            errorCupos = true;
+            return;
+        }
+
+        try
+        {
+            procesandoCupos = true;
+            mensajeCupos = await PollasService.SolicitarAmpliacionCuposAsync(new SolicitarAmpliacionCuposDto
+            {
+                UsuarioId = Sesion.UsuarioId.Value,
+                Celular = celularAmpliacion,
+                CantidadUsuarios = cantidadAmpliacion
+            });
+            errorCupos = false;
+            cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
+        }
+        catch (Exception ex)
+        {
+            mensajeCupos = ex.Message;
+            errorCupos = true;
+        }
+        finally
+        {
+            procesandoCupos = false;
+        }
+    }
+
+    private async Task ActivarCodigoCupos()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensajeCupos = "Debes iniciar sesión para activar el código.";
+            errorCupos = true;
+            return;
+        }
+
+        try
+        {
+            procesandoCupos = true;
+            mensajeCupos = await PollasService.ActivarCuposAsync(new ActivarCuposDto
+            {
+                UsuarioId = Sesion.UsuarioId.Value,
+                Codigo = codigoCupos
+            });
+            errorCupos = false;
+            codigoCupos = "";
+            cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
+            polla = await PollasService.GetPollaAsync(PollaId);
+            PrepararDatosPolla();
+        }
+        catch (Exception ex)
+        {
+            mensajeCupos = ex.Message;
+            errorCupos = true;
+        }
+        finally
+        {
+            procesandoCupos = false;
+        }
+    }
+
     private string nuevoPin = "";
 
     private async Task CambiarPin()
@@ -1552,8 +1869,7 @@ else
                 Sesion.UsuarioId!.Value
             );
 
-            // refrescar lista
-            participantes = await PollasService.GetParticipantesAsync(PollaId);
+            await CargarParticipantes();
             await CargarControlPagos();
 
             mensaje = $"❌ {usuarioAEliminarNombre} fue expulsado de la polla.";
@@ -1574,6 +1890,50 @@ else
     private void CancelarEliminar()
     {
         mostrarConfirmacion = false;
+    }
+
+    private async Task CargarParticipantes()
+    {
+        participantes = await PollasService.GetParticipantesAsync(
+            PollaId,
+            EsCreador ? Sesion.UsuarioId : null);
+    }
+
+    private async Task GuardarObservacionParticipante(ParticipanteDto participante)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para editar observaciones.";
+            esError = true;
+            return;
+        }
+
+        try
+        {
+            observacionGuardandoUsuarioId = participante.Id;
+
+            var actualizado = await PollasService.ActualizarObservacionParticipanteAsync(
+                PollaId,
+                participante.Id,
+                new ActualizarObservacionParticipanteDto
+                {
+                    SolicitanteId = Sesion.UsuarioId.Value,
+                    Observacion = participante.ObservacionAdmin
+                });
+
+            participante.ObservacionAdmin = actualizado.ObservacionAdmin;
+            mensaje = $"Observación de {participante.Nombre} guardada.";
+            esError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
+        finally
+        {
+            observacionGuardandoUsuarioId = null;
+        }
     }
 
     private async Task CargarControlPagos()

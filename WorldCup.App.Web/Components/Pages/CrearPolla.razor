@@ -13,7 +13,7 @@
     Crea una polla del mundial e invita a tus amigos a competir
 </p>
 
-<div class="card shadow-sm" style="max-width:600px">
+<div class="card shadow-sm" style="max-width:720px">
     <div class="card-body">
 
         <div class="mb-3">
@@ -36,8 +36,97 @@
             <input type="number"
                    class="form-control"
                    min="2"
-                   placeholder="Ej: 20"
+                   placeholder="Ej: 5"
                    @bind="maxParticipantes" />
+            <small class="text-muted">
+                Las pollas nuevas tienen hasta 5 usuarios gratis.
+            </small>
+        </div>
+
+        @if (!PuedeUsarCantidadSolicitada)
+        {
+            <div class="cupos-panel cupos-panel-warning mb-3">
+                <div class="d-flex justify-content-between gap-3 flex-wrap">
+                    <div>
+                        <div class="fw-bold">Solo pueden ingresar 5 usuarios gratis</div>
+                        <small>Para crear una polla más grande, solicita uno de estos planes.</small>
+                    </div>
+                    <span class="cupos-badge">Ampliación</span>
+                </div>
+
+                <div class="cupos-plan-grid mt-3">
+                    <div class="cupos-plan">
+                        <span>20 usuarios</span>
+                        <strong>$30.000</strong>
+                    </div>
+                    <div class="cupos-plan">
+                        <span>50 usuarios</span>
+                        <strong>$70.000</strong>
+                    </div>
+                    <div class="cupos-plan cupos-plan-featured">
+                        <span>50 o más</span>
+                        <strong>$120.000</strong>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="cupos-panel mb-4">
+            <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap">
+                <div>
+                    <h6 class="fw-bold mb-1">Ampliar cupos</h6>
+                    <p class="text-muted mb-0">
+                        El mensaje se genera automáticamente con tu celular y la cantidad solicitada.
+                    </p>
+                </div>
+                <span class="cupos-badge cupos-badge-soft">Admin</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(mensajeCupos))
+            {
+                <div class="alert @(errorCupos ? "alert-danger" : "alert-success") mt-3">
+                    @mensajeCupos
+                </div>
+            }
+
+            <div class="row g-2 mt-3">
+                <div class="col-md-5">
+                    <label class="form-label">Celular</label>
+                    <input class="form-control"
+                           placeholder="Ej: 3001234567"
+                           @bind="celularAmpliacion" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Cantidad de usuarios</label>
+                    <input type="number"
+                           class="form-control"
+                           min="6"
+                           @bind="cantidadAmpliacion" />
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-outline-primary w-100"
+                            disabled="@procesandoCupos"
+                            @onclick="SolicitarAmpliacion">
+                        Enviar correo
+                    </button>
+                </div>
+            </div>
+
+            <div class="codigo-cupos mt-3">
+                <label class="form-label">Código alfanumérico de 10 caracteres</label>
+                <div class="input-group">
+                    <input class="form-control"
+                           maxlength="10"
+                           placeholder="Ej: A1B2C3D4E5"
+                           @bind="codigoCupos"
+                           @bind:event="oninput" />
+                    <button class="btn btn-success"
+                            disabled="@procesandoCupos"
+                            @onclick="ActivarCodigoCupos">
+                        Activar código
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="mb-3">
@@ -90,15 +179,31 @@
     // 🔹 Campos del formulario
     private string nombre = "";
     private string descripcion = "";
-    private int? maxParticipantes;
+    private int? maxParticipantes = 5;
     private decimal? valorInscripcion;
     private string metodoPago = "";
+    private CuposUsuarioDto? cupos;
+    private string celularAmpliacion = "";
+    private int cantidadAmpliacion = 20;
+    private string codigoCupos = "";
+    private string? mensajeCupos;
+    private bool errorCupos;
+    private bool procesandoCupos;
 
     // 🔹 Validación simple front
     private bool FormularioValido =>
         !string.IsNullOrWhiteSpace(nombre) &&
         !string.IsNullOrWhiteSpace(pinIngreso) &&
-        pinIngreso.Length == 4;
+        pinIngreso.Length == 4 &&
+        PuedeUsarCantidadSolicitada;
+
+    private int MaximoPermitido =>
+        cupos?.CuposIlimitados == true
+            ? int.MaxValue
+            : Math.Max(5, cupos?.MaximoMiembrosPorPolla ?? 5);
+
+    private bool PuedeUsarCantidadSolicitada =>
+        (maxParticipantes ?? 5) <= MaximoPermitido;
 
     private void Cancelar()
     {
@@ -113,6 +218,12 @@
             return;
         }
 
+        if (!PuedeUsarCantidadSolicitada)
+        {
+            mensajeCupos = "Para crear una polla con esa cantidad debes activar primero un código de ampliación.";
+            errorCupos = true;
+            return;
+        }
         
         var dto = new CrearPollaDto
             {
@@ -141,9 +252,155 @@
             {
                 Navigation.NavigateTo("/login", true);
             }
+
+            if (Sesion.UsuarioId.HasValue)
+            {
+                cupos = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
+                maxParticipantes ??= 5;
+                cantidadAmpliacion = Math.Max(20, maxParticipantes ?? 20);
+                StateHasChanged();
+            }
         }
     }
 
     private string pinIngreso = "";
 
+    private async Task SolicitarAmpliacion()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensajeCupos = "Debes iniciar sesión para solicitar ampliación.";
+            errorCupos = true;
+            return;
+        }
+
+        try
+        {
+            procesandoCupos = true;
+            mensajeCupos = await PollasService.SolicitarAmpliacionCuposAsync(new SolicitarAmpliacionCuposDto
+            {
+                UsuarioId = Sesion.UsuarioId.Value,
+                Celular = celularAmpliacion,
+                CantidadUsuarios = cantidadAmpliacion
+            });
+            errorCupos = false;
+            cupos = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
+        }
+        catch (Exception ex)
+        {
+            mensajeCupos = ex.Message;
+            errorCupos = true;
+        }
+        finally
+        {
+            procesandoCupos = false;
+        }
+    }
+
+    private async Task ActivarCodigoCupos()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensajeCupos = "Debes iniciar sesión para activar el código.";
+            errorCupos = true;
+            return;
+        }
+
+        try
+        {
+            procesandoCupos = true;
+            mensajeCupos = await PollasService.ActivarCuposAsync(new ActivarCuposDto
+            {
+                UsuarioId = Sesion.UsuarioId.Value,
+                Codigo = codigoCupos
+            });
+            errorCupos = false;
+            codigoCupos = "";
+            cupos = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
+        }
+        catch (Exception ex)
+        {
+            mensajeCupos = ex.Message;
+            errorCupos = true;
+        }
+        finally
+        {
+            procesandoCupos = false;
+        }
+    }
+
 }
+
+<style>
+    .cupos-panel {
+        border: 1px solid #d9e2f1;
+        border-radius: 12px;
+        background: #f8fafc;
+        padding: 1rem;
+    }
+
+    .cupos-panel-warning {
+        border-color: #f2c86b;
+        background: linear-gradient(180deg, #fff8df 0%, #fff3c4 100%);
+        color: #533b00;
+    }
+
+    .cupos-badge {
+        border-radius: 999px;
+        background: #111827;
+        color: #fff;
+        font-size: .75rem;
+        font-weight: 700;
+        padding: .35rem .7rem;
+        white-space: nowrap;
+    }
+
+    .cupos-badge-soft {
+        background: #e7f0ff;
+        color: #174ea6;
+    }
+
+    .cupos-plan-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .65rem;
+    }
+
+    .cupos-plan {
+        border: 1px solid rgba(15, 23, 42, .12);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, .72);
+        padding: .75rem;
+    }
+
+    .cupos-plan span,
+    .cupos-plan strong {
+        display: block;
+    }
+
+    .cupos-plan span {
+        color: #475569;
+        font-size: .85rem;
+    }
+
+    .cupos-plan strong {
+        color: #111827;
+        font-size: 1.05rem;
+    }
+
+    .cupos-plan-featured {
+        border-color: #2563eb;
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .18);
+    }
+
+    .codigo-cupos {
+        border-top: 1px solid #e2e8f0;
+        padding-top: .9rem;
+    }
+
+    @@media (max-width: 640px) {
+        .cupos-plan-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

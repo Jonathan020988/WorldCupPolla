@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Globalization;
 
 namespace WorldCup.Api.Services
 {
@@ -63,6 +64,33 @@ namespace WorldCup.Api.Services
                 "Si ya tienes cuenta, inicia sesion para aceptar la invitacion.";
 
             await EnviarCorreoAsync(destino, asunto, cuerpo, "invitacion-polla");
+        }
+
+        public async Task EnviarSolicitudAmpliacionCuposAsync(
+            IEnumerable<string> destinos,
+            string usuario,
+            string emailUsuario,
+            string celular,
+            int cantidadUsuarios,
+            string planNombre,
+            decimal valorPlan)
+        {
+            var asunto = "Solicitud de ampliacion de cupos - WorldCup Polla";
+            var cuerpo =
+                "Hola administrador,\n\n" +
+                "Se recibio una solicitud de ampliacion de usuarios.\n\n" +
+                $"Usuario: {usuario}\n" +
+                $"Correo: {emailUsuario}\n" +
+                $"Celular: {celular}\n" +
+                $"Cantidad solicitada: {cantidadUsuarios} usuarios\n" +
+                $"Plan: {planNombre}\n" +
+                $"Valor: {valorPlan.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))}\n\n" +
+                "Contacta al usuario para coordinar el pago. Luego genera el codigo de 10 caracteres desde el panel administrador.";
+
+            foreach (var destino in destinos.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                await EnviarCorreoAsync(destino, asunto, cuerpo, "solicitud-ampliacion-cupos");
+            }
         }
 
         public async Task EnviarCorreoPruebaAsync(string destino)

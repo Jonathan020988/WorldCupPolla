@@ -100,6 +100,13 @@ else
                         Ver detalle de pago
                     </button>
                 }
+                else if (notificacion.Tipo == "SolicitudAmpliacionCupos")
+                {
+                    <button class="btn btn-primary btn-sm mt-2"
+                            @onclick="IrAdmin">
+                        Ver en admin
+                    </button>
+                }
 
                 @if (notificacion.Tipo == "SolicitudIngreso")
                 {
@@ -210,6 +217,11 @@ else
         Navigation.NavigateTo($"/polla/{notificacion.PollaId.Value}");
     }
 
+    private void IrAdmin()
+    {
+        Navigation.NavigateTo("/admin");
+    }
+
     private Task ActualizarEstadoLocal(int id, string estado, string tipo)
     {
         var notificacion = notificaciones.FirstOrDefault(x =>
@@ -231,6 +243,7 @@ else
             "Invitacion" => "Invitacion a una polla",
             "PrediccionPendiente" => "Prediccion pendiente",
             "PagoPendiente" => "Pago pendiente",
+            "SolicitudAmpliacionCupos" => "Solicitud de ampliacion",
             _ => "Notificacion"
         };
 
@@ -241,6 +254,7 @@ else
             "Invitacion" => "Invitacion",
             "PrediccionPendiente" => "Alerta",
             "PagoPendiente" => "Pago",
+            "SolicitudAmpliacionCupos" => "Cupos",
             _ => "Aviso"
         };
 
@@ -251,6 +265,7 @@ else
             "Invitacion" => "bg-success",
             "PrediccionPendiente" => "bg-warning text-dark",
             "PagoPendiente" => "bg-danger",
+            "SolicitudAmpliacionCupos" => "bg-info text-dark",
             _ => "bg-secondary"
         };
 
@@ -258,7 +273,7 @@ else
         estado switch
         {
             "Pendiente" => "bg-warning text-dark",
-            "Aprobada" or "Aceptada" => "bg-success",
+            "Aprobada" or "Aceptada" or "CodigoGenerado" => "bg-success",
             "Rechazada" => "bg-danger",
             _ => "bg-secondary"
         };

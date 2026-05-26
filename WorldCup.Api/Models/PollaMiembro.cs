@@ -18,6 +18,7 @@
         public decimal? ValorAPagar { get; set; }
         public decimal AbonoPagado { get; set; } = 0;
         public string? NotaPago { get; set; }
+        public string? ObservacionAdmin { get; set; }
         public DateTime? PagoActualizadoEn { get; set; }
         public DateTime? PagoNotificadoEn { get; set; }
 

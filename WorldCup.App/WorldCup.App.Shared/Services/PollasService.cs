@@ -33,6 +33,39 @@ namespace WorldCup.App.Shared.Services
             );
         }
 
+        public async Task<CuposUsuarioDto?> GetCuposUsuarioAsync(int usuarioId)
+        {
+            return await _http.GetFromJsonAsync<CuposUsuarioDto>(
+                $"api/Polla/cupos/{usuarioId}"
+            );
+        }
+
+        public async Task<string> SolicitarAmpliacionCuposAsync(SolicitarAmpliacionCuposDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Polla/cupos/solicitudes", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<MensajeRespuestaDto>();
+            return result?.Mensaje ?? "Solicitud enviada al administrador.";
+        }
+
+        public async Task<string> ActivarCuposAsync(ActivarCuposDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Polla/cupos/activar", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<MensajeRespuestaDto>();
+            return result?.Mensaje ?? "Felicitaciones, has habilitado la opción de agregar más usuarios a tus pollas.";
+        }
+
         public async Task<List<RankingPollaDto>> GetRankingAsync(int pollaId)
         {
             return await _http.GetFromJsonAsync<List<RankingPollaDto>>(
@@ -40,11 +73,37 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        public async Task<List<ParticipanteDto>> GetParticipantesAsync(int pollaId)
+        public async Task<List<ParticipanteDto>> GetParticipantesAsync(
+            int pollaId,
+            int? solicitanteId = null)
         {
+            var url = $"api/Polla/{pollaId}/participantes";
+            if (solicitanteId.HasValue)
+            {
+                url += $"?solicitanteId={solicitanteId.Value}";
+            }
+
             return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
-                $"api/Polla/{pollaId}/participantes"
+                url
             ) ?? new();
+        }
+
+        public async Task<ParticipanteDto> ActualizarObservacionParticipanteAsync(
+            int pollaId,
+            int usuarioId,
+            ActualizarObservacionParticipanteDto dto)
+        {
+            var response = await _http.PutAsJsonAsync(
+                $"api/Polla/{pollaId}/participantes/{usuarioId}/observacion",
+                dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<ParticipanteDto>()
+                ?? new ParticipanteDto();
         }
 
         public async Task<PollaPagosResumenDto?> GetControlPagosAsync(

@@ -79,6 +79,13 @@
                     <strong>@CupoTexto</strong>
                 </div>
 
+                @if (PollaSinCupos)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        Esta polla ya llegó al límite de usuarios. El creador debe solicitar una ampliación para permitir más ingresos.
+                    </div>
+                }
+
                 <div class="join-payment">
                     <span>Metodo de pago</span>
                     <p>@MetodoPagoTexto</p>
@@ -166,9 +173,17 @@
             : polla!.MetodoPago!;
 
     private string CupoTexto =>
+        polla?.CuposIlimitados == true
+            ? $"{polla.CantidadParticipantes} / ilimitado"
+            :
         polla?.MaximoMiembros.HasValue == true && polla.MaximoMiembros.Value > 0
             ? $"{polla.CantidadParticipantes}/{polla.MaximoMiembros.Value}"
             : $"{polla?.CantidadParticipantes ?? 0}";
+
+    private bool PollaSinCupos =>
+        polla?.CuposIlimitados != true &&
+        polla?.MaximoMiembros.HasValue == true &&
+        polla.CantidadParticipantes >= polla.MaximoMiembros.Value;
 
     protected override async Task OnInitializedAsync()
     {

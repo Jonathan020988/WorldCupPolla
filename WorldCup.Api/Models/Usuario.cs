@@ -21,9 +21,12 @@ namespace WorldCup.Api.Models
         public bool Activo { get; set; } = true;
         public bool EmailConfirmado { get; set; } = true;
         public DateTime? EmailConfirmadoEn { get; set; }
+        public int MaximoMiembrosPorPolla { get; set; } = 5;
+        public bool CuposIlimitados { get; set; } = false;
 
         // Relaciones
         public List<Polla> PollasCreadas { get; set; } = new();
         public List<PollaMiembro> PollaMiembros { get; set; } = new();
+        public List<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; } = new();
     }
 }

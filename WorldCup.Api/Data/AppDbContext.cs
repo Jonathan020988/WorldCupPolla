@@ -32,6 +32,7 @@ namespace WorldCup.Api.Data
         public DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
 
         public DbSet<AdminReaperturaPrediccion> AdminReaperturasPrediccion { get; set; }
+        public DbSet<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -134,6 +135,22 @@ namespace WorldCup.Api.Data
 
             modelBuilder.Entity<AdminReaperturaPrediccion>()
                 .HasIndex(r => new { r.PollaId, r.UsuarioId, r.Fase, r.Tipo })
+                .IsUnique();
+
+            modelBuilder.Entity<SolicitudAmpliacionCupos>()
+                .HasOne(s => s.Usuario)
+                .WithMany(u => u.SolicitudesAmpliacionCupos)
+                .HasForeignKey(s => s.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SolicitudAmpliacionCupos>()
+                .HasOne(s => s.AdminUsuario)
+                .WithMany()
+                .HasForeignKey(s => s.AdminUsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SolicitudAmpliacionCupos>()
+                .HasIndex(s => s.CodigoHabilitacion)
                 .IsUnique();
 
         }

@@ -23,5 +23,10 @@ namespace WorldCup.Api.DTOs
         public DateTime FechaSolicitud { get; set; }
         public DateTime? FechaPartido { get; set; }
         public bool RequiereAccion { get; set; }
+        public string Celular { get; set; } = "";
+        public int? CantidadUsuarios { get; set; }
+        public string PlanNombre { get; set; } = "";
+        public decimal? ValorPlan { get; set; }
+        public string CodigoHabilitacion { get; set; } = "";
     }
 }

@@ -70,7 +70,7 @@
                 <h4>Revisa tu correo</h4>
                 <p>
                     Enviamos un codigo de 6 digitos a <strong>@emailPendiente</strong>.
-                    Escribelo aqui para activar tu cuenta.
+                    Escribelo aqui para activar tu cuenta. Revisa tambien la carpeta de spam o correo no deseado.
                 </p>
 
                 <label class="form-label">Codigo de confirmacion</label>
@@ -184,6 +184,14 @@
         catch (Exception ex)
         {
             error = ex.Message;
+            if (error.Contains("no has confirmado", StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("reenviar codigo", StringComparison.OrdinalIgnoreCase))
+            {
+                emailPendiente = model.Email.Trim();
+                codigoEnviado = true;
+                mensaje = "Esta cuenta quedó pendiente de confirmación. Puedes reenviar el código y revisar bandeja de entrada, promociones y spam.";
+                error = null;
+            }
         }
         finally
         {
