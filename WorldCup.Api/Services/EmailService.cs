@@ -76,6 +76,10 @@ namespace WorldCup.Api.Services
             decimal valorPlan)
         {
             var asunto = "Solicitud de ampliacion de cupos - WorldCup Polla";
+            var valorTexto = valorPlan > 0
+                ? valorPlan.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))
+                : "Cotización con administrador";
+
             var cuerpo =
                 "Hola administrador,\n\n" +
                 "Se recibio una solicitud de ampliacion de usuarios.\n\n" +
@@ -84,7 +88,7 @@ namespace WorldCup.Api.Services
                 $"Celular: {celular}\n" +
                 $"Cantidad solicitada: {cantidadUsuarios} usuarios\n" +
                 $"Plan: {planNombre}\n" +
-                $"Valor: {valorPlan.ToString("C0", CultureInfo.GetCultureInfo("es-CO"))}\n\n" +
+                $"Valor: {valorTexto}\n\n" +
                 "Contacta al usuario para coordinar el pago. Luego genera el codigo de 10 caracteres desde el panel administrador.";
 
             foreach (var destino in destinos.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct(StringComparer.OrdinalIgnoreCase))

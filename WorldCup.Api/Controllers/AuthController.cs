@@ -16,22 +16,38 @@ namespace WorldCup.Api.Controllers
         private readonly AppDbContext _context;
         private readonly AdminAuthorizationService _adminAuthorization;
         private readonly EmailService _emailService;
+        private readonly AttemptRateLimiter _attemptRateLimiter;
 
         public AuthController(
             AppDbContext context,
             AdminAuthorizationService adminAuthorization,
-            EmailService emailService)
+            EmailService emailService,
+            AttemptRateLimiter attemptRateLimiter)
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
             _emailService = emailService;
+            _attemptRateLimiter = attemptRateLimiter;
         }
 
         // POST: api/auth/login
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO dto)
         {
-            var email = dto.Email.Trim().ToLower();
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return BadRequest("Correo y contrasena son obligatorios.");
+            }
+
+            var email = dto.Email.Trim().ToLowerInvariant();
+            var limitado = ValidarIntentos(
+                $"login:{email}",
+                10,
+                TimeSpan.FromMinutes(10),
+                "Demasiados intentos de inicio de sesion. Espera unos minutos e intenta de nuevo.");
+
+            if (limitado != null)
+                return limitado;
 
             var usuario = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
@@ -74,6 +90,15 @@ namespace WorldCup.Api.Controllers
             }
 
             var email = dto.Email.Trim().ToLower();
+            var limitado = ValidarIntentos(
+                $"reset:{email}",
+                3,
+                TimeSpan.FromMinutes(30),
+                "Ya solicitaste varios enlaces. Espera unos minutos antes de pedir otro.");
+
+            if (limitado != null)
+                return limitado;
+
             var usuario = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
 
@@ -151,6 +176,19 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { mensaje = "Contrasena actualizada correctamente." });
+        }
+
+        private IActionResult? ValidarIntentos(
+            string key,
+            int limit,
+            TimeSpan window,
+            string message)
+        {
+            if (_attemptRateLimiter.Allow(key, limit, window, out var retryAfter))
+                return null;
+
+            Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+            return StatusCode(StatusCodes.Status429TooManyRequests, message);
         }
 
         private static string GenerarTokenSeguro()

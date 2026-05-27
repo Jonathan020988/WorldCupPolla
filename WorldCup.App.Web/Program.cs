@@ -1,4 +1,5 @@
 ﻿using WorldCup.App.Shared.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using WorldCup.App.Web.Components;
 using WorldCup.App.Web.Services;
@@ -32,6 +33,8 @@ void ConfigureApiClient(HttpClient client)
 // Blazor Server
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddDataProtection()
+    .SetApplicationName("WorldCup.App.Web");
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -69,6 +72,21 @@ builder.Services.AddHttpClient<PollasService>(ConfigureApiClient);
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var headers = context.Response.Headers;
+        headers.TryAdd("X-Content-Type-Options", "nosniff");
+        headers.TryAdd("X-Frame-Options", "DENY");
+        headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
+        headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 
 if (!app.Environment.IsDevelopment())
 {

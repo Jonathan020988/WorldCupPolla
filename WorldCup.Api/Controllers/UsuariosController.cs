@@ -16,13 +16,16 @@ namespace WorldCup.Api.Controllers
         private const int CodigoConfirmacionHorasVigencia = 2;
         private readonly AppDbContext _context;
         private readonly EmailService _emailService;
+        private readonly AttemptRateLimiter _attemptRateLimiter;
 
         public UsuariosController(
             AppDbContext context,
-            EmailService emailService)
+            EmailService emailService,
+            AttemptRateLimiter attemptRateLimiter)
         {
             _context = context;
             _emailService = emailService;
+            _attemptRateLimiter = attemptRateLimiter;
         }
 
         [HttpPost("registro")]
@@ -38,6 +41,15 @@ namespace WorldCup.Api.Controllers
             }
 
             var nombre = dto.Nombre.Trim();
+            var limitado = ValidarIntentos(
+                $"registro:{email}",
+                4,
+                TimeSpan.FromHours(1),
+                "Has intentado registrarte varias veces. Espera unos minutos e intenta nuevamente.");
+
+            if (limitado != null)
+                return limitado;
+
             var correoExiste = await _context.Usuarios
                 .AnyAsync(u => u.Email.ToLower() == email);
 
@@ -112,6 +124,15 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Debes indicar el correo registrado.");
             }
 
+            var limitado = ValidarIntentos(
+                $"reenviar:{email}",
+                3,
+                TimeSpan.FromMinutes(30),
+                "Has solicitado varios codigos. Espera unos minutos antes de pedir otro.");
+
+            if (limitado != null)
+                return limitado;
+
             var usuario = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
 
@@ -167,6 +188,15 @@ namespace WorldCup.Api.Controllers
             {
                 return BadRequest("El codigo de confirmacion no es valido.");
             }
+
+            var limitado = ValidarIntentos(
+                $"confirmar:{email}",
+                10,
+                TimeSpan.FromMinutes(15),
+                "Demasiados intentos con el codigo. Espera unos minutos e intenta nuevamente.");
+
+            if (limitado != null)
+                return limitado;
 
             var usuario = await _context.Usuarios
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
@@ -236,6 +266,19 @@ namespace WorldCup.Api.Controllers
         private static string NormalizarEmail(string? email)
         {
             return (email ?? "").Trim().ToLowerInvariant();
+        }
+
+        private IActionResult? ValidarIntentos(
+            string key,
+            int limit,
+            TimeSpan window,
+            string message)
+        {
+            if (_attemptRateLimiter.Allow(key, limit, window, out var retryAfter))
+                return null;
+
+            Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+            return StatusCode(StatusCodes.Status429TooManyRequests, message);
         }
 
         private static string GenerarCodigoConfirmacion()

@@ -26,6 +26,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<AdminAuthorizationService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddSingleton<AttemptRateLimiter>();
 
 // JWT
 var jwt = builder.Configuration.GetSection("Jwt");
@@ -84,6 +85,21 @@ await DatabaseBootstrapper.AplicarAjustesCompatibilidadAsync(app.Services);
 
 // middleware
 app.UseForwardedHeaders();
+
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var headers = context.Response.Headers;
+        headers.TryAdd("X-Content-Type-Options", "nosniff");
+        headers.TryAdd("X-Frame-Options", "DENY");
+        headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
+        headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {

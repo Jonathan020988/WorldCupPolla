@@ -1404,6 +1404,11 @@ else
 
     private static string FormatoPrecio(decimal valor)
     {
+        if (valor <= 0)
+        {
+            return "Cotización";
+        }
+
         return $"${valor:N0}";
     }
 

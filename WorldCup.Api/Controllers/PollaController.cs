@@ -288,7 +288,9 @@ namespace WorldCup.Api.Controllers
 
             return Ok(new
             {
-                mensaje = $"Solicitud enviada al administrador. Plan: {plan.Nombre} por {FormatoMoneda(plan.Valor)}."
+                mensaje = plan.Valor > 0
+                    ? $"Solicitud enviada al administrador. Plan: {plan.Nombre} por {FormatoMoneda(plan.Valor)}."
+                    : $"Solicitud enviada al administrador. Plan: {plan.Nombre}. El administrador te contactará para cotizar."
             });
         }
 
@@ -1588,7 +1590,7 @@ namespace WorldCup.Api.Controllers
                     PlanNombre = s.PlanNombre,
                     ValorPlan = s.ValorPlan,
                     CodigoHabilitacion = s.CodigoHabilitacion ?? "",
-                    Mensaje = $"{s.Usuario.Nombre} solicita ampliación para {s.CantidadUsuariosSolicitada} usuarios. Celular: {s.Celular}. Plan: {s.PlanNombre} ({FormatoMoneda(s.ValorPlan)})."
+                    Mensaje = $"{s.Usuario.Nombre} solicita ampliación para {s.CantidadUsuariosSolicitada} usuarios. Celular: {s.Celular}. Plan: {s.PlanNombre} ({FormatoValorPlan(s.ValorPlan)})."
                 }));
             }
 
@@ -1930,12 +1932,12 @@ namespace WorldCup.Api.Controllers
 
         private static string MensajeAmpliacionCupos(int permitido)
         {
-            return $"Solo puedes crear pollas de hasta {permitido} usuarios. Para ampliarla debes solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000 o 50 o más por $120.000.";
+            return $"Solo puedes crear pollas de hasta {permitido} usuarios. Para ampliarla debes solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000, 100 usuarios por $120.000 o más de 100 por cotización.";
         }
 
         private static string MensajePollaLlena(int limite)
         {
-            return $"Esta polla ya llegó al límite de {limite} usuarios. Para ampliarla, el creador debe solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000 o 50 o más por $120.000.";
+            return $"Esta polla ya llegó al límite de {limite} usuarios. Para ampliarla, el creador debe solicitar un plan: 20 usuarios por $30.000, 50 usuarios por $70.000, 100 usuarios por $120.000 o más de 100 por cotización.";
         }
 
         private static PlanCupos CalcularPlanCupos(int cantidadUsuarios)
@@ -1950,7 +1952,12 @@ namespace WorldCup.Api.Controllers
                 return new PlanCupos("50 usuarios", 70000, 50);
             }
 
-            return new PlanCupos("50 o más usuarios", 120000, cantidadUsuarios);
+            if (cantidadUsuarios <= 100)
+            {
+                return new PlanCupos("100 usuarios", 120000, 100);
+            }
+
+            return new PlanCupos("Más de 100 usuarios", 0, cantidadUsuarios);
         }
 
         private static string GenerarCodigoCupos()
@@ -2013,6 +2020,11 @@ namespace WorldCup.Api.Controllers
         private static string FormatoMoneda(decimal valor)
         {
             return string.Format(CultureInfo.GetCultureInfo("es-CO"), "{0:C0}", valor);
+        }
+
+        private static string FormatoValorPlan(decimal valor)
+        {
+            return valor > 0 ? FormatoMoneda(valor) : "Cotización con administrador";
         }
 
         private static string NormalizarEmail(string? email)
