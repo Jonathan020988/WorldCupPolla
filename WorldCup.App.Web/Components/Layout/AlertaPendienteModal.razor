@@ -1,0 +1,285 @@
+@rendermode InteractiveServer
+@implements IDisposable
+
+@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+
+@inject PollasService PollasService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+
+@if (alertaActual != null)
+{
+    <div class="pending-alert-backdrop" role="dialog" aria-modal="true" aria-labelledby="pendingAlertTitle">
+        <div class="pending-alert-modal">
+            <div class="pending-alert-accent"></div>
+            <div class="pending-alert-header">
+                <div class="pending-alert-mark">!</div>
+                <div>
+                    <span class="pending-alert-kicker">Recordatorio de la polla</span>
+                    <h2 id="pendingAlertTitle">@alertaActual.Titulo</h2>
+                </div>
+            </div>
+
+            <div class="pending-alert-polla">
+                @alertaActual.PollaNombre
+            </div>
+
+            <p class="pending-alert-message">@alertaActual.Mensaje</p>
+
+            <div class="pending-alert-actions">
+                <button class="btn btn-primary"
+                        disabled="@procesando"
+                        @onclick="() => IrACompletar(alertaActual)">
+                    @AccionPrincipal(alertaActual)
+                </button>
+                <button class="btn btn-outline-secondary"
+                        disabled="@procesando"
+                        @onclick="() => CerrarAlerta(alertaActual)">
+                    Salir por ahora
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AlertaUsuarioDto> alertas = new();
+    private AlertaUsuarioDto? alertaActual;
+    private bool consultando;
+    private bool procesando;
+
+    protected override void OnInitialized()
+    {
+        Sesion.OnChange += OnSesionChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+        await CargarAlertas();
+        StateHasChanged();
+    }
+
+    private void OnSesionChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await CargarAlertas();
+            StateHasChanged();
+        });
+    }
+
+    private async Task CargarAlertas()
+    {
+        if (consultando)
+        {
+            return;
+        }
+
+        if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
+        {
+            alertas.Clear();
+            alertaActual = null;
+            return;
+        }
+
+        try
+        {
+            consultando = true;
+            alertas = await PollasService.GetAlertasPendientesAsync(Sesion.UsuarioId.Value);
+            alertaActual = alertas.FirstOrDefault();
+        }
+        catch
+        {
+            alertas.Clear();
+            alertaActual = null;
+        }
+        finally
+        {
+            consultando = false;
+        }
+    }
+
+    private async Task IrACompletar(AlertaUsuarioDto alerta)
+    {
+        procesando = true;
+        await CerrarAlerta(alerta, avanzarSiguiente: false);
+
+        await Sesion.SeleccionarPollaAsync(alerta.PollaId, alerta.PollaNombre);
+        var link = string.IsNullOrWhiteSpace(alerta.Link)
+            ? "/predicciones"
+            : alerta.Link;
+
+        Navigation.NavigateTo(link);
+    }
+
+    private Task CerrarAlerta(AlertaUsuarioDto alerta)
+    {
+        return CerrarAlerta(alerta, avanzarSiguiente: true);
+    }
+
+    private async Task CerrarAlerta(AlertaUsuarioDto alerta, bool avanzarSiguiente)
+    {
+        try
+        {
+            procesando = true;
+            if (Sesion.UsuarioId.HasValue)
+            {
+                await PollasService.CerrarAlertaUsuarioAsync(alerta.Id, Sesion.UsuarioId.Value);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            alertas = alertas
+                .Where(a => a.Id != alerta.Id)
+                .ToList();
+
+            alertaActual = avanzarSiguiente
+                ? alertas.FirstOrDefault()
+                : null;
+
+            procesando = false;
+        }
+    }
+
+    private static string AccionPrincipal(AlertaUsuarioDto alerta)
+    {
+        if (!string.IsNullOrWhiteSpace(alerta.EtiquetaAccion))
+        {
+            return alerta.EtiquetaAccion;
+        }
+
+        return alerta.TipoDestino == "Clasificacion"
+            ? "Ir a clasificacion de grupos"
+            : "Ir a predicciones";
+    }
+
+    public void Dispose()
+    {
+        Sesion.OnChange -= OnSesionChanged;
+    }
+}
+
+<style>
+    .pending-alert-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, .58);
+        backdrop-filter: blur(8px);
+    }
+
+    .pending-alert-modal {
+        position: relative;
+        width: min(560px, 100%);
+        overflow: hidden;
+        border: 1px solid rgba(15, 23, 42, .12);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .32);
+    }
+
+    .pending-alert-accent {
+        height: 8px;
+        background: linear-gradient(90deg, #0ea5e9, #10b981, #f59e0b);
+    }
+
+    .pending-alert-header {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 22px 24px 10px;
+    }
+
+    .pending-alert-mark {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 50%;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-size: 1.55rem;
+        font-weight: 900;
+    }
+
+    .pending-alert-kicker {
+        display: block;
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .pending-alert-header h2 {
+        margin: 2px 0 0;
+        color: #0f172a;
+        font-size: 1.45rem;
+        font-weight: 900;
+        line-height: 1.15;
+    }
+
+    .pending-alert-polla {
+        display: inline-flex;
+        margin: 4px 24px 0;
+        border: 1px solid #bae6fd;
+        border-radius: 999px;
+        background: #f0f9ff;
+        color: #075985;
+        padding: 5px 10px;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+    .pending-alert-message {
+        margin: 16px 24px 0;
+        color: #334155;
+        font-size: .98rem;
+        line-height: 1.55;
+        white-space: pre-line;
+    }
+
+    .pending-alert-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 20px 24px 24px;
+    }
+
+    @@media (max-width: 520px) {
+        .pending-alert-header {
+            align-items: flex-start;
+            padding: 18px 18px 8px;
+        }
+
+        .pending-alert-polla,
+        .pending-alert-message {
+            margin-left: 18px;
+            margin-right: 18px;
+        }
+
+        .pending-alert-actions {
+            flex-direction: column;
+            padding: 18px;
+        }
+
+        .pending-alert-actions .btn {
+            width: 100%;
+        }
+    }
+</style>

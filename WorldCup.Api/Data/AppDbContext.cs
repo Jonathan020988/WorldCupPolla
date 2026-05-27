@@ -33,6 +33,7 @@ namespace WorldCup.Api.Data
 
         public DbSet<AdminReaperturaPrediccion> AdminReaperturasPrediccion { get; set; }
         public DbSet<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; }
+        public DbSet<AlertaUsuario> AlertasUsuario { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -152,6 +153,27 @@ namespace WorldCup.Api.Data
             modelBuilder.Entity<SolicitudAmpliacionCupos>()
                 .HasIndex(s => s.CodigoHabilitacion)
                 .IsUnique();
+
+            modelBuilder.Entity<AlertaUsuario>()
+                .HasOne(a => a.Usuario)
+                .WithMany(u => u.AlertasUsuario)
+                .HasForeignKey(a => a.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AlertaUsuario>()
+                .HasOne(a => a.AdminUsuario)
+                .WithMany()
+                .HasForeignKey(a => a.AdminUsuarioId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<AlertaUsuario>()
+                .HasOne(a => a.Polla)
+                .WithMany()
+                .HasForeignKey(a => a.PollaId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AlertaUsuario>()
+                .HasIndex(a => new { a.UsuarioId, a.Estado, a.FechaCreacion });
 
         }
     }

@@ -28,5 +28,6 @@ namespace WorldCup.Api.Models
         public List<Polla> PollasCreadas { get; set; } = new();
         public List<PollaMiembro> PollaMiembros { get; set; } = new();
         public List<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; } = new();
+        public List<AlertaUsuario> AlertasUsuario { get; set; } = new();
     }
 }

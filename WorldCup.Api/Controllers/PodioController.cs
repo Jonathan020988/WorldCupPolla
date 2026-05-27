@@ -197,11 +197,7 @@ namespace WorldCup.Api.Controllers
             var campeon = ObtenerGanadorId(final);
             var subcampeon = ObtenerPerdedorId(final);
             var tercero = ObtenerGanadorId(tercerPuesto);
-            var puntos = 0;
-
-            if (predPodio.CampeonId == campeon) puntos += 20;
-            if (predPodio.SubcampeonId == subcampeon) puntos += 10;
-            if (predPodio.TerceroId == tercero) puntos += 5;
+            var puntos = PuntajesPodio.Calcular(predPodio, campeon, subcampeon, tercero);
 
             var prediccionRepresentativa = await _context.Predicciones
                 .Include(p => p.Partido)

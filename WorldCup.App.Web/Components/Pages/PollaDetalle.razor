@@ -453,6 +453,10 @@ else
                                 <tr>
                                     <th class="ranking-position-col">#</th>
                                     <th>Usuario</th>
+                                    @if (EsCreador)
+                                    {
+                                        <th class="ranking-observation-col">Observación</th>
+                                    }
                                     <th class="text-end ranking-points-col">Puntos</th>
                                     <th class="ranking-action-col"></th>
                                 </tr>
@@ -470,6 +474,24 @@ else
                                         <td class="fw-bold ranking-user-col">
                                             @r.Usuario
                                         </td>
+
+                                        @if (EsCreador)
+                                        {
+                                            <td class="ranking-observation-col">
+                                                <div class="ranking-observation-editor">
+                                                    <input class="form-control form-control-sm"
+                                                           maxlength="160"
+                                                           placeholder="Observación"
+                                                           @bind="r.ObservacionAdmin"
+                                                           @bind:event="oninput" />
+                                                    <button class="btn btn-sm btn-outline-primary"
+                                                            disabled="@(observacionGuardandoUsuarioId == r.UsuarioId)"
+                                                            @onclick="() => GuardarObservacionRanking(r)">
+                                                        @(observacionGuardandoUsuarioId == r.UsuarioId ? "..." : "Guardar")
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        }
 
                                         <td class="text-end fw-bold">
                                             @r.Puntos
@@ -492,7 +514,7 @@ else
                                     @if (usuarioDetalleAbierto == r.Usuario)
                                     {
                                         <tr>
-                                            <td colspan="4" class="ranking-detail-cell">
+                                            <td colspan="@RankingColspan" class="ranking-detail-cell">
 
                                                 <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
 
@@ -755,43 +777,18 @@ else
                 <div class="card-body">
                     <h5 class="mb-3">👥 Participantes</h5>
 
-                    <ul class="list-group list-group-flush participantes-lista">
+                    <ul class="list-group list-group-flush">
                         @foreach (var u in participantes)
                         {
-                            <li class="list-group-item participante-item px-0">
-                                <div class="participante-resumen">
-                                    <div>
-                                        <span class="fw-semibold">👤 @u.Nombre</span>
-                                        @if (u.Id == polla.CreadorId)
-                                        {
-                                            <span class="badge bg-primary ms-2">Creador</span>
-                                        }
-                                    </div>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>👤 @u.Nombre</span>
 
-                                    @if (EsCreador && u.Id != polla.CreadorId)
-                                    {
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
-                                            ❌ Eliminar Usuario
-                                        </button>
-                                    }
-                                </div>
-
-                                @if (EsCreador)
+                                @if (EsCreador && u.Id != polla.CreadorId)
                                 {
-                                    <div class="observacion-admin">
-                                        <textarea class="form-control form-control-sm"
-                                                  rows="2"
-                                                  maxlength="1000"
-                                                  placeholder="Observación privada"
-                                                  @bind="u.ObservacionAdmin"
-                                                  @bind:event="oninput"></textarea>
-                                        <button class="btn btn-sm btn-outline-primary observacion-btn"
-                                                disabled="@(observacionGuardandoUsuarioId == u.Id)"
-                                                @onclick="() => GuardarObservacionParticipante(u)">
-                                            @(observacionGuardandoUsuarioId == u.Id ? "Guardando..." : "Guardar")
-                                        </button>
-                                    </div>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
+                                        ❌ Eliminar Usuario
+                                    </button>
                                 }
                             </li>
                         }
@@ -887,6 +884,27 @@ else
 
     .ranking-action-col {
         width: 150px;
+    }
+
+    .ranking-observation-col {
+        width: 280px;
+    }
+
+    .ranking-observation-editor {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .4rem;
+        align-items: center;
+    }
+
+    .ranking-observation-editor input {
+        min-width: 0;
+    }
+
+    .ranking-observation-editor .btn {
+        padding-left: .55rem;
+        padding-right: .55rem;
+        white-space: nowrap;
     }
 
     .ranking-user-col {
@@ -1247,38 +1265,6 @@ else
         padding-top: .9rem;
     }
 
-    .participante-item {
-        display: grid;
-        gap: .7rem;
-    }
-
-    .participante-resumen {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-    }
-
-    .observacion-admin {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: .5rem;
-        align-items: start;
-        padding: .65rem;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        background: #f8fafc;
-    }
-
-    .observacion-admin textarea {
-        min-height: 58px;
-        resize: vertical;
-    }
-
-    .observacion-btn {
-        min-width: 82px;
-    }
-
     @@media (max-width: 768px) {
         .payment-summary,
         .payment-kpis,
@@ -1288,6 +1274,10 @@ else
 
         .ranking-action-col {
             width: 124px;
+        }
+
+        .ranking-observation-col {
+            width: 220px;
         }
 
         .ranking-points-col {
@@ -1304,14 +1294,8 @@ else
             flex-direction: column;
         }
 
-        .cupos-plan-grid,
-        .observacion-admin {
+        .cupos-plan-grid {
             grid-template-columns: 1fr;
-        }
-
-        .participante-resumen {
-            align-items: flex-start;
-            flex-direction: column;
         }
     }
 </style>
@@ -1354,6 +1338,8 @@ else
         polla?.CuposIlimitados == true
             ? "ilimitado"
             : (polla?.MaximoMiembros ?? 5).ToString();
+
+    private int RankingColspan => EsCreador ? 5 : 4;
 
     private void ToggleDetalleUsuario(string usuario)
     {
@@ -1537,7 +1523,7 @@ else
     {
         polla = await PollasService.GetPollaAsync(PollaId);
         PrepararDatosPolla();
-        ranking = await PollasService.GetRankingAsync(PollaId);
+        await CargarRanking();
         rankingDetalle =
             await Http.GetFromJsonAsync<List<DetalleRankingDto>>(
                 $"api/Polla/{PollaId}/ranking-detalle"
@@ -1568,6 +1554,7 @@ else
             {
                 cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.GetValueOrDefault());
                 cantidadAmpliacion = Math.Max(20, (polla.MaximoMiembros ?? 5) + 1);
+                await CargarRanking();
                 await CargarParticipantes();
                 await CargarControlPagos();
             }
@@ -1870,6 +1857,7 @@ else
             );
 
             await CargarParticipantes();
+            await CargarRanking();
             await CargarControlPagos();
 
             mensaje = $"❌ {usuarioAEliminarNombre} fue expulsado de la polla.";
@@ -1894,12 +1882,17 @@ else
 
     private async Task CargarParticipantes()
     {
-        participantes = await PollasService.GetParticipantesAsync(
+        participantes = await PollasService.GetParticipantesAsync(PollaId);
+    }
+
+    private async Task CargarRanking()
+    {
+        ranking = await PollasService.GetRankingAsync(
             PollaId,
             EsCreador ? Sesion.UsuarioId : null);
     }
 
-    private async Task GuardarObservacionParticipante(ParticipanteDto participante)
+    private async Task GuardarObservacionRanking(RankingPollaDto participante)
     {
         if (!Sesion.UsuarioId.HasValue)
         {
@@ -1910,11 +1903,11 @@ else
 
         try
         {
-            observacionGuardandoUsuarioId = participante.Id;
+            observacionGuardandoUsuarioId = participante.UsuarioId;
 
             var actualizado = await PollasService.ActualizarObservacionParticipanteAsync(
                 PollaId,
-                participante.Id,
+                participante.UsuarioId,
                 new ActualizarObservacionParticipanteDto
                 {
                     SolicitanteId = Sesion.UsuarioId.Value,
@@ -1922,7 +1915,7 @@ else
                 });
 
             participante.ObservacionAdmin = actualizado.ObservacionAdmin;
-            mensaje = $"Observación de {participante.Nombre} guardada.";
+            mensaje = $"Observación de {participante.Usuario} guardada.";
             esError = false;
         }
         catch (Exception ex)

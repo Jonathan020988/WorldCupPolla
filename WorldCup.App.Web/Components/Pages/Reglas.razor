@@ -110,19 +110,78 @@
             </table>
         </div>
 
-        <div class="examples-grid">
-            <div class="example-box">
-                <strong>Ejemplo exacto</strong>
-                <span>Real: Mexico 2-0 Sudafrica</span>
-                <span>Pronostico: Mexico 2-0 Sudafrica</span>
-                <b>Resultado: 10 puntos</b>
-            </div>
-
-            <div class="example-box">
-                <strong>Ejemplo sin exacto</strong>
-                <span>Real: Mexico 2-0 Sudafrica</span>
-                <span>Pronostico: Mexico 3-0 Sudafrica</span>
-                <b>Resultado: 6 puntos (ganador + goles)</b>
+        <div class="examples-panel">
+            <h3>Ejemplos claros en fase de grupos</h3>
+            <div class="score-table-wrap">
+                <table class="score-table examples-table">
+                    <thead>
+                        <tr>
+                            <th>Caso</th>
+                            <th>Marcador real</th>
+                            <th>Pronostico</th>
+                            <th>Puntos</th>
+                            <th>Explicacion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Exacto</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td><span class="points points-green">10</span></td>
+                            <td>Acierta los goles de ambos equipos. No suma otros conceptos.</td>
+                        </tr>
+                        <tr>
+                            <td>Ganador + gol</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 3-0 Sudafrica</td>
+                            <td><span class="points points-blue">6</span></td>
+                            <td>+4 por ganador y +2 por acertar el 0 de Sudafrica.</td>
+                        </tr>
+                        <tr>
+                            <td>Ganador + diferencia</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 4-2 Sudafrica</td>
+                            <td><span class="points points-slate">5</span></td>
+                            <td>+4 por ganador y +1 por la misma diferencia de 2 goles.</td>
+                        </tr>
+                        <tr>
+                            <td>Ganador solamente</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 4-1 Sudafrica</td>
+                            <td><span class="points points-blue">4</span></td>
+                            <td>Acerto el ganador, pero no goles exactos ni diferencia.</td>
+                        </tr>
+                        <tr>
+                            <td>Gol solamente</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 2-3 Sudafrica</td>
+                            <td><span class="points points-indigo">2</span></td>
+                            <td>Acerto los 2 goles de Mexico, pero fallo el resultado.</td>
+                        </tr>
+                        <tr>
+                            <td>Empate + diferencia</td>
+                            <td>Mexico 1-1 Sudafrica</td>
+                            <td>Mexico 2-2 Sudafrica</td>
+                            <td><span class="points points-slate">5</span></td>
+                            <td>+4 por empate correcto y +1 por diferencia 0.</td>
+                        </tr>
+                        <tr>
+                            <td>No suma</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Mexico 0-1 Sudafrica</td>
+                            <td><span class="points points-zero">0</span></td>
+                            <td>No acierta ganador, empate, goles ni diferencia.</td>
+                        </tr>
+                        <tr>
+                            <td>Sin llenar</td>
+                            <td>Mexico 2-0 Sudafrica</td>
+                            <td>Sin pronostico completo</td>
+                            <td><span class="points points-zero">0</span></td>
+                            <td>Si falta un marcador, el partido no suma puntos.</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -163,6 +222,15 @@
                     sumas 5 puntos. Si tambien aciertas definicion por penales, sumas otros 5.
                 </p>
             </article>
+        </div>
+
+        <div class="examples-panel">
+            <h3>Como se leen esos ejemplos en eliminatorias</h3>
+            <p>
+                Usa la misma logica de los ejemplos de grupos, pero duplicada: exacto vale 20,
+                ganador o empate 8, goles 4 y diferencia 2. Ademas, si eliges bien el equipo
+                que avanza, sumas 10 puntos extra.
+            </p>
         </div>
     </div>
 
@@ -221,9 +289,9 @@
                 y tercer puesto antes del cierre correspondiente.
             </p>
             <div class="podium-rules">
-                <span>Campeon <strong>20 pts</strong></span>
-                <span>Subcampeon <strong>10 pts</strong></span>
-                <span>Tercer puesto <strong>5 pts</strong></span>
+                <span>Campeon <strong>40 pts</strong></span>
+                <span>Subcampeon <strong>20 pts</strong></span>
+                <span>Tercer puesto <strong>10 pts</strong></span>
             </div>
         </article>
 
@@ -465,30 +533,31 @@
     .points-slate { background: #e7ebef; color: #34404a; }
     .points-gold { background: #fff0be; color: #886103; }
     .points-soft { background: #e9f1ed; color: #24443a; }
+    .points-zero { background: #f1f5f9; color: #64748b; }
 
-    .examples-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: .85rem;
+    .examples-panel {
         margin-top: .9rem;
-    }
-
-    .example-box {
-        display: grid;
-        gap: .25rem;
-        padding: .85rem;
+        padding: .9rem;
         border: 1px solid var(--line);
         border-radius: 8px;
         background: var(--soft);
     }
 
-    .example-box strong,
-    .example-box b {
+    .examples-panel h3 {
+        margin: 0 0 .65rem;
         color: var(--ink);
+        font-size: 1rem;
+        font-weight: 900;
     }
 
-    .example-box span {
+    .examples-panel p {
+        margin: 0;
         color: var(--muted);
+        line-height: 1.45;
+    }
+
+    .examples-table {
+        min-width: 860px;
     }
 
     .knockout {
@@ -532,8 +601,7 @@
         }
 
         .rules-grid,
-        .rules-grid.compact,
-        .examples-grid {
+        .rules-grid.compact {
             grid-template-columns: 1fr;
         }
 

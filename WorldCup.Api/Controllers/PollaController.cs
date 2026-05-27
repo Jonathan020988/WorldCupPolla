@@ -395,15 +395,31 @@ namespace WorldCup.Api.Controllers
         // GET: api/Polla/{pollaId}/ranking
         // =========================================================
         [HttpGet("{pollaId:int}/ranking")]
-        public async Task<IActionResult> GetRanking(int pollaId)
+        public async Task<IActionResult> GetRanking(
+            int pollaId,
+            [FromQuery] int? solicitanteId = null)
         {
+            var creadorId = await _context.Pollas
+                .Where(p => p.Id == pollaId)
+                .Select(p => (int?)p.CreadorId)
+                .FirstOrDefaultAsync();
+
+            if (!creadorId.HasValue)
+                return NotFound("La polla no existe");
+
+            var puedeVerObservaciones = solicitanteId.HasValue &&
+                solicitanteId.Value == creadorId.Value;
+
             var miembros = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
                 .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
                 .Select(pm => new
                 {
                     UsuarioId = pm.UsuarioId,
-                    Usuario = pm.Usuario.Nombre
+                    Usuario = pm.Usuario.Nombre,
+                    ObservacionAdmin = puedeVerObservaciones
+                        ? (pm.ObservacionAdmin ?? "")
+                        : ""
                 })
                 .Distinct()
                 .ToListAsync();
@@ -423,6 +439,7 @@ namespace WorldCup.Api.Controllers
                         {
                             UsuarioId = m.UsuarioId,
                             Usuario = m.Usuario,
+                            ObservacionAdmin = m.ObservacionAdmin,
                             Puntos = detalleUsuario.Sum(d => d.Total)
                         },
                         Exactos = detalleUsuario.Count(d => d.PuntosExacto > 0),
@@ -696,17 +713,17 @@ namespace WorldCup.Api.Controllers
 
             if (campeon.HasValue && podio.CampeonId == campeon.Value)
             {
-                partes.Add($"+20: campeón {NombreEquipoPartido(campeon.Value, final, tercerPuesto)}");
+                partes.Add($"+{PuntajesPodio.Campeon}: campeón {NombreEquipoPartido(campeon.Value, final, tercerPuesto)}");
             }
 
             if (subcampeon.HasValue && podio.SubcampeonId == subcampeon.Value)
             {
-                partes.Add($"+10: subcampeón {NombreEquipoPartido(subcampeon.Value, final, tercerPuesto)}");
+                partes.Add($"+{PuntajesPodio.Subcampeon}: subcampeón {NombreEquipoPartido(subcampeon.Value, final, tercerPuesto)}");
             }
 
             if (tercero.HasValue && podio.TerceroId == tercero.Value)
             {
-                partes.Add($"+5: tercer puesto {NombreEquipoPartido(tercero.Value, final, tercerPuesto)}");
+                partes.Add($"+{PuntajesPodio.Tercero}: tercer puesto {NombreEquipoPartido(tercero.Value, final, tercerPuesto)}");
             }
 
             return string.Join("; ", partes);
@@ -1617,6 +1634,28 @@ namespace WorldCup.Api.Controllers
                 Mensaje = $"{i.Remitente.Nombre} te invitó a la polla {i.Polla.Nombre}"
             }));
 
+            var alertasPendientes = await _context.AlertasUsuario
+                .Include(a => a.Polla)
+                .Include(a => a.AdminUsuario)
+                .Where(a => a.UsuarioId == usuarioId && a.Estado == "Pendiente")
+                .OrderByDescending(a => a.FechaCreacion)
+                .ToListAsync();
+
+            notificaciones.AddRange(alertasPendientes.Select(a => new NotificacionDto
+            {
+                Id = a.Id,
+                Tipo = "AlertaPendientes",
+                PollaId = a.PollaId,
+                PollaNombre = a.Polla.Nombre,
+                UsuarioId = a.AdminUsuarioId,
+                UsuarioNombre = a.AdminUsuario?.Nombre ?? "Administrador",
+                Estado = a.Estado,
+                FechaSolicitud = ColombiaClock.ToColombia(a.FechaCreacion),
+                RequiereAccion = true,
+                Link = a.Link,
+                Mensaje = a.Mensaje
+            }));
+
             var avisosPago = await _context.PollaMiembros
                 .Include(pm => pm.Polla)
                 .Include(pm => pm.Usuario)
@@ -1722,6 +1761,63 @@ namespace WorldCup.Api.Controllers
                 .OrderByDescending(n => n.Estado == "Pendiente")
                 .ThenBy(n => n.FechaSolicitud)
                 .ToList());
+        }
+
+        [HttpGet("alertas/{usuarioId:int}")]
+        public async Task<IActionResult> GetAlertasPendientesUsuario(int usuarioId)
+        {
+            var usuario = await _context.Usuarios.FindAsync(usuarioId);
+            if (usuario == null)
+                return NotFound("Usuario no encontrado");
+
+            var alertas = await _context.AlertasUsuario
+                .Include(a => a.Polla)
+                .Where(a => a.UsuarioId == usuarioId && a.Estado == "Pendiente")
+                .OrderBy(a => a.FechaCreacion)
+                .ToListAsync();
+
+            return Ok(alertas.Select(a => new
+                {
+                    a.Id,
+                    a.UsuarioId,
+                    a.PollaId,
+                    PollaNombre = a.Polla.Nombre,
+                    a.Titulo,
+                    a.Mensaje,
+                    a.TipoDestino,
+                    a.Link,
+                    a.EtiquetaAccion,
+                    a.Estado,
+                    FechaCreacion = ColombiaClock.ToColombia(a.FechaCreacion)
+                })
+                .ToList());
+        }
+
+        [HttpPost("alertas/{alertaId:int}/cerrar")]
+        public async Task<IActionResult> CerrarAlertaUsuario(
+            int alertaId,
+            [FromQuery] int usuarioId)
+        {
+            var alerta = await _context.AlertasUsuario
+                .FirstOrDefaultAsync(a => a.Id == alertaId && a.UsuarioId == usuarioId);
+
+            if (alerta == null)
+                return NotFound("Alerta no encontrada");
+
+            if (alerta.Estado != "Cerrada")
+            {
+                var ahoraUtc = DateTime.UtcNow;
+                alerta.Estado = "Cerrada";
+                alerta.FechaVista ??= ahoraUtc;
+                alerta.FechaCierre = ahoraUtc;
+
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new
+            {
+                mensaje = "Alerta cerrada."
+            });
         }
 
         // ================= ACEPTAR SOLICITUD =================

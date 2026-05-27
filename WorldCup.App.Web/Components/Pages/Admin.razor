@@ -156,6 +156,11 @@ else
                                                 Rechazar
                                             </button>
                                         }
+                                        <button class="btn btn-sm btn-outline-secondary ms-1"
+                                                disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                @onclick="() => EliminarSolicitudCupos(solicitud)">
+                                            Eliminar
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -646,6 +651,13 @@ else
                     <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarHistorial"></button>
                 </div>
 
+                @if (!string.IsNullOrWhiteSpace(alertaHistorialMensaje))
+                {
+                    <div class="alert @(alertaHistorialError ? "alert-danger" : "alert-success") m-3 mb-0">
+                        @alertaHistorialMensaje
+                    </div>
+                }
+
                 @if (cargandoHistorial)
                 {
                     <div class="p-4 text-muted">
@@ -673,9 +685,20 @@ else
                                         <strong>@polla.PollaNombre</strong>
                                         <small>@polla.Resumen.TotalGuardado guardados / @polla.Resumen.TotalFaltante faltantes</small>
                                     </div>
-                                    <span class="checklist-pill @(polla.Resumen.TotalFaltante == 0 ? "complete" : "pending")">
-                                        @(polla.Resumen.TotalFaltante == 0 ? "Completo" : "Pendiente")
-                                    </span>
+                                    <div class="historial-polla-actions">
+                                        <span class="checklist-pill @(polla.Resumen.TotalFaltante == 0 ? "complete" : "pending")">
+                                            @(polla.Resumen.TotalFaltante == 0 ? "Completo" : "Pendiente")
+                                        </span>
+                                        @if (polla.Resumen.TotalFaltante > 0)
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary alert-send-btn"
+                                                    disabled="@(procesandoAlertaPollaId == polla.PollaId)"
+                                                    @onclick="() => EnviarAlertaPendientes(polla)">
+                                                @(procesandoAlertaPollaId == polla.PollaId ? "Enviando..." : "Enviar alerta")
+                                            </button>
+                                        }
+                                    </div>
                                 </div>
 
                                 <div class="historial-summary-grid">
@@ -973,6 +996,17 @@ else
         font-weight: 700;
     }
 
+    .historial-polla-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .alert-send-btn {
+        font-weight: 800;
+    }
+
     .checklist-pill {
         border-radius: 999px;
         font-size: .78rem;
@@ -1156,8 +1190,11 @@ else
     private int? procesandoPartidoFecha;
     private int? procesandoSolicitudCupos;
     private string? procesandoReapertura;
+    private int? procesandoAlertaPollaId;
     private bool cargandoHistorial;
     private string? errorHistorial;
+    private string? alertaHistorialMensaje;
+    private bool alertaHistorialError;
     private string faseCalendario = "";
     private string faseReapertura = "Grupos";
     private string filtroUsuarios = "Activos";
@@ -1343,6 +1380,28 @@ else
         procesandoSolicitudCupos = null;
     }
 
+    private async Task EliminarSolicitudCupos(SolicitudCuposAdminDto solicitud)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+            return;
+
+        var confirmar = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"¿Eliminar la solicitud de {solicitud.UsuarioNombre}? Esta acción solo borra el registro de la solicitud.");
+
+        if (!confirmar)
+            return;
+
+        procesandoSolicitudCupos = solicitud.Id;
+
+        var response = await Http.DeleteAsync(
+            $"api/Admin/cupos/solicitudes/{solicitud.Id}?adminUsuarioId={Sesion.UsuarioId.Value}");
+
+        mensaje = await LeerMensajeRespuesta(response);
+        await CargarPanel();
+        procesandoSolicitudCupos = null;
+    }
+
     private static string FormatoPrecio(decimal valor)
     {
         return $"${valor:N0}";
@@ -1487,6 +1546,8 @@ else
     {
         historialUsuario = null;
         errorHistorial = null;
+        alertaHistorialMensaje = null;
+        alertaHistorialError = false;
         cargandoHistorial = true;
 
         try
@@ -1508,7 +1569,45 @@ else
     {
         historialUsuario = null;
         errorHistorial = null;
+        alertaHistorialMensaje = null;
+        alertaHistorialError = false;
+        procesandoAlertaPollaId = null;
         cargandoHistorial = false;
+    }
+
+    private async Task EnviarAlertaPendientes(PollaHistorialAdminDto polla)
+    {
+        if (historialUsuario == null || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        alertaHistorialMensaje = null;
+        alertaHistorialError = false;
+        procesandoAlertaPollaId = polla.PollaId;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                $"api/Admin/usuarios/{historialUsuario.UsuarioId}/alerta-pendientes",
+                new AdminEnviarAlertaPendientesRequest
+                {
+                    AdminUsuarioId = Sesion.UsuarioId.Value,
+                    PollaId = polla.PollaId
+                });
+
+            alertaHistorialMensaje = await LeerMensajeRespuesta(response);
+            alertaHistorialError = !response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            alertaHistorialMensaje = $"No se pudo enviar la alerta: {ex.Message}";
+            alertaHistorialError = true;
+        }
+        finally
+        {
+            procesandoAlertaPollaId = null;
+        }
     }
 
     private static string ExtrasRegistro(RegistroMarcadorAdminDto registro)
@@ -1766,6 +1865,12 @@ else
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; }
+    }
+
+    private class AdminEnviarAlertaPendientesRequest
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
     }
 
     private class AdminGenerarCodigoCuposRequestDto

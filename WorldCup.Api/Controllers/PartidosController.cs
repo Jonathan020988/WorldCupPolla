@@ -2742,11 +2742,7 @@ namespace WorldCup.Api.Controllers
 
             foreach (var pred in prediccionesPodio)
             {
-                int puntos = 0;
-
-                if (pred.CampeonId == campeon) puntos += 20;
-                if (pred.SubcampeonId == subcampeon) puntos += 10;
-                if (pred.TerceroId == tercero) puntos += 5;
+                var puntos = PuntajesPodio.Calcular(pred, campeon, subcampeon, tercero);
 
                 var prediccionRepresentativa = await _context.Predicciones
                     .Where(p =>

@@ -66,10 +66,18 @@ namespace WorldCup.App.Shared.Services
             return result?.Mensaje ?? "Felicitaciones, has habilitado la opción de agregar más usuarios a tus pollas.";
         }
 
-        public async Task<List<RankingPollaDto>> GetRankingAsync(int pollaId)
+        public async Task<List<RankingPollaDto>> GetRankingAsync(
+            int pollaId,
+            int? solicitanteId = null)
         {
+            var url = $"api/Polla/{pollaId}/ranking";
+            if (solicitanteId.HasValue)
+            {
+                url += $"?solicitanteId={solicitanteId.Value}";
+            }
+
             return await _http.GetFromJsonAsync<List<RankingPollaDto>>(
-                $"api/Polla/{pollaId}/ranking"
+                url
             ) ?? new();
         }
 
@@ -253,6 +261,22 @@ namespace WorldCup.App.Shared.Services
             return await _http.GetFromJsonAsync<List<NotificacionDto>>(
                 $"api/Polla/notificaciones/{usuarioId}"
             ) ?? new();
+        }
+
+        public async Task<List<AlertaUsuarioDto>> GetAlertasPendientesAsync(int usuarioId)
+        {
+            return await _http.GetFromJsonAsync<List<AlertaUsuarioDto>>(
+                $"api/Polla/alertas/{usuarioId}"
+            ) ?? new();
+        }
+
+        public async Task CerrarAlertaUsuarioAsync(int alertaId, int usuarioId)
+        {
+            var response = await _http.PostAsync(
+                $"api/Polla/alertas/{alertaId}/cerrar?usuarioId={usuarioId}",
+                null);
+
+            response.EnsureSuccessStatusCode();
         }
 
         public async Task AprobarSolicitudAsync(int solicitudId)

@@ -45,4 +45,10 @@ namespace WorldCup.Api.DTOs
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; }
     }
+
+    public class AdminEnviarAlertaPendientesDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+    }
 }
