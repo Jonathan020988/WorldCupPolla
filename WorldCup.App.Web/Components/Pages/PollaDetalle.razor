@@ -63,7 +63,18 @@
     </div>
 </div>
 
-@if (polla == null)
+@if (accesoDenegado)
+{
+    <div class="alert alert-danger">
+        <strong>Acceso no permitido.</strong>
+        <div>@mensajeAcceso</div>
+        <button class="btn btn-outline-primary btn-sm mt-3"
+                @onclick="VolverADashboard">
+            Volver a mis pollas
+        </button>
+    </div>
+}
+else if (polla == null)
 {
     <div class="alert alert-info">
         Cargando información de la polla...
@@ -438,7 +449,7 @@ else
     <div class="row g-3 mt-4 @(usuarioDetalleAbierto == null ? "" : "polla-detail-open")">
 
         <!-- 📊 Ranking -->
-        <div class="ranking-col @(usuarioDetalleAbierto == null ? "col-md-8" : "col-12")">
+        <div class="ranking-col @(usuarioDetalleAbierto == null ? "col-lg-8" : "col-12")">
             <div class="card shadow-sm">
                 <div class="card-body ranking-card-body">
                     <h5 class="mb-3">📊 Ranking</h5>
@@ -452,73 +463,74 @@ else
                     }
                     else
                     {
-                        <table class="table table-sm align-middle ranking-table">
-                            <thead>
-                                <tr>
-                                    <th class="ranking-position-col">#</th>
-                                    <th>Usuario</th>
-                                    @if (EsCreador)
-                                    {
-                                        <th class="ranking-observation-col">Observación</th>
-                                    }
-                                    <th class="text-end ranking-points-col">Puntos</th>
-                                    <th class="ranking-action-col"></th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-
-                                @foreach (var r in ranking)
-                                {
+                        <div class="ranking-table-scroll">
+                            <table class="table table-sm align-middle ranking-table">
+                                <thead>
                                     <tr>
-                                        <td>
-                                            @(ranking.IndexOf(r) + 1)
-                                        </td>
-
-                                        <td class="fw-bold ranking-user-col">
-                                            @r.Usuario
-                                        </td>
-
+                                        <th class="ranking-position-col">#</th>
+                                        <th>Usuario</th>
                                         @if (EsCreador)
                                         {
-                                            <td class="ranking-observation-col">
-                                                <div class="ranking-observation-editor">
-                                                    <input class="form-control form-control-sm"
-                                                           maxlength="160"
-                                                           placeholder="Observación"
-                                                           @bind="r.ObservacionAdmin"
-                                                           @bind:event="oninput" />
-                                                    <button class="btn btn-sm btn-outline-primary"
-                                                            disabled="@(observacionGuardandoUsuarioId == r.UsuarioId)"
-                                                            @onclick="() => GuardarObservacionRanking(r)">
-                                                        @(observacionGuardandoUsuarioId == r.UsuarioId ? "..." : "Guardar")
-                                                    </button>
-                                                </div>
-                                            </td>
+                                            <th class="ranking-observation-col">Observación</th>
                                         }
-
-                                        <td class="text-end fw-bold">
-                                            @r.Puntos
-                                        </td>
-
-                                        <td class="text-end">
-
-                                            <button class="btn btn-sm btn-outline-primary"
-                                                    @onclick="() => ToggleDetalleUsuario(r.Usuario)">
-
-                                                @(usuarioDetalleAbierto == r.Usuario
-                                                    ? "Ocultar detalle"
-                                                    : "Ver detalle")
-
-                                            </button>
-
-                                        </td>
+                                        <th class="text-end ranking-points-col">Puntos</th>
+                                        <th class="ranking-action-col"></th>
                                     </tr>
+                                </thead>
 
-                                    @if (usuarioDetalleAbierto == r.Usuario)
+                                <tbody>
+
+                                    @foreach (var r in ranking)
                                     {
                                         <tr>
-                                            <td colspan="@RankingColspan" class="ranking-detail-cell">
+                                            <td>
+                                                @(ranking.IndexOf(r) + 1)
+                                            </td>
+
+                                            <td class="fw-bold ranking-user-col">
+                                                @r.Usuario
+                                            </td>
+
+                                            @if (EsCreador)
+                                            {
+                                                <td class="ranking-observation-col">
+                                                    <div class="ranking-observation-editor">
+                                                        <input class="form-control form-control-sm"
+                                                               maxlength="160"
+                                                               placeholder="Observación"
+                                                               @bind="r.ObservacionAdmin"
+                                                               @bind:event="oninput" />
+                                                        <button class="btn btn-sm btn-outline-primary"
+                                                                disabled="@(observacionGuardandoUsuarioId == r.UsuarioId)"
+                                                                @onclick="() => GuardarObservacionRanking(r)">
+                                                            @(observacionGuardandoUsuarioId == r.UsuarioId ? "..." : "Guardar")
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            }
+
+                                            <td class="text-end fw-bold">
+                                                @r.Puntos
+                                            </td>
+
+                                            <td class="text-end">
+
+                                                <button class="btn btn-sm btn-outline-primary ranking-detail-toggle"
+                                                        @onclick="() => ToggleDetalleUsuario(r.Usuario)">
+
+                                                    @(usuarioDetalleAbierto == r.Usuario
+                                                        ? "Ocultar"
+                                                        : "Detalle")
+
+                                                </button>
+
+                                            </td>
+                                        </tr>
+
+                                        @if (usuarioDetalleAbierto == r.Usuario)
+                                        {
+                                            <tr>
+                                                <td colspan="@RankingColspan" class="ranking-detail-cell">
 
                                                 <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
 
@@ -755,14 +767,15 @@ else
 
                                                 </div>
 
-                                            </td>
-                                        </tr>
+                                                </td>
+                                            </tr>
+                                        }
                                     }
-                                }
 
-                            </tbody>
+                                </tbody>
 
-                        </table>
+                            </table>
+                        </div>
                     }
 
                  
@@ -776,7 +789,7 @@ else
         </div>
 
         <!-- 👥 Participantes -->
-        <div class="participants-col @(usuarioDetalleAbierto == null ? "col-md-4" : "col-12")">
+        <div class="participants-col @(usuarioDetalleAbierto == null ? "col-lg-4" : "col-12")">
             <div class="card shadow-sm">
                 <div class="card-body">
                     <h5 class="mb-3">👥 Participantes</h5>
@@ -784,12 +797,12 @@ else
                     <ul class="list-group list-group-flush">
                         @foreach (var u in participantes)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                <span>👤 @u.Nombre</span>
+                            <li class="list-group-item d-flex justify-content-between align-items-center gap-2 px-0 participant-item">
+                                <span class="participant-name">👤 @u.Nombre</span>
 
                                 @if (EsCreador && u.Id != polla.CreadorId)
                                 {
-                                    <button class="btn btn-sm btn-outline-danger"
+                                    <button class="btn btn-sm btn-outline-danger participant-delete-btn"
                                             @onclick="() => ConfirmarEliminar(u.Id, u.Nombre)">
                                         ❌ Eliminar Usuario
                                     </button>
@@ -876,6 +889,23 @@ else
     .ranking-table {
         table-layout: fixed;
         width: 100%;
+        min-width: 760px;
+        margin-bottom: 0;
+    }
+
+    .ranking-table-scroll {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid #e4e7ec;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+    .ranking-table thead th {
+        white-space: nowrap;
     }
 
     .ranking-position-col {
@@ -912,13 +942,25 @@ else
     }
 
     .ranking-user-col {
-        overflow-wrap: anywhere;
+        overflow-wrap: normal;
+        word-break: normal;
     }
 
     .ranking-detail-cell {
         width: 100%;
         overflow: hidden;
         padding: .75rem 0 1rem !important;
+    }
+
+    .participant-name {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-weight: 600;
+    }
+
+    .participant-delete-btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
     }
 
     .detalle-ranking-scroll {
@@ -1269,7 +1311,24 @@ else
         padding-top: .9rem;
     }
 
+    @@media (max-width: 991.98px) {
+        .ranking-col,
+        .participants-col {
+            flex: 0 0 100%;
+            max-width: 100%;
+            width: 100%;
+        }
+    }
+
     @@media (max-width: 768px) {
+        .ranking-card-body {
+            padding: .9rem;
+        }
+
+        .ranking-table {
+            min-width: 700px;
+        }
+
         .payment-summary,
         .payment-kpis,
         .detalle-filtros-panel {
@@ -1277,15 +1336,28 @@ else
         }
 
         .ranking-action-col {
-            width: 124px;
+            width: 104px;
         }
 
         .ranking-observation-col {
-            width: 220px;
+            width: 230px;
         }
 
         .ranking-points-col {
             width: 76px;
+        }
+
+        .ranking-detail-toggle {
+            width: 78px;
+        }
+
+        .participant-item {
+            align-items: flex-start !important;
+        }
+
+        .participant-delete-btn {
+            padding-left: .55rem;
+            padding-right: .55rem;
         }
 
         .detalle-ranking-table,
@@ -1337,6 +1409,8 @@ else
     private string? mensajeCupos;
     private bool errorCupos;
     private bool procesandoCupos;
+    private bool accesoDenegado;
+    private string? mensajeAcceso;
 
     private string TextoCupoPolla =>
         polla?.CuposIlimitados == true
@@ -1523,17 +1597,7 @@ else
     private bool EsCreador =>
         polla != null && Sesion.UsuarioId == polla.CreadorId;
 
-    protected override async Task OnInitializedAsync()
-    {
-        polla = await PollasService.GetPollaAsync(PollaId);
-        PrepararDatosPolla();
-        await CargarRanking();
-        rankingDetalle =
-            await Http.GetFromJsonAsync<List<DetalleRankingDto>>(
-                $"api/Polla/{PollaId}/ranking-detalle"
-            ) ?? new();
-        await CargarParticipantes();
-    }
+    protected override Task OnInitializedAsync() => Task.CompletedTask;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -1550,20 +1614,56 @@ else
             return;
         }
 
-        if (polla != null)
+        await CargarDetalleSeguroAsync();
+        StateHasChanged();
+    }
+
+    private async Task CargarDetalleSeguroAsync()
+    {
+        if (!Sesion.UsuarioId.HasValue)
         {
+            accesoDenegado = true;
+            mensajeAcceso = "Debes iniciar sesión para ver esta polla.";
+            return;
+        }
+
+        try
+        {
+            accesoDenegado = false;
+            mensajeAcceso = null;
+
+            var usuarioId = Sesion.UsuarioId.Value;
+            polla = await PollasService.GetPollaAsync(PollaId, usuarioId);
+
+            if (polla == null)
+            {
+                accesoDenegado = true;
+                mensajeAcceso = "No encontramos esta polla o ya no está disponible.";
+                return;
+            }
+
+            PrepararDatosPolla();
             await Sesion.SeleccionarPollaAsync(PollaId, polla.Nombre);
+            await CargarRanking();
+            rankingDetalle = await PollasService.GetRankingDetalleAsync(PollaId, usuarioId);
+            await CargarParticipantes();
 
             if (EsCreador)
             {
-                cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.GetValueOrDefault());
+                cuposUsuario = await PollasService.GetCuposUsuarioAsync(usuarioId);
                 cantidadAmpliacion = Math.Max(20, (polla.MaximoMiembros ?? 5) + 1);
-                await CargarRanking();
-                await CargarParticipantes();
                 await CargarControlPagos();
             }
-
-            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            polla = null;
+            ranking.Clear();
+            rankingDetalle.Clear();
+            participantes.Clear();
+            controlPagos = null;
+            accesoDenegado = true;
+            mensajeAcceso = MensajeAccesoSeguro(ex.Message);
         }
     }
 
@@ -1588,6 +1688,19 @@ else
         valorInscripcionEdit = polla?.ValorInscripcion;
         descripcionEdit = polla?.Descripcion ?? "";
         metodoPagoEdit = polla?.MetodoPago ?? "";
+    }
+
+    private static string MensajeAccesoSeguro(string mensaje)
+    {
+        if (string.IsNullOrWhiteSpace(mensaje))
+        {
+            return "No tienes permisos para ver esta polla.";
+        }
+
+        return mensaje.Contains("No tienes permisos", StringComparison.OrdinalIgnoreCase) ||
+               mensaje.Contains("Debes iniciar sesión", StringComparison.OrdinalIgnoreCase)
+            ? mensaje
+            : "No tienes permisos para ver esta polla o la polla no está disponible.";
     }
 
     private void EditarNombrePolla()
@@ -1627,7 +1740,7 @@ else
                 Sesion.UsuarioId.Value,
                 nombre);
 
-            polla = await PollasService.GetPollaAsync(PollaId);
+            polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
             PrepararDatosPolla();
             editandoNombrePolla = false;
 
@@ -1690,7 +1803,7 @@ else
                     MetodoPago = metodoPagoEdit
                 });
 
-            polla = await PollasService.GetPollaAsync(PollaId);
+            polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
             PrepararDatosPolla();
             editandoPolla = false;
             await CargarControlPagos();
@@ -1808,7 +1921,7 @@ else
             errorCupos = false;
             codigoCupos = "";
             cuposUsuario = await PollasService.GetCuposUsuarioAsync(Sesion.UsuarioId.Value);
-            polla = await PollasService.GetPollaAsync(PollaId);
+            polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
             PrepararDatosPolla();
         }
         catch (Exception ex)
@@ -1829,10 +1942,17 @@ else
         if (string.IsNullOrWhiteSpace(nuevoPin) || nuevoPin.Length != 4)
             return;
 
-        await PollasService.ActualizarPinAsync(PollaId, nuevoPin);
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para cambiar el PIN.";
+            esError = true;
+            return;
+        }
+
+        await PollasService.ActualizarPinAsync(PollaId, nuevoPin, Sesion.UsuarioId.Value);
 
         // refrescar la polla para ver el nuevo PIN
-        polla = await PollasService.GetPollaAsync(PollaId);
+        polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
 
         nuevoPin = "";
     }
@@ -1886,14 +2006,26 @@ else
 
     private async Task CargarParticipantes()
     {
-        participantes = await PollasService.GetParticipantesAsync(PollaId);
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            participantes.Clear();
+            return;
+        }
+
+        participantes = await PollasService.GetParticipantesAsync(PollaId, Sesion.UsuarioId.Value);
     }
 
     private async Task CargarRanking()
     {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            ranking.Clear();
+            return;
+        }
+
         ranking = await PollasService.GetRankingAsync(
             PollaId,
-            EsCreador ? Sesion.UsuarioId : null);
+            Sesion.UsuarioId.Value);
     }
 
     private async Task GuardarObservacionRanking(RankingPollaDto participante)

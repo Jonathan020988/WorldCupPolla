@@ -1066,13 +1066,17 @@
 
     private async Task CargarRankingAsync()
     {
-        if (!Sesion.PollaActivaId.HasValue)
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
         {
             return;
         }
 
-        ranking = await PollasService.GetRankingAsync(Sesion.PollaActivaId.Value);
-        rankingDetalle = await PollasService.GetRankingDetalleAsync(Sesion.PollaActivaId.Value);
+        ranking = await PollasService.GetRankingAsync(
+            Sesion.PollaActivaId.Value,
+            Sesion.UsuarioId.Value);
+        rankingDetalle = await PollasService.GetRankingDetalleAsync(
+            Sesion.PollaActivaId.Value,
+            Sesion.UsuarioId.Value);
     }
 
     private void ToggleDetalleUsuario(string usuario)

@@ -26,10 +26,19 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        public async Task<PollaDto?> GetPollaAsync(int pollaId)
+        public async Task<PollaDto?> GetPollaAsync(
+            int pollaId,
+            int solicitanteId)
         {
-            return await _http.GetFromJsonAsync<PollaDto>(
-                $"api/Polla/{pollaId}"
+            return await LeerRespuestaAsync<PollaDto>(
+                $"api/Polla/{pollaId}?solicitanteId={solicitanteId}"
+            );
+        }
+
+        public async Task<PollaDto?> GetPollaPublicaAsync(int pollaId)
+        {
+            return await LeerRespuestaAsync<PollaDto>(
+                $"api/Polla/{pollaId}/publica"
             );
         }
 
@@ -72,11 +81,9 @@ namespace WorldCup.App.Shared.Services
         {
             var url = $"api/Polla/{pollaId}/ranking";
             if (solicitanteId.HasValue)
-            {
                 url += $"?solicitanteId={solicitanteId.Value}";
-            }
 
-            return await _http.GetFromJsonAsync<List<RankingPollaDto>>(
+            return await LeerRespuestaAsync<List<RankingPollaDto>>(
                 url
             ) ?? new();
         }
@@ -87,11 +94,9 @@ namespace WorldCup.App.Shared.Services
         {
             var url = $"api/Polla/{pollaId}/participantes";
             if (solicitanteId.HasValue)
-            {
                 url += $"?solicitanteId={solicitanteId.Value}";
-            }
 
-            return await _http.GetFromJsonAsync<List<ParticipanteDto>>(
+            return await LeerRespuestaAsync<List<ParticipanteDto>>(
                 url
             ) ?? new();
         }
@@ -159,12 +164,20 @@ namespace WorldCup.App.Shared.Services
             return result?.Mensaje ?? "Aviso enviado.";
         }
 
-        public async Task InvitarUsuarioAsync(int pollaId, int usuarioId)
+        public async Task InvitarUsuarioAsync(
+            int pollaId,
+            int usuarioId,
+            int solicitanteId)
         {
-            await _http.PostAsync(
-                $"api/Polla/{pollaId}/invitar/{usuarioId}",
+            var response = await _http.PostAsync(
+                $"api/Polla/{pollaId}/invitar/{usuarioId}?solicitanteId={solicitanteId}",
                 null
             );
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
         }
 
         public async Task<string> CrearInvitacionAsync(
@@ -225,11 +238,15 @@ namespace WorldCup.App.Shared.Services
             }
         }
 
-        public async Task ActualizarPinAsync(int pollaId, string pin)
+        public async Task ActualizarPinAsync(
+            int pollaId,
+            string pin,
+            int solicitanteId)
         {
             var dto = new
             {
-                PinIngreso = pin
+                PinIngreso = pin,
+                SolicitanteId = solicitanteId
             };
 
             var response = await _http.PutAsJsonAsync(
@@ -336,11 +353,33 @@ namespace WorldCup.App.Shared.Services
             public string Mensaje { get; set; } = "";
         }
 
-        public async Task<List<DetalleRankingDto>> GetRankingDetalleAsync(int pollaId)
+        public async Task<List<DetalleRankingDto>> GetRankingDetalleAsync(
+            int pollaId,
+            int solicitanteId)
         {
-            return await _http.GetFromJsonAsync<List<DetalleRankingDto>>(
-                $"api/Polla/{pollaId}/ranking-detalle"
+            return await LeerRespuestaAsync<List<DetalleRankingDto>>(
+                $"api/Polla/{pollaId}/ranking-detalle?solicitanteId={solicitanteId}"
             ) ?? new();
+        }
+
+        private async Task<T?> LeerRespuestaAsync<T>(string url)
+        {
+            var response = await _http.GetAsync(url);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var mensaje = await response.Content.ReadAsStringAsync();
+                throw new Exception(string.IsNullOrWhiteSpace(mensaje)
+                    ? "No tienes permisos para ver esta información."
+                    : mensaje);
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
         }
 
 

@@ -705,7 +705,9 @@
             return;
         }
 
-        var detalle = await PollasService.GetRankingDetalleAsync(Sesion.PollaActivaId.Value);
+        var detalle = await PollasService.GetRankingDetalleAsync(
+            Sesion.PollaActivaId.Value,
+            Sesion.UsuarioId.Value);
         detalleUsuario = detalle
             .Where(d => d.UsuarioId == Sesion.UsuarioId.Value)
             .OrderBy(d => OrdenFase(d.Fase))

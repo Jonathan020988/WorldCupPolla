@@ -66,9 +66,17 @@ namespace WorldCup.Api.Controllers
         // Obtener una polla por id
         // =========================================================
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<PollaDTO>> GetPolla(int id)
+        public async Task<IActionResult> GetPolla(
+            int id,
+            [FromQuery] int solicitanteId)
         {
-            var polla = await _context.Pollas.FindAsync(id);
+            var acceso = await ValidarAccesoPollaAsync(id, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (polla == null)
                 return NotFound();
 
@@ -86,6 +94,31 @@ namespace WorldCup.Api.Controllers
                 MetodoPago = polla.MetodoPago,
                 CuposIlimitados = polla.Creador?.CuposIlimitados == true,
                 PinIngreso = polla.PinIngreso // 👈 CLAVE
+            });
+        }
+
+        [HttpGet("{id:int}/publica")]
+        public async Task<IActionResult> GetPollaPublica(int id)
+        {
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == id);
+            if (polla == null)
+                return NotFound();
+
+            return Ok(new PollaDTO
+            {
+                Id = polla.Id,
+                Nombre = polla.Nombre,
+                Descripcion = polla.Descripcion,
+                CreadorId = polla.CreadorId,
+                FechaCreacion = polla.FechaCreacion,
+                CantidadParticipantes = await _context.PollaMiembros.CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo),
+                MaximoMiembros = polla.MaximoMiembros,
+                PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
+                ValorInscripcion = polla.ValorInscripcion,
+                MetodoPago = polla.MetodoPago,
+                CuposIlimitados = polla.Creador?.CuposIlimitados == true
             });
         }
 
@@ -401,6 +434,10 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             [FromQuery] int? solicitanteId = null)
         {
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
             var creadorId = await _context.Pollas
                 .Where(p => p.Id == pollaId)
                 .Select(p => (int?)p.CreadorId)
@@ -473,8 +510,14 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("{pollaId:int}/ranking-detalle")]
-        public async Task<IActionResult> GetRankingDetalle(int pollaId)
+        public async Task<IActionResult> GetRankingDetalle(
+            int pollaId,
+            [FromQuery] int? solicitanteId = null)
         {
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
             var detalle = await ObtenerDetalleRanking(pollaId);
 
             return Ok(detalle
@@ -1019,6 +1062,10 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             [FromQuery] int? solicitanteId = null)
         {
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
             var creadorId = await _context.Pollas
                 .Where(p => p.Id == pollaId)
                 .Select(p => (int?)p.CreadorId)
@@ -1197,8 +1244,14 @@ namespace WorldCup.Api.Controllers
 
         // ================= SOLICITUDES DE INGRESO =================
         [HttpGet("{pollaId:int}/solicitudes")]
-        public async Task<IActionResult> GetSolicitudesIngreso(int pollaId)
+        public async Task<IActionResult> GetSolicitudesIngreso(
+            int pollaId,
+            [FromQuery] int solicitanteId)
         {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
             var solicitudes = await _context.SolicitudesIngresoPolla
                 .Include(s => s.Usuario)
                 .Where(s =>
@@ -1254,7 +1307,10 @@ namespace WorldCup.Api.Controllers
 
         // ================= INVITAR =================
         [HttpPost("{pollaId}/invitar/{usuarioId}")]
-        public async Task<IActionResult> InvitarUsuario(int pollaId, int usuarioId)
+        public async Task<IActionResult> InvitarUsuario(
+            int pollaId,
+            int usuarioId,
+            [FromQuery] int solicitanteId)
         {
             var polla = await _context.Pollas
                 .Include(p => p.Creador)
@@ -1262,6 +1318,9 @@ namespace WorldCup.Api.Controllers
 
             if (polla == null)
                 return NotFound("La polla no existe");
+
+            if (polla.CreadorId != solicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede invitar usuarios a esta polla");
 
             var existe = await _context.PollaMiembros
                 .AnyAsync(x => x.PollaId == pollaId && x.UsuarioId == usuarioId);
@@ -1459,6 +1518,9 @@ namespace WorldCup.Api.Controllers
             var polla = await _context.Pollas.FindAsync(pollaId);
             if (polla == null)
                 return NotFound();
+
+            if (polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(StatusCodes.Status403Forbidden, "Solo el creador puede cambiar el PIN de esta polla");
 
             polla.PinIngreso = dto.PinIngreso;
 
@@ -1928,6 +1990,70 @@ namespace WorldCup.Api.Controllers
             return activos < limite
                 ? null
                 : MensajePollaLlena(limite);
+        }
+
+        private async Task<IActionResult?> ValidarAccesoPollaAsync(
+            int pollaId,
+            int? solicitanteId)
+        {
+            if (!solicitanteId.HasValue || solicitanteId.Value <= 0)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Debes iniciar sesión para ver esta polla.");
+            }
+
+            var existePolla = await _context.Pollas
+                .AnyAsync(p => p.Id == pollaId);
+
+            if (!existePolla)
+                return NotFound("La polla no existe");
+
+            var puedeVer = await _context.Pollas
+                .AnyAsync(p =>
+                    p.Id == pollaId &&
+                    p.CreadorId == solicitanteId.Value);
+
+            if (!puedeVer)
+            {
+                puedeVer = await _context.PollaMiembros
+                    .AnyAsync(pm =>
+                        pm.PollaId == pollaId &&
+                        pm.UsuarioId == solicitanteId.Value &&
+                        pm.Usuario.Activo);
+            }
+
+            return puedeVer
+                ? null
+                : StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "No tienes permisos para ver esta polla.");
+        }
+
+        private async Task<IActionResult?> ValidarCreadorPollaAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            if (solicitanteId <= 0)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Debes iniciar sesión para administrar esta polla.");
+            }
+
+            var creadorId = await _context.Pollas
+                .Where(p => p.Id == pollaId)
+                .Select(p => (int?)p.CreadorId)
+                .FirstOrDefaultAsync();
+
+            if (!creadorId.HasValue)
+                return NotFound("La polla no existe");
+
+            return creadorId.Value == solicitanteId
+                ? null
+                : StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el creador puede administrar esta polla.");
         }
 
         private static string MensajeAmpliacionCupos(int permitido)
