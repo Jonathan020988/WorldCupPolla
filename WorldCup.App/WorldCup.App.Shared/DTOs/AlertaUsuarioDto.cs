@@ -4,7 +4,7 @@ namespace WorldCup.App.Shared.DTOs
     {
         public int Id { get; set; }
         public int UsuarioId { get; set; }
-        public int PollaId { get; set; }
+        public int? PollaId { get; set; }
         public string PollaNombre { get; set; } = "";
         public string Titulo { get; set; } = "";
         public string Mensaje { get; set; } = "";

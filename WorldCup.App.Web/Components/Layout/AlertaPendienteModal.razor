@@ -111,9 +111,13 @@
         procesando = true;
         await CerrarAlerta(alerta, avanzarSiguiente: false);
 
-        await Sesion.SeleccionarPollaAsync(alerta.PollaId, alerta.PollaNombre);
+        if (alerta.PollaId.HasValue)
+        {
+            await Sesion.SeleccionarPollaAsync(alerta.PollaId.Value, alerta.PollaNombre);
+        }
+
         var link = string.IsNullOrWhiteSpace(alerta.Link)
-            ? "/predicciones"
+            ? "/dashboard"
             : alerta.Link;
 
         Navigation.NavigateTo(link);

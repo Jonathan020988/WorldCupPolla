@@ -148,19 +148,24 @@ else
                                                 @onclick="() => GenerarCodigoCupos(solicitud)">
                                             Generar código
                                         </button>
-                                        @if (solicitud.Estado != "Rechazada" && solicitud.Estado != "Habilitada")
-                                        {
-                                            <button class="btn btn-sm btn-outline-danger ms-1"
-                                                    disabled="@(procesandoSolicitudCupos == solicitud.Id)"
-                                                    @onclick="() => RechazarSolicitudCupos(solicitud)">
-                                                Rechazar
-                                            </button>
-                                        }
-                                        <button class="btn btn-sm btn-outline-secondary ms-1"
-                                                disabled="@(procesandoSolicitudCupos == solicitud.Id)"
-                                                @onclick="() => EliminarSolicitudCupos(solicitud)">
-                                            Eliminar
-                                        </button>
+                                         @if (solicitud.Estado != "Rechazada" && solicitud.Estado != "Habilitada")
+                                         {
+                                             <button class="btn btn-sm btn-outline-danger ms-1"
+                                                     disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                     @onclick="() => RechazarSolicitudCupos(solicitud)">
+                                                 Rechazar
+                                             </button>
+                                         }
+                                         <button class="btn btn-sm btn-outline-primary ms-1"
+                                                 disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                 @onclick="() => AbrirAlertaContactoCupos(solicitud)">
+                                             Pedir info
+                                         </button>
+                                         <button class="btn btn-sm btn-outline-secondary ms-1"
+                                                 disabled="@(procesandoSolicitudCupos == solicitud.Id)"
+                                                 @onclick="() => EliminarSolicitudCupos(solicitud)">
+                                             Eliminar
+                                         </button>
                                     </td>
                                 </tr>
                             }
@@ -170,6 +175,59 @@ else
             }
         </div>
     </div>
+
+    @if (solicitudContactoSeleccionada != null)
+    {
+        <div class="admin-contact-backdrop" role="dialog" aria-modal="true" aria-labelledby="contactAlertTitle">
+            <div class="admin-contact-modal">
+                <div class="admin-contact-accent"></div>
+                <div class="admin-contact-body">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <span class="admin-contact-kicker">Mensaje para el usuario</span>
+                            <h5 id="contactAlertTitle" class="mb-1">Solicitar información de contacto</h5>
+                            <p class="text-muted mb-0">
+                                @solicitudContactoSeleccionada.UsuarioNombre - @solicitudContactoSeleccionada.UsuarioEmail
+                            </p>
+                        </div>
+                        <button type="button"
+                                class="btn-close"
+                                aria-label="Cerrar"
+                                disabled="@enviandoAlertaContacto"
+                                @onclick="CerrarAlertaContactoCupos"></button>
+                    </div>
+
+                    <div class="admin-contact-summary mt-3">
+                        <span>Celular registrado: <strong>@solicitudContactoSeleccionada.Celular</strong></span>
+                        <span>Solicitud: <strong>@solicitudContactoSeleccionada.CantidadUsuariosSolicitada usuarios</strong></span>
+                        <span>Plan: <strong>@solicitudContactoSeleccionada.PlanNombre</strong></span>
+                    </div>
+
+                    <label class="form-label mt-3">Mensaje que verá al iniciar sesión</label>
+                    <textarea class="form-control"
+                              rows="5"
+                              maxlength="1000"
+                              @bind="mensajeContactoCupos"></textarea>
+                    <small class="text-muted">
+                        Se mostrará como ventana emergente y también quedará en notificaciones.
+                    </small>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 flex-wrap">
+                        <button class="btn btn-outline-secondary"
+                                disabled="@enviandoAlertaContacto"
+                                @onclick="CerrarAlertaContactoCupos">
+                            Cancelar
+                        </button>
+                        <button class="btn btn-primary"
+                                disabled="@enviandoAlertaContacto"
+                                @onclick="EnviarAlertaContactoCupos">
+                            @(enviandoAlertaContacto ? "Enviando..." : "Enviar alerta")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     <div class="card mb-4 phase-control">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
@@ -820,6 +878,66 @@ else
 }
 
 <style>
+    .admin-contact-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, .55);
+        backdrop-filter: blur(8px);
+    }
+
+    .admin-contact-modal {
+        width: min(620px, 100%);
+        overflow: hidden;
+        border: 1px solid rgba(15, 23, 42, .14);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
+    }
+
+    .admin-contact-accent {
+        height: 7px;
+        background: linear-gradient(90deg, #2563eb, #0ea5e9, #22c55e);
+    }
+
+    .admin-contact-body {
+        padding: 22px;
+    }
+
+    .admin-contact-kicker {
+        display: block;
+        color: #2563eb;
+        font-size: .74rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .admin-contact-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .admin-contact-summary span {
+        border: 1px solid #dbeafe;
+        border-radius: 8px;
+        background: #eff6ff;
+        color: #1e3a8a;
+        padding: 9px 10px;
+        font-size: .86rem;
+    }
+
+    @@media (max-width: 720px) {
+        .admin-contact-summary {
+            grid-template-columns: 1fr;
+        }
+    }
+
     .marcador-admin {
         width: 70px;
     }
@@ -1191,6 +1309,9 @@ else
     private int? procesandoSolicitudCupos;
     private string? procesandoReapertura;
     private int? procesandoAlertaPollaId;
+    private SolicitudCuposAdminDto? solicitudContactoSeleccionada;
+    private string mensajeContactoCupos = "";
+    private bool enviandoAlertaContacto;
     private bool cargandoHistorial;
     private string? errorHistorial;
     private string? alertaHistorialMensaje;
@@ -1402,6 +1523,70 @@ else
         procesandoSolicitudCupos = null;
     }
 
+    private void AbrirAlertaContactoCupos(SolicitudCuposAdminDto solicitud)
+    {
+        var saludo = string.IsNullOrWhiteSpace(PrimerNombre(solicitud.UsuarioNombre))
+            ? "Hola,"
+            : $"Hola {PrimerNombre(solicitud.UsuarioNombre)},";
+
+        solicitudContactoSeleccionada = solicitud;
+        mensajeContactoCupos =
+            $"{saludo} estamos revisando tu solicitud para ampliar la polla a {solicitud.CantidadUsuariosSolicitada} usuarios, pero no hemos podido contactarte con el celular registrado ({solicitud.Celular}). Por favor responde el correo que te enviamos o escríbenos con un número de WhatsApp válido para poder atender tu solicitud y coordinar la habilitación de cupos.";
+    }
+
+    private void CerrarAlertaContactoCupos()
+    {
+        if (enviandoAlertaContacto)
+            return;
+
+        solicitudContactoSeleccionada = null;
+        mensajeContactoCupos = "";
+    }
+
+    private async Task EnviarAlertaContactoCupos()
+    {
+        if (!Sesion.UsuarioId.HasValue || solicitudContactoSeleccionada == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(mensajeContactoCupos) || mensajeContactoCupos.Trim().Length < 10)
+        {
+            mensaje = "Escribe un mensaje claro antes de enviar la alerta.";
+            return;
+        }
+
+        try
+        {
+            enviandoAlertaContacto = true;
+            procesandoSolicitudCupos = solicitudContactoSeleccionada.Id;
+
+            var response = await Http.PostAsJsonAsync(
+                $"api/Admin/cupos/solicitudes/{solicitudContactoSeleccionada.Id}/alerta-contacto",
+                new AdminEnviarAlertaContactoCuposRequestDto
+                {
+                    AdminUsuarioId = Sesion.UsuarioId.Value,
+                    Mensaje = mensajeContactoCupos.Trim()
+                });
+
+            mensaje = await LeerMensajeRespuesta(response);
+
+            if (response.IsSuccessStatusCode)
+            {
+                solicitudContactoSeleccionada = null;
+                mensajeContactoCupos = "";
+                await CargarPanel();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"No se pudo enviar la alerta: {ex.Message}";
+        }
+        finally
+        {
+            enviandoAlertaContacto = false;
+            procesandoSolicitudCupos = null;
+        }
+    }
+
     private static string FormatoPrecio(decimal valor)
     {
         if (valor <= 0)
@@ -1410,6 +1595,17 @@ else
         }
 
         return $"${valor:N0}";
+    }
+
+    private static string PrimerNombre(string nombre)
+    {
+        var limpio = (nombre ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(limpio))
+        {
+            return "";
+        }
+
+        return limpio.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
     }
 
     private static string ClaseEstadoSolicitudCupos(string estado)
@@ -1882,6 +2078,12 @@ else
     {
         public int AdminUsuarioId { get; set; }
         public int MaximoMiembrosAutorizado { get; set; }
+    }
+
+    private class AdminEnviarAlertaContactoCuposRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public string Mensaje { get; set; } = "";
     }
 
     private class SolicitudCuposAdminDto

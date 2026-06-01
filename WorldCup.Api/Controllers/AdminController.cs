@@ -151,6 +151,67 @@ namespace WorldCup.Api.Controllers
             return Ok(new { mensaje = "Solicitud rechazada." });
         }
 
+        [HttpPost("cupos/solicitudes/{solicitudId:int}/alerta-contacto")]
+        public async Task<IActionResult> EnviarAlertaContactoCupos(
+            int solicitudId,
+            [FromBody] AdminEnviarAlertaContactoCuposDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            var mensaje = (dto.Mensaje ?? "").Trim();
+            if (mensaje.Length < 10)
+                return BadRequest("Escribe un mensaje un poco más claro para el usuario.");
+
+            if (mensaje.Length > 1000)
+                return BadRequest("El mensaje no puede superar 1000 caracteres.");
+
+            var solicitud = await _context.SolicitudesAmpliacionCupos
+                .Include(s => s.Usuario)
+                .FirstOrDefaultAsync(s => s.Id == solicitudId);
+
+            if (solicitud == null)
+                return NotFound("Solicitud no encontrada");
+
+            var ahoraUtc = DateTime.UtcNow;
+            var alerta = await _context.AlertasUsuario
+                .FirstOrDefaultAsync(a =>
+                    a.UsuarioId == solicitud.UsuarioId &&
+                    a.TipoDestino == "SolicitudCupos" &&
+                    a.Estado == "Pendiente");
+
+            if (alerta == null)
+            {
+                alerta = new AlertaUsuario
+                {
+                    UsuarioId = solicitud.UsuarioId,
+                    TipoDestino = "SolicitudCupos"
+                };
+
+                _context.AlertasUsuario.Add(alerta);
+            }
+
+            alerta.AdminUsuarioId = dto.AdminUsuarioId;
+            alerta.PollaId = null;
+            alerta.Titulo = "Necesitamos confirmar tu solicitud";
+            alerta.Mensaje = mensaje;
+            alerta.TipoDestino = "SolicitudCupos";
+            alerta.Link = "/dashboard";
+            alerta.EtiquetaAccion = "Ir a mis pollas";
+            alerta.Estado = "Pendiente";
+            alerta.FechaCreacion = ahoraUtc;
+            alerta.FechaVista = null;
+            alerta.FechaCierre = null;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Alerta enviada a {solicitud.Usuario.Nombre}. Le aparecera al iniciar sesion y tambien en notificaciones.",
+                alertaId = alerta.Id
+            });
+        }
+
         [HttpDelete("cupos/solicitudes/{solicitudId:int}")]
         public async Task<IActionResult> EliminarSolicitudCupos(
             int solicitudId,

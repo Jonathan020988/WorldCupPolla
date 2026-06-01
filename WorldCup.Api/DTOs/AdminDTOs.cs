@@ -51,4 +51,10 @@ namespace WorldCup.Api.DTOs
         public int AdminUsuarioId { get; set; }
         public int PollaId { get; set; }
     }
+
+    public class AdminEnviarAlertaContactoCuposDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public string Mensaje { get; set; } = "";
+    }
 }

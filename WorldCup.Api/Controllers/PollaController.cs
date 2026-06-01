@@ -1708,9 +1708,11 @@ namespace WorldCup.Api.Controllers
             notificaciones.AddRange(alertasPendientes.Select(a => new NotificacionDto
             {
                 Id = a.Id,
-                Tipo = "AlertaPendientes",
+                Tipo = a.TipoDestino == "SolicitudCupos"
+                    ? "AlertaSolicitudCupos"
+                    : "AlertaPendientes",
                 PollaId = a.PollaId,
-                PollaNombre = a.Polla.Nombre,
+                PollaNombre = a.Polla?.Nombre ?? "Solicitud de ampliación de cupos",
                 UsuarioId = a.AdminUsuarioId,
                 UsuarioNombre = a.AdminUsuario?.Nombre ?? "Administrador",
                 Estado = a.Estado,
@@ -1845,7 +1847,7 @@ namespace WorldCup.Api.Controllers
                     a.Id,
                     a.UsuarioId,
                     a.PollaId,
-                    PollaNombre = a.Polla.Nombre,
+                    PollaNombre = a.Polla?.Nombre ?? "Solicitud de ampliación de cupos",
                     a.Titulo,
                     a.Mensaje,
                     a.TipoDestino,

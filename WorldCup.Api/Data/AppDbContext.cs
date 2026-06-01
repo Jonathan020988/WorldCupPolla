@@ -170,7 +170,7 @@ namespace WorldCup.Api.Data
                 .HasOne(a => a.Polla)
                 .WithMany()
                 .HasForeignKey(a => a.PollaId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<AlertaUsuario>()
                 .HasIndex(a => new { a.UsuarioId, a.Estado, a.FechaCreacion });

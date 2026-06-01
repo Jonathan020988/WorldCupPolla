@@ -13,8 +13,8 @@ namespace WorldCup.Api.Models
         public int? AdminUsuarioId { get; set; }
         public Usuario? AdminUsuario { get; set; }
 
-        public int PollaId { get; set; }
-        public Polla Polla { get; set; } = null!;
+        public int? PollaId { get; set; }
+        public Polla? Polla { get; set; }
 
         public string Titulo { get; set; } = "";
         public string Mensaje { get; set; } = "";

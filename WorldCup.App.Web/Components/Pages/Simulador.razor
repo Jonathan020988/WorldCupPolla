@@ -157,11 +157,12 @@ else
                                                 <td>
                                                     <select class="form-select form-select-sm"
                                                             style="width:76px"
-                                                            @bind="equipo.Posicion">
-                                                        <option value="1" disabled="@PosicionOcupadaSimulador(grupo.Value, 1, equipo)">1</option>
-                                                        <option value="2" disabled="@PosicionOcupadaSimulador(grupo.Value, 2, equipo)">2</option>
-                                                        <option value="3" disabled="@PosicionOcupadaSimulador(grupo.Value, 3, equipo)">3</option>
-                                                        <option value="4" disabled="@PosicionOcupadaSimulador(grupo.Value, 4, equipo)">4</option>
+                                                            value="@equipo.Posicion"
+                                                            @onchange="e => CambiarPosicionSimulador(grupo.Value, equipo, e)">
+                                                        <option value="1">1</option>
+                                                        <option value="2">2</option>
+                                                        <option value="3">3</option>
+                                                        <option value="4">4</option>
                                                     </select>
                                                 </td>
                                             </tr>
@@ -1492,12 +1493,33 @@ else
         final.Clear();
     }
 
-    private bool PosicionOcupadaSimulador(
+    private void CambiarPosicionSimulador(
         List<SimuladorEquipoPosicion> grupo,
-        int posicion,
-        SimuladorEquipoPosicion actual)
+        SimuladorEquipoPosicion equipo,
+        ChangeEventArgs e)
     {
-        return grupo.Any(e => e != actual && e.Posicion == posicion);
+        if (!int.TryParse(e.Value?.ToString(), out var nuevaPosicion) ||
+            nuevaPosicion < 1 ||
+            nuevaPosicion > grupo.Count ||
+            nuevaPosicion == equipo.Posicion)
+        {
+            return;
+        }
+
+        var posicionAnterior = equipo.Posicion;
+        var equipoEnNuevaPosicion = grupo
+            .FirstOrDefault(x => x != equipo && x.Posicion == nuevaPosicion);
+
+        equipo.Posicion = nuevaPosicion;
+
+        if (equipoEnNuevaPosicion != null)
+        {
+            equipoEnNuevaPosicion.Posicion = posicionAnterior;
+        }
+
+        LimpiarSimulacionDesdeGrupos();
+        mensajeSimulador = null;
+        simuladorConError = false;
     }
 
     private void ToggleTerceroSimulador(string grupo)

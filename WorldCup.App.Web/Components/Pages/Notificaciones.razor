@@ -114,6 +114,13 @@ else
                         Revisar pendiente
                     </button>
                 }
+                else if (notificacion.Tipo == "AlertaSolicitudCupos")
+                {
+                    <button class="btn btn-primary btn-sm mt-2"
+                            @onclick="() => IrARegistroPendiente(notificacion)">
+                        Ver mensaje
+                    </button>
+                }
 
                 @if (notificacion.Tipo == "SolicitudIngreso")
                 {
@@ -271,6 +278,7 @@ else
             "PagoPendiente" => "Pago pendiente",
             "SolicitudAmpliacionCupos" => "Solicitud de ampliacion",
             "AlertaPendientes" => "Alerta de registros pendientes",
+            "AlertaSolicitudCupos" => "Mensaje del administrador",
             _ => "Notificacion"
         };
 
@@ -283,6 +291,7 @@ else
             "PagoPendiente" => "Pago",
             "SolicitudAmpliacionCupos" => "Cupos",
             "AlertaPendientes" => "Pendiente",
+            "AlertaSolicitudCupos" => "Admin",
             _ => "Aviso"
         };
 
@@ -295,6 +304,7 @@ else
             "PagoPendiente" => "bg-danger",
             "SolicitudAmpliacionCupos" => "bg-info text-dark",
             "AlertaPendientes" => "bg-primary",
+            "AlertaSolicitudCupos" => "bg-dark",
             _ => "bg-secondary"
         };
 
