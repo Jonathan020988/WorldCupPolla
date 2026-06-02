@@ -640,6 +640,149 @@ else
         }
     }
 
+    @@media (max-width: 640px) {
+        h3.mb-4 {
+            margin-bottom: 1rem !important;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+
+        .alert.d-flex.justify-content-between {
+            align-items: stretch !important;
+            flex-direction: column;
+            gap: .65rem;
+        }
+
+        .alert.d-flex.justify-content-between .btn {
+            min-height: 42px;
+            width: 100%;
+        }
+
+        .classification-checklist {
+            padding: .85rem;
+        }
+
+        .checklist-metric {
+            padding: .8rem;
+        }
+
+        .checklist-actions .btn {
+            min-height: 42px;
+            width: 100%;
+        }
+
+        .pending-item {
+            padding: .75rem .85rem;
+        }
+
+        .grupo-card {
+            margin-bottom: .85rem;
+            overflow: hidden;
+        }
+
+        .grupo-card.guardado:hover {
+            transform: none;
+        }
+
+        .grupo-card .card-header {
+            align-items: stretch !important;
+            flex-direction: column;
+            gap: .65rem;
+            padding: .8rem;
+        }
+
+        .grupo-card .card-header > div {
+            align-items: stretch !important;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .grupo-card .card-header > div:last-child {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: .5rem;
+        }
+
+        .grupo-card .card-header .form-check {
+            grid-column: 1 / -1;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            margin: 0;
+            padding: .45rem .6rem;
+            border: 1px solid rgba(255, 255, 255, .25);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .grupo-card .card-header .btn {
+            min-height: 40px;
+            width: 100%;
+        }
+
+        .grupo-card table {
+            table-layout: fixed;
+            width: 100%;
+            margin: 0;
+        }
+
+        .grupo-card th,
+        .grupo-card td {
+            padding: .72rem .65rem !important;
+            vertical-align: middle;
+        }
+
+        .grupo-card th:first-child,
+        .grupo-card td:first-child {
+            width: calc(100% - 96px);
+        }
+
+        .grupo-card th:last-child,
+        .grupo-card td:last-child {
+            width: 96px;
+            text-align: center;
+        }
+
+        .grupo-card td:first-child div {
+            min-width: 0;
+        }
+
+        .grupo-card td:first-child span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: normal;
+        }
+
+        .grupo-card img {
+            flex: 0 0 auto;
+        }
+
+        .grupo-card .form-select {
+            width: 76px !important;
+            min-height: 42px;
+            margin-left: auto;
+            font-size: 1rem;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .card.mt-4.shadow .card-body {
+            padding: .85rem;
+        }
+
+        .card.mt-4.shadow h5 {
+            text-align: left !important;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .card.mt-4.shadow .border.rounded {
+            min-height: 44px;
+        }
+    }
+
 </style>
 
 @code {

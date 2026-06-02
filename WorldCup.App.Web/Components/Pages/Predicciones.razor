@@ -1244,6 +1244,171 @@ else
             align-items: flex-start;
         }
     }
+
+    @@media (max-width: 640px) {
+        .predictions-header {
+            padding: .85rem .95rem;
+        }
+
+        .predictions-header h1 {
+            font-size: 1.45rem;
+        }
+
+        .prediction-filter {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .7rem;
+            padding: .75rem;
+        }
+
+        .prediction-filter > div,
+        .prediction-filter .btn {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .prediction-filter .btn {
+            min-height: 42px;
+        }
+
+        .pending-predictions-panel {
+            flex-direction: column;
+            align-items: stretch;
+            gap: .75rem;
+            padding: .75rem;
+        }
+
+        .pending-summary {
+            min-width: 0;
+        }
+
+        .pending-list {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .pending-chip {
+            justify-content: space-between;
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        .classification-projection-panel {
+            padding: .85rem;
+        }
+
+        .projection-actions,
+        .projection-actions .btn,
+        .projection-modal-footer .btn {
+            width: 100%;
+        }
+
+        .projection-actions .btn,
+        .projection-modal-footer .btn {
+            min-height: 42px;
+        }
+
+        .projection-backdrop {
+            align-items: stretch;
+            padding: .45rem;
+        }
+
+        .projection-modal {
+            max-height: calc(100vh - .9rem);
+        }
+
+        .projection-modal-header h2 {
+            font-size: 1.08rem;
+        }
+
+        .projection-modal-body {
+            padding: .7rem;
+        }
+
+        .projection-group-title {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .15rem;
+        }
+
+        .best-third-chip {
+            grid-template-columns: auto auto minmax(0, 1fr);
+        }
+
+        .prediction-card {
+            padding: .65rem;
+            border-left-width: 5px;
+        }
+
+        .prediction-card-main {
+            grid-template-columns: 1fr 74px;
+            gap: .55rem;
+        }
+
+        .prediction-team {
+            min-height: 46px;
+            font-size: .95rem;
+        }
+
+        .score-input {
+            width: 74px;
+            height: 46px;
+            font-size: 1.1rem;
+        }
+
+        .prediction-actions {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            width: 100%;
+            gap: .45rem;
+        }
+
+        .prediction-actions .btn {
+            min-height: 40px;
+            padding-left: .35rem;
+            padding-right: .35rem;
+            font-size: .85rem;
+        }
+
+        .prediction-extra {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .55rem;
+        }
+
+        .prediction-extra .form-select {
+            max-width: none;
+            min-height: 42px;
+        }
+
+        .compact-check {
+            min-height: 40px;
+            padding: .45rem .55rem;
+            border: 1px solid #e4e9ef;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .prediction-footer {
+            align-items: flex-start;
+            gap: .4rem;
+            font-size: .8rem;
+        }
+
+        .status-pill {
+            min-height: 26px;
+        }
+
+        .phase-title {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .phase-collapse-btn {
+            min-height: 38px;
+            width: 100%;
+        }
+    }
 </style>
 
 @code {

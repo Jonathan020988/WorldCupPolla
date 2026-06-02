@@ -148,10 +148,10 @@
                         {
                             var posicion = ranking.IndexOf(r) + 1;
                             <tr class="ranking-row @(usuarioDetalleAbierto == r.Usuario ? "open" : "")">
-                                <td>
+                                <td data-label="#">
                                     <span class="rank-number">@posicion</span>
                                 </td>
-                                <td>
+                                <td data-label="Usuario">
                                     <div class="user-cell">
                                         <span class="avatar">@Iniciales(r.Usuario)</span>
                                         <span>
@@ -160,10 +160,10 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-end" data-label="Puntos">
                                     <span class="score-pill">@r.Puntos</span>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-end" data-label="Detalle">
                                     <button class="detail-btn"
                                             @onclick="() => ToggleDetalleUsuario(r.Usuario)">
                                         @(usuarioDetalleAbierto == r.Usuario ? "Ocultar" : "Ver")
@@ -262,21 +262,21 @@
                                                         else if (resumenFaseActivo)
                                                         {
                                                             <tr class="detail-summary-total-row">
-                                                                <td>
+                                                                <td data-label="Partido">
                                                                     <strong>Resumen</strong>
                                                                     <small>@detallesFiltrados.Count partido(s)</small>
                                                                 </td>
-                                                                <td><span class="phase-pill">@NombreFase(detalleFaseResumenFiltro!)</span></td>
-                                                                <td>-</td>
-                                                                <td>-</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosExacto), "points-green")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosGanador), "points-blue")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosDiferencia), "points-slate")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosGoles), "points-indigo")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosClasificacion), "points-gold")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosExtras), "points-dark")</td>
-                                                                <td>@Puntos(detallesFiltrados.Sum(x => x.PuntosPodio), "points-red")</td>
-                                                                <td><strong>@detallesFiltrados.Sum(x => x.Total)</strong></td>
+                                                                <td data-label="Fase"><span class="phase-pill">@NombreFase(detalleFaseResumenFiltro!)</span></td>
+                                                                <td data-label="Pronostico">-</td>
+                                                                <td data-label="Resultado">-</td>
+                                                                <td data-label="Exacto">@Puntos(detallesFiltrados.Sum(x => x.PuntosExacto), "points-green")</td>
+                                                                <td data-label="Ganador">@Puntos(detallesFiltrados.Sum(x => x.PuntosGanador), "points-blue")</td>
+                                                                <td data-label="Dif.">@Puntos(detallesFiltrados.Sum(x => x.PuntosDiferencia), "points-slate")</td>
+                                                                <td data-label="Goles">@Puntos(detallesFiltrados.Sum(x => x.PuntosGoles), "points-indigo")</td>
+                                                                <td data-label="Clas.">@Puntos(detallesFiltrados.Sum(x => x.PuntosClasificacion), "points-gold")</td>
+                                                                <td data-label="Extras">@Puntos(detallesFiltrados.Sum(x => x.PuntosExtras), "points-dark")</td>
+                                                                <td data-label="Podio">@Puntos(detallesFiltrados.Sum(x => x.PuntosPodio), "points-red")</td>
+                                                                <td data-label="Total"><strong>@detallesFiltrados.Sum(x => x.Total)</strong></td>
                                                             </tr>
                                                         }
                                                         else
@@ -309,15 +309,15 @@
                                                                     @foreach (var d in faseDetalle.OrderBy(x => x.Fecha).ThenBy(x => x.Local))
                                                                     {
                                                                         <tr>
-                                                                            <td><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
-                                                                            <td><span class="phase-pill">@d.Fase</span></td>
-                                                                            <td>@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
-                                                                            <td>@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
-                                                                            <td>@Puntos(d.PuntosExacto, "points-green")</td>
-                                                                            <td>@Puntos(d.PuntosGanador, "points-blue")</td>
-                                                                            <td>@Puntos(d.PuntosDiferencia, "points-slate")</td>
-                                                                            <td>@Puntos(d.PuntosGoles, "points-indigo")</td>
-                                                                            <td>
+                                                                            <td data-label="Partido"><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
+                                                                            <td data-label="Fase"><span class="phase-pill">@d.Fase</span></td>
+                                                                            <td data-label="Pronostico">@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
+                                                                            <td data-label="Resultado">@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                                                            <td data-label="Exacto">@Puntos(d.PuntosExacto, "points-green")</td>
+                                                                            <td data-label="Ganador">@Puntos(d.PuntosGanador, "points-blue")</td>
+                                                                            <td data-label="Dif.">@Puntos(d.PuntosDiferencia, "points-slate")</td>
+                                                                            <td data-label="Goles">@Puntos(d.PuntosGoles, "points-indigo")</td>
+                                                                            <td data-label="Clas.">
                                                                                 @if (d.PuntosClasificacion > 0)
                                                                                 {
                                                                                     <button type="button"
@@ -332,7 +332,7 @@
                                                                                     <span class="text-muted">0</span>
                                                                                 }
                                                                             </td>
-                                                                            <td>
+                                                                            <td data-label="Extras">
                                                                                 @if (d.PuntosExtras > 0)
                                                                                 {
                                                                                     <button type="button"
@@ -347,7 +347,7 @@
                                                                                     <span class="text-muted">0</span>
                                                                                 }
                                                                             </td>
-                                                                            <td>
+                                                                            <td data-label="Podio">
                                                                                 @if (d.PuntosPodio > 0)
                                                                                 {
                                                                                     <button type="button"
@@ -362,7 +362,7 @@
                                                                                     <span class="text-muted">0</span>
                                                                                 }
                                                                             </td>
-                                                                            <td><strong>@d.Total</strong></td>
+                                                                            <td data-label="Total"><strong>@d.Total</strong></td>
                                                                         </tr>
                                                                     }
                                                                 }
@@ -988,6 +988,280 @@
 
         .detail-filters {
             grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .ranking-page {
+            margin: 0 -.15rem;
+        }
+
+        .ranking-hero {
+            padding: 1rem;
+            box-shadow: 0 8px 20px rgba(15, 64, 48, .14);
+        }
+
+        .ranking-hero h1 {
+            font-size: 1.45rem;
+        }
+
+        .switch-btn,
+        .detail-btn {
+            min-height: 40px;
+            width: 100%;
+        }
+
+        .summary-grid,
+        .podium-strip {
+            gap: .65rem;
+        }
+
+        .summary-item,
+        .podium-item {
+            padding: .8rem;
+        }
+
+        .summary-item strong {
+            font-size: 1.18rem;
+        }
+
+        .podium-item {
+            grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        .podium-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .panel-title {
+            padding: .85rem;
+        }
+
+        .ranking-page .table-responsive {
+            overflow: visible;
+        }
+
+        .ranking-table,
+        .ranking-table > tbody,
+        .ranking-table > tbody > tr:not(.ranking-row),
+        .detail-table,
+        .detail-table > tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .ranking-table > thead,
+        .detail-table > thead {
+            display: none;
+        }
+
+        .ranking-table > tbody {
+            display: grid;
+            gap: .65rem;
+            padding: .75rem;
+        }
+
+        .ranking-table > tbody > tr.ranking-row {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            grid-template-areas:
+                "rank user"
+                "points detail";
+            gap: .65rem .75rem;
+            padding: .8rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 6px 18px rgba(27, 58, 45, .06);
+        }
+
+        .ranking-table > tbody > tr.ranking-row.open {
+            border-color: #bcd9cd;
+            background: #f5fbf8;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td {
+            display: flex;
+            align-items: center;
+            padding: 0;
+            border: 0;
+            text-align: left !important;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td:nth-child(1) {
+            grid-area: rank;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td:nth-child(2) {
+            grid-area: user;
+            min-width: 0;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td:nth-child(3) {
+            grid-area: points;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td:nth-child(4) {
+            grid-area: detail;
+            justify-content: flex-end;
+        }
+
+        .ranking-table > tbody > tr.ranking-row > td:nth-child(3)::before {
+            content: attr(data-label);
+            margin-right: .45rem;
+            color: var(--muted);
+            font-size: .74rem;
+            font-weight: 850;
+            text-transform: uppercase;
+        }
+
+        .user-cell {
+            min-width: 0;
+        }
+
+        .user-cell > span:last-child {
+            min-width: 0;
+        }
+
+        .user-cell strong,
+        .user-cell small {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .score-pill {
+            min-width: 50px;
+        }
+
+        .ranking-table > tbody > tr:not(.ranking-row) {
+            padding: 0;
+            border: 0;
+        }
+
+        .detail-cell {
+            display: block;
+            width: 100%;
+            border: 1px solid #dbe8e2;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .detail-wrapper {
+            padding: .75rem;
+        }
+
+        .detail-title,
+        .detail-phase-header {
+            gap: .4rem;
+        }
+
+        .detail-title {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .detail-filters {
+            padding: .7rem;
+        }
+
+        .detail-filters select,
+        .detail-filters input,
+        .clear-detail-filters {
+            min-height: 42px;
+        }
+
+        .detail-scroll {
+            max-height: none;
+            overflow: visible;
+        }
+
+        .detail-table > tbody {
+            display: grid;
+            gap: .65rem;
+        }
+
+        .detail-table tbody tr:not(.detail-phase-row) {
+            display: grid;
+            gap: .45rem;
+            padding: .7rem;
+            border: 1px solid #dce8e2;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .detail-table tbody tr.detail-summary-total-row {
+            background: #fffdf2;
+        }
+
+        .detail-table tbody tr:not(.detail-phase-row) td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: .75rem;
+            min-height: 28px;
+            padding: 0;
+            border: 0;
+            text-align: right;
+        }
+
+        .detail-table tbody tr:not(.detail-phase-row) td::before {
+            content: attr(data-label);
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: .74rem;
+            font-weight: 850;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .detail-table tbody tr:not(.detail-phase-row) td[data-label="Partido"] {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .25rem;
+            padding-bottom: .45rem;
+            border-bottom: 1px dashed #dce8e2;
+            text-align: left;
+        }
+
+        .detail-table tbody tr:not(.detail-phase-row) td[data-label="Partido"]::before {
+            margin-bottom: .05rem;
+        }
+
+        .detail-table tbody tr.detail-phase-row {
+            display: block;
+            border: 0;
+        }
+
+        .detail-phase-row td {
+            display: block;
+            padding: .7rem !important;
+            border: 1px solid #cfe3d8;
+            border-radius: 8px;
+        }
+
+        .detail-phase-btn {
+            min-height: 38px;
+            width: 100%;
+        }
+
+        .points-pill,
+        .prediction-pill,
+        .result-pill,
+        .phase-pill {
+            max-width: 100%;
+            white-space: normal;
+        }
+
+        .points-modal-backdrop {
+            align-items: end;
+            padding: .55rem;
+        }
+
+        .points-modal {
+            padding: 1rem;
         }
     }
 </style>
