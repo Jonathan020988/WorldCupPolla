@@ -50,16 +50,21 @@ namespace WorldCup.Api.Controllers
             if (limitado != null)
                 return limitado;
 
-            var correoExiste = await _context.Usuarios
-                .AnyAsync(u => u.Email.ToLower() == email);
+            var usuarioPorCorreo = await _context.Usuarios
+                .Where(u => u.Email.Trim().ToLower() == email)
+                .Select(u => new { u.EmailConfirmado })
+                .FirstOrDefaultAsync();
 
-            if (correoExiste)
+            if (usuarioPorCorreo != null)
             {
-                return Conflict("El correo ya esta registrado. Si no has confirmado tu cuenta, usa la opcion de reenviar codigo.");
+                return usuarioPorCorreo.EmailConfirmado
+                    ? Conflict("Ya hay un usuario registrado con ese correo. Inicia sesion con ese correo.")
+                    : Conflict("El correo ya esta registrado y esta pendiente de confirmacion. Usa la opcion de reenviar codigo para completar el registro.");
             }
 
+            var nombreNormalizado = nombre.ToLowerInvariant();
             var nombreExiste = await _context.Usuarios
-                .AnyAsync(u => u.Nombre.ToLower() == nombre.ToLower());
+                .AnyAsync(u => u.Nombre.Trim().ToLower() == nombreNormalizado);
 
             if (nombreExiste)
             {
@@ -77,7 +82,14 @@ namespace WorldCup.Api.Controllers
 
             _context.Usuarios.Add(usuario);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (EsDuplicadoUsuario(ex))
+            {
+                return Conflict("Ya hay un usuario registrado con ese correo o con ese nombre. Inicia sesion o usa reenviar codigo si tu cuenta esta pendiente.");
+            }
 
             var ahora = DateTime.UtcNow;
             var tokensActivos = await _context.EmailVerificationTokens
@@ -134,7 +146,7 @@ namespace WorldCup.Api.Controllers
                 return limitado;
 
             var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+                .FirstOrDefaultAsync(u => u.Email.Trim().ToLower() == email);
 
             if (usuario == null)
             {
@@ -199,7 +211,7 @@ namespace WorldCup.Api.Controllers
                 return limitado;
 
             var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+                .FirstOrDefaultAsync(u => u.Email.Trim().ToLower() == email);
 
             if (usuario == null)
             {
@@ -290,6 +302,14 @@ namespace WorldCup.Api.Controllers
         {
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
             return Convert.ToHexString(bytes);
+        }
+
+        private static bool EsDuplicadoUsuario(DbUpdateException ex)
+        {
+            var mensaje = ex.InnerException?.Message ?? ex.Message;
+            return mensaje.Contains("UX_Usuarios_Email_Normalizado", StringComparison.OrdinalIgnoreCase) ||
+                   mensaje.Contains("UX_Usuarios_Nombre_Normalizado", StringComparison.OrdinalIgnoreCase) ||
+                   mensaje.Contains("duplicate key", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

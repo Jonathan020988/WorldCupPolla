@@ -381,7 +381,7 @@ else
                                     <th>Abono / pagado</th>
                                     <th>Debe</th>
                                     <th>Estado</th>
-                                    <th>Nota</th>
+                                    <th>Forma de pago</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -404,17 +404,31 @@ else
                                                    step="1000"
                                                    @bind="pago.AbonoPagado" />
                                         </td>
-                                        <td class="fw-bold">@FormatoPrecio(pago.SaldoPendiente)</td>
+                                        <td class="fw-bold">@FormatoSaldoPendiente(pago.SaldoPendiente)</td>
                                         <td>
                                             <span class="badge @ClaseEstadoPago(pago.EstadoPago)">
                                                 @pago.EstadoPago
                                             </span>
                                         </td>
                                         <td>
-                                            <input class="form-control form-control-sm payment-note-input"
-                                                   maxlength="180"
-                                                   placeholder="Ej: pagó por Nequi"
-                                                   @bind="pago.NotaPago" />
+                                            <div class="payment-method-cell">
+                                                <select class="form-select form-select-sm payment-method-select"
+                                                        value="@FormaPagoSeleccionada(pago)"
+                                                        @onchange="e => CambiarFormaPago(pago, e.Value?.ToString())">
+                                                    <option value="">Sin definir</option>
+                                                    <option value="Transferencia">Transferencia</option>
+                                                    <option value="Efectivo">Efectivo</option>
+                                                    <option value="Otra">Otra</option>
+                                                </select>
+
+                                                @if (FormaPagoSeleccionada(pago) == "Otra")
+                                                {
+                                                    <input class="form-control form-control-sm payment-other-input"
+                                                           maxlength="180"
+                                                           placeholder="¿Cuál?"
+                                                           @bind="pago.NotaPago" />
+                                                }
+                                            </div>
                                         </td>
                                         <td>
                                             <div class="d-flex gap-2 flex-wrap">
@@ -1073,8 +1087,15 @@ else
         min-width: 120px;
     }
 
-    .payment-note-input {
-        min-width: 170px;
+    .payment-method-cell {
+        display: grid;
+        min-width: 190px;
+        gap: .35rem;
+    }
+
+    .payment-method-select,
+    .payment-other-input {
+        min-width: 190px;
     }
 
     .payment-summary {
@@ -1828,6 +1849,50 @@ else
         return valor.HasValue && valor.Value > 0
             ? $"${valor.Value:N0}"
             : "No definido";
+    }
+
+    private static string FormatoSaldoPendiente(decimal valor)
+    {
+        return valor > 0
+            ? $"${valor:N0}"
+            : "";
+    }
+
+    private static string FormaPagoSeleccionada(PollaPagoParticipanteDto pago)
+    {
+        var nota = (pago.NotaPago ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(nota))
+        {
+            return "";
+        }
+
+        if (string.Equals(nota, "Transferencia", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Transferencia";
+        }
+
+        if (string.Equals(nota, "Efectivo", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Efectivo";
+        }
+
+        return "Otra";
+    }
+
+    private static void CambiarFormaPago(PollaPagoParticipanteDto pago, string? formaPago)
+    {
+        formaPago = (formaPago ?? "").Trim();
+        var actual = (pago.NotaPago ?? "").Trim();
+
+        pago.NotaPago = formaPago switch
+        {
+            "Transferencia" => "Transferencia",
+            "Efectivo" => "Efectivo",
+            "Otra" when string.Equals(actual, "Transferencia", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(actual, "Efectivo", StringComparison.OrdinalIgnoreCase) => "",
+            "Otra" => actual,
+            _ => ""
+        };
     }
 
     private async Task Invitar()
