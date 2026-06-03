@@ -51,6 +51,7 @@ namespace WorldCup.Api.Controllers
                     FechaCreacion = p.FechaCreacion,
                     CantidadParticipantes = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && pm.Usuario.Activo),
                     MaximoMiembros = p.MaximoMiembros,
+                    InscripcionesAbiertas = p.InscripcionesAbiertas,
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
                     MetodoPago = p.MetodoPago,
@@ -89,6 +90,7 @@ namespace WorldCup.Api.Controllers
                 FechaCreacion = polla.FechaCreacion,
                 CantidadParticipantes = await _context.PollaMiembros.CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo),
                 MaximoMiembros = polla.MaximoMiembros,
+                InscripcionesAbiertas = polla.InscripcionesAbiertas,
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
@@ -115,6 +117,7 @@ namespace WorldCup.Api.Controllers
                 FechaCreacion = polla.FechaCreacion,
                 CantidadParticipantes = await _context.PollaMiembros.CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo),
                 MaximoMiembros = polla.MaximoMiembros,
+                InscripcionesAbiertas = polla.InscripcionesAbiertas,
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
@@ -237,6 +240,44 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        [HttpPut("{pollaId:int}/inscripciones")]
+        public async Task<IActionResult> ActualizarInscripcionesPolla(
+            int pollaId,
+            [FromBody] ActualizarInscripcionesPollaDTO dto)
+        {
+            var polla = await _context.Pollas
+                .Include(p => p.Creador)
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            if (polla.CreadorId != dto.SolicitanteId)
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el creador puede abrir o cerrar inscripciones");
+
+            polla.InscripcionesAbiertas = dto.InscripcionesAbiertas;
+            await _context.SaveChangesAsync();
+
+            return Ok(new PollaDTO
+            {
+                Id = polla.Id,
+                Nombre = polla.Nombre,
+                Descripcion = polla.Descripcion,
+                CreadorId = polla.CreadorId,
+                FechaCreacion = polla.FechaCreacion,
+                CantidadParticipantes = await _context.PollaMiembros.CountAsync(pm => pm.PollaId == polla.Id && pm.Usuario.Activo),
+                MaximoMiembros = polla.MaximoMiembros,
+                InscripcionesAbiertas = polla.InscripcionesAbiertas,
+                PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
+                ValorInscripcion = polla.ValorInscripcion,
+                MetodoPago = polla.MetodoPago,
+                CuposIlimitados = polla.Creador?.CuposIlimitados == true,
+                PinIngreso = polla.PinIngreso
+            });
         }
 
         [HttpGet("cupos/{usuarioId:int}")]
@@ -1043,6 +1084,7 @@ namespace WorldCup.Api.Controllers
                     FechaCreacion = p.FechaCreacion,
                     CantidadParticipantes = _context.PollaMiembros.Count(pm => pm.PollaId == p.Id && pm.Usuario.Activo),
                     MaximoMiembros = p.MaximoMiembros,
+                    InscripcionesAbiertas = p.InscripcionesAbiertas,
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
                     MetodoPago = p.MetodoPago,
@@ -1980,6 +2022,11 @@ namespace WorldCup.Api.Controllers
 
         private async Task<string?> ValidarCupoDisponibleAsync(Polla polla)
         {
+            if (!polla.InscripcionesAbiertas)
+            {
+                return "Las inscripciones de esta polla están cerradas. Contacta al administrador de la polla si necesitas ingresar.";
+            }
+
             if (polla.Creador?.CuposIlimitados == true)
             {
                 return null;

@@ -19,6 +19,7 @@
 
         // Configuración especial de la polla (puntos extra, reglas)
         public int? MaximoMiembros { get; set; } // Opcional
+        public bool InscripcionesAbiertas { get; set; } = true;
         public bool PermitirEmpatesEnEliminatoria { get; set; } = false;
         public decimal? ValorInscripcion { get; set; }
         public string? MetodoPago { get; set; }

@@ -86,6 +86,13 @@
                     </div>
                 }
 
+                @if (!polla.InscripcionesAbiertas)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        Las inscripciones de esta polla estan cerradas. Contacta al administrador de la polla si necesitas ingresar.
+                    </div>
+                }
+
                 <div class="join-payment">
                     <span>Metodo de pago</span>
                     <p>@MetodoPagoTexto</p>
@@ -125,7 +132,7 @@
                                @bind:event="oninput" />
 
                         <button class="btn btn-primary w-100 mt-3"
-                                disabled="@procesando"
+                                disabled="@(procesando || !polla.InscripcionesAbiertas)"
                                 @onclick="Unirse">
                             @(procesando ? "Validando..." : "Unirme a esta polla")
                         </button>
@@ -225,6 +232,13 @@
         if (!Sesion.EstaLogueado || Sesion.UsuarioId == null)
         {
             mensaje = "Debes crear una cuenta o iniciar sesion antes de ingresar el PIN.";
+            esError = true;
+            return;
+        }
+
+        if (polla?.InscripcionesAbiertas != true)
+        {
+            mensaje = "Las inscripciones de esta polla están cerradas. Contacta al administrador de la polla si necesitas ingresar.";
             esError = true;
             return;
         }

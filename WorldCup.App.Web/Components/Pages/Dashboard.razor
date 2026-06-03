@@ -152,9 +152,87 @@ else
 }
 
 <style>
+    h3.mb-4 {
+        font-weight: 850;
+    }
+
     .polla-card {
         border-left: 4px solid #198754;
-        border-radius: 10px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .polla-card .card-title {
+        color: #13201c;
+        font-weight: 850;
+        line-height: 1.2;
+    }
+
+    @@media (max-width: 640px) {
+        h3.mb-4 {
+            margin-bottom: 1rem !important;
+            font-size: 1.35rem;
+        }
+
+        .row.g-3 {
+            gap: .75rem;
+        }
+
+        .row.g-3 > [class*="col-"] {
+            padding-left: .25rem;
+            padding-right: .25rem;
+        }
+
+        .polla-card {
+            border-left-width: 5px;
+            box-shadow: 0 8px 22px rgba(16, 24, 40, .07) !important;
+        }
+
+        .polla-card .card-body {
+            padding: .9rem;
+        }
+
+        .polla-card .card-title {
+            font-size: 1.05rem;
+            overflow-wrap: anywhere;
+        }
+
+        .polla-card small {
+            display: block;
+            margin-top: .2rem;
+            font-weight: 650;
+        }
+
+        .polla-card .d-flex.align-items-center.mt-3 {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: .55rem;
+            align-items: stretch !important;
+        }
+
+        .polla-card .badge {
+            justify-self: start;
+            padding: .45rem .7rem;
+            font-size: .78rem;
+        }
+
+        .polla-card .flex-grow-1.text-center {
+            width: 100%;
+            text-align: stretch !important;
+        }
+
+        .polla-card .btn {
+            min-height: 42px;
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: normal;
+        }
+
+        .alert .btn {
+            min-height: 40px;
+        }
     }
 </style>
 

@@ -60,6 +60,9 @@ namespace WorldCup.Api.Controllers
             if (!usuarioActivo)
                 return BadRequest("El usuario no existe o está inactivo.");
 
+            if (!polla.InscripcionesAbiertas)
+                return Conflict("Las inscripciones de esta polla están cerradas. Contacta al administrador de la polla si necesitas ingresar.");
+
             // Validar si está lleno
             if (polla.MaximoMiembros.HasValue &&
                 polla.Miembros.Count(m => m.Usuario.Activo) >= polla.MaximoMiembros)

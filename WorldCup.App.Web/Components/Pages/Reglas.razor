@@ -609,4 +609,150 @@
             text-align: left;
         }
     }
+
+    @@media (max-width: 640px) {
+        .rules-page {
+            gap: .85rem;
+            margin: 0 -.15rem;
+        }
+
+        .rules-hero {
+            padding: 1rem;
+        }
+
+        .rules-hero h1 {
+            font-size: 1.45rem;
+        }
+
+        .rules-hero p {
+            font-size: .92rem;
+        }
+
+        .hero-score {
+            min-width: 0;
+            padding: .75rem;
+        }
+
+        .hero-score strong {
+            font-size: 2rem;
+        }
+
+        .flyer-panel,
+        .score-section,
+        .rule-card {
+            padding: .85rem;
+        }
+
+        .section-heading h2 {
+            font-size: 1.15rem;
+        }
+
+        .score-table-wrap {
+            overflow: visible;
+            border: 0;
+        }
+
+        .score-table,
+        .score-table tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .score-table thead {
+            display: none;
+        }
+
+        .score-table tbody {
+            display: grid;
+            gap: .6rem;
+        }
+
+        .score-table tr {
+            display: grid;
+            gap: .45rem;
+            padding: .7rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .score-table td {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: .75rem;
+            padding: 0;
+            border: 0;
+            text-align: right;
+        }
+
+        .score-table td::before {
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: .72rem;
+            font-weight: 900;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .score-table:not(.examples-table) td:nth-child(1)::before {
+            content: "Concepto";
+        }
+
+        .score-table:not(.examples-table) td:nth-child(2)::before {
+            content: "Detalle";
+        }
+
+        .score-table:not(.examples-table) td:nth-child(3)::before {
+            content: "Puntos";
+        }
+
+        .examples-table {
+            min-width: 0;
+        }
+
+        .examples-table td:nth-child(1)::before {
+            content: "Caso";
+        }
+
+        .examples-table td:nth-child(2)::before {
+            content: "Real";
+        }
+
+        .examples-table td:nth-child(3)::before {
+            content: "Pronostico";
+        }
+
+        .examples-table td:nth-child(4)::before {
+            content: "Puntos";
+        }
+
+        .examples-table td:nth-child(5)::before {
+            content: "Explicacion";
+        }
+
+        .score-table td:first-child,
+        .examples-table td:nth-child(5) {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .2rem;
+            padding-bottom: .35rem;
+            border-bottom: 1px dashed var(--line);
+            text-align: left;
+        }
+
+        .points {
+            min-width: 38px;
+        }
+
+        .examples-panel {
+            padding: .75rem;
+        }
+
+        .podium-rules span {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .25rem;
+        }
+    }
 </style>

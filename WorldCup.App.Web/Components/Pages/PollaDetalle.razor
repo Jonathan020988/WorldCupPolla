@@ -8,13 +8,13 @@
 @inject NavigationManager Navigation
 @inject HttpClient Http
 
-<div class="d-flex align-items-start gap-3 mb-4 flex-wrap">
-    <button class="btn btn-outline-primary btn-lg"
+<div class="polla-detail-header d-flex align-items-start gap-3 mb-4 flex-wrap">
+    <button class="btn btn-outline-primary btn-lg polla-back-btn"
             @onclick="VolverADashboard">
         ⬅ Mis pollas
     </button>
 
-    <div class="flex-grow-1">
+    <div class="flex-grow-1 polla-title-box">
         <h2 class="mb-0">🏆 Detalle de la Polla</h2>
         <small class="text-muted">
             Estás viendo el detalle de esta polla
@@ -82,10 +82,11 @@ else if (polla == null)
 }
 else
 {
+    <div class="polla-sections @(polla.InscripcionesAbiertas ? "inscripciones-abiertas" : "inscripciones-cerradas")">
     @* ===== SOLO EL CREADOR VE ESTO ===== *@
     @if (EsCreador)
     {
-        <div class="card mt-3">
+        <div class="card mt-3 capacity-section">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                     <div>
@@ -97,6 +98,28 @@ else
                     <span class="badge @(polla.CuposIlimitados ? "bg-success" : "bg-secondary")">
                         @(polla.CuposIlimitados ? "Cupos ilimitados" : "Plan actual")
                     </span>
+                </div>
+
+                <div class="registration-state-panel mt-3">
+                    <div>
+                        <span>Inscripciones</span>
+                        <strong>@(polla.InscripcionesAbiertas ? "Abiertas" : "Cerradas")</strong>
+                        <small>
+                            @(polla.InscripcionesAbiertas
+                                ? "Los usuarios pueden ingresar si tienen cupo y PIN válido."
+                                : "No se aceptan usuarios nuevos hasta que las abras de nuevo.")
+                        </small>
+                    </div>
+
+                    <button class="btn btn-sm @(polla.InscripcionesAbiertas ? "btn-outline-danger" : "btn-success")"
+                            disabled="@procesandoInscripciones"
+                            @onclick="CambiarEstadoInscripciones">
+                        @(procesandoInscripciones
+                            ? "Procesando..."
+                            : polla.InscripcionesAbiertas
+                                ? "Cerrar inscripciones"
+                                : "Abrir inscripciones")
+                    </button>
                 </div>
 
                 @if (!polla.CuposIlimitados && (polla.MaximoMiembros ?? 5) <= 5)
@@ -192,7 +215,7 @@ else
 
     @if (EsCreador)
     {
-        <div class="card mt-3">
+        <div class="card mt-3 invite-section">
             <div class="card-body">
                 <h5>Invitar a la polla</h5>
 
@@ -201,9 +224,17 @@ else
                        @bind="emailInvitado" />
 
                 <button class="btn btn-primary"
+                        disabled="@(!polla.InscripcionesAbiertas)"
                         @onclick="Invitar">
                     Invitar
                 </button>
+
+                @if (!polla.InscripcionesAbiertas)
+                {
+                    <small class="text-muted d-block mt-2">
+                        Las inscripciones están cerradas. Ábrelas para permitir nuevos ingresos.
+                    </small>
+                }
 
                 @if (!string.IsNullOrEmpty(linkInvitacion))
                 {
@@ -226,7 +257,7 @@ else
 
     @if (EsCreador)
     {
-        <div class="mt-3">
+        <div class="mt-3 pin-section">
             <label class="form-label fw-bold">✏️ Cambiar PIN</label>
             <input class="form-control mb-2"
                    maxlength="4"
@@ -240,7 +271,7 @@ else
         </div>
     }
 
-    <div class="card mt-3">
+    <div class="card mt-3 rules-section">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-start gap-3">
                 <div>
@@ -324,7 +355,7 @@ else
 
     @if (EsCreador)
     {
-        <div class="card mt-3 payment-control-card">
+        <div class="card mt-3 payment-control-card payment-section">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                     <div>
@@ -371,6 +402,20 @@ else
                             <strong>@controlPagos.ParticipantesPagados pagados / @controlPagos.TotalParticipantes</strong>
                         </div>
                     </div>
+                }
+            </div>
+        </div>
+
+        @if (!cargandoControlPagos && controlPagos != null)
+        {
+            <div class="card mt-3 payment-list-section">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                        <div>
+                            <h5 class="mb-1">Detalle de pagos por usuario</h5>
+                            <small class="text-muted">Lista completa para ajustar valores, abonos y avisos.</small>
+                        </div>
+                    </div>
 
                     <div class="table-responsive mt-3 payment-control-scroll">
                         <table class="table table-sm align-middle payment-control-table">
@@ -389,28 +434,28 @@ else
                                 @foreach (var pago in controlPagos.Participantes)
                                 {
                                     <tr>
-                                        <td class="fw-bold">@pago.Nombre</td>
-                                        <td>
+                                        <td class="fw-bold" data-label="Usuario">@pago.Nombre</td>
+                                        <td data-label="Valor">
                                             <input type="number"
                                                    class="form-control form-control-sm payment-money-input"
                                                    min="0"
                                                    step="1000"
                                                    @bind="pago.ValorAPagar" />
                                         </td>
-                                        <td>
+                                        <td data-label="Abono">
                                             <input type="number"
                                                    class="form-control form-control-sm payment-money-input"
                                                    min="0"
                                                    step="1000"
                                                    @bind="pago.AbonoPagado" />
                                         </td>
-                                        <td class="fw-bold">@FormatoSaldoPendiente(pago.SaldoPendiente)</td>
-                                        <td>
+                                        <td class="fw-bold" data-label="Debe">@FormatoSaldoPendiente(pago.SaldoPendiente)</td>
+                                        <td data-label="Estado">
                                             <span class="badge @ClaseEstadoPago(pago.EstadoPago)">
                                                 @pago.EstadoPago
                                             </span>
                                         </td>
-                                        <td>
+                                        <td data-label="Forma de pago">
                                             <div class="payment-method-cell">
                                                 <select class="form-select form-select-sm payment-method-select"
                                                         value="@FormaPagoSeleccionada(pago)"
@@ -430,7 +475,7 @@ else
                                                 }
                                             </div>
                                         </td>
-                                        <td>
+                                        <td data-label="Acciones">
                                             <div class="d-flex gap-2 flex-wrap">
                                                 <button class="btn btn-sm btn-success"
                                                         disabled="@PagoEnProceso(pago.UsuarioId)"
@@ -455,12 +500,196 @@ else
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        }
+    }
+
+    @if (EsCreador)
+    {
+        var usuarioResumen = UsuarioResumenSeleccionado();
+        var pagoResumen = PagoResumenSeleccionado();
+        var rankingResumen = RankingResumenSeleccionado();
+
+        <div class="card mt-3 quick-user-section">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Buscar usuario</h5>
+                        <small class="text-muted">Selecciona un participante para ver pago, ranking y acciones sin bajar a buscarlo.</small>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(usuarioResumenFiltro))
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                @onclick="LimpiarUsuarioResumen">
+                            Limpiar
+                        </button>
+                    }
+                </div>
+
+                <div class="quick-user-picker mt-3">
+                    <label class="form-label">Buscar o seleccionar usuario</label>
+                    <input class="form-control"
+                           list="participantes-polla-list"
+                           placeholder="Escribe o pega el nombre del usuario"
+                           @bind="usuarioResumenFiltro"
+                           @bind:event="oninput" />
+                    <datalist id="participantes-polla-list">
+                        @foreach (var participante in participantes.OrderBy(p => p.Nombre))
+                        {
+                            <option value="@participante.Nombre"></option>
+                        }
+                    </datalist>
+
+                    @if (!string.IsNullOrWhiteSpace(usuarioResumenFiltro) &&
+                        usuarioResumen == null &&
+                        ParticipantesResumenFiltrados().Any())
+                    {
+                        <div class="quick-user-results">
+                            @foreach (var participante in ParticipantesResumenFiltrados())
+                            {
+                                <button type="button"
+                                        @onclick="() => SeleccionarUsuarioResumen(participante)">
+                                    @participante.Nombre
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (usuarioResumen == null)
+                {
+                    <div class="alert alert-light border mt-3 mb-0">
+                        Elige un usuario para cargar su información principal.
+                    </div>
+                }
+                else
+                {
+                    <div class="quick-user-grid mt-3">
+                        <div class="quick-user-card">
+                            <span>Participante</span>
+                            <strong>@usuarioResumen.Nombre</strong>
+                            @if (usuarioResumen.Id == polla.CreadorId)
+                            {
+                                <small class="text-muted">Creador de la polla</small>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-danger mt-2"
+                                        @onclick="() => ConfirmarEliminar(usuarioResumen.Id, usuarioResumen.Nombre)">
+                                    Eliminar usuario
+                                </button>
+                            }
+                        </div>
+
+                        <div class="quick-user-card">
+                            <span>Pago</span>
+                            @if (pagoResumen == null)
+                            {
+                                <strong>Sin datos</strong>
+                            }
+                            else
+                            {
+                                <div class="quick-payment-fields">
+                                    <label>Valor</label>
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           step="1000"
+                                           @bind="pagoResumen.ValorAPagar" />
+
+                                    <label>Abono</label>
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           min="0"
+                                           step="1000"
+                                           @bind="pagoResumen.AbonoPagado" />
+
+                                    <label>Forma de pago</label>
+                                    <select class="form-select form-select-sm"
+                                            value="@FormaPagoSeleccionada(pagoResumen)"
+                                            @onchange="e => CambiarFormaPago(pagoResumen, e.Value?.ToString())">
+                                        <option value="">Sin definir</option>
+                                        <option value="Transferencia">Transferencia</option>
+                                        <option value="Efectivo">Efectivo</option>
+                                        <option value="Otra">Otra</option>
+                                    </select>
+
+                                    @if (FormaPagoSeleccionada(pagoResumen) == "Otra")
+                                    {
+                                        <input class="form-control form-control-sm"
+                                               maxlength="180"
+                                               placeholder="¿Cuál?"
+                                               @bind="pagoResumen.NotaPago" />
+                                    }
+                                </div>
+
+                                <div class="quick-user-mini mt-2">
+                                    <span>Debe</span>
+                                    <strong>@FormatoSaldoPendiente(pagoResumen.SaldoPendiente)</strong>
+                                    <span class="badge @ClaseEstadoPago(pagoResumen.EstadoPago)">
+                                        @pagoResumen.EstadoPago
+                                    </span>
+                                </div>
+
+                                <div class="quick-actions mt-2">
+                                    <button class="btn btn-sm btn-success"
+                                            disabled="@PagoEnProceso(pagoResumen.UsuarioId)"
+                                            @onclick="() => GuardarPago(pagoResumen)">
+                                        Guardar pago
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning"
+                                            disabled="@(PagoEnProceso(pagoResumen.UsuarioId) || pagoResumen.SaldoPendiente <= 0)"
+                                            @onclick="() => NotificarPagoPendiente(pagoResumen)">
+                                        Avisar pago
+                                    </button>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="quick-user-card">
+                            <span>Ranking</span>
+                            @if (rankingResumen == null)
+                            {
+                                <strong>Sin predicciones</strong>
+                            }
+                            else
+                            {
+                                <div class="quick-user-mini">
+                                    <span>Posición</span>
+                                    <strong>#@PosicionRanking(rankingResumen)</strong>
+                                    <span>Puntos</span>
+                                    <strong>@rankingResumen.Puntos</strong>
+                                </div>
+
+                                <div class="ranking-observation-editor mt-2">
+                                    <input class="form-control form-control-sm"
+                                           maxlength="160"
+                                           placeholder="Observación"
+                                           @bind="rankingResumen.ObservacionAdmin"
+                                           @bind:event="oninput" />
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            disabled="@(observacionGuardandoUsuarioId == rankingResumen.UsuarioId)"
+                                            @onclick="() => GuardarObservacionRanking(rankingResumen)">
+                                        @(observacionGuardandoUsuarioId == rankingResumen.UsuarioId ? "..." : "Guardar")
+                                    </button>
+                                </div>
+
+                                <button class="btn btn-sm btn-outline-primary mt-2 w-100"
+                                        @onclick="() => ToggleDetalleUsuario(rankingResumen.Usuario)">
+                                    Ver detalle de puntos
+                                </button>
+                            }
+                        </div>
+                    </div>
                 }
             </div>
         </div>
     }
 
-    <div class="row g-3 mt-4 @(usuarioDetalleAbierto == null ? "" : "polla-detail-open")">
+    <div class="row g-3 mt-4 ranking-section @(usuarioDetalleAbierto == null ? "" : "polla-detail-open")">
 
         <!-- 📊 Ranking -->
         <div class="ranking-col @(usuarioDetalleAbierto == null ? "col-lg-8" : "col-12")">
@@ -496,18 +725,18 @@ else
 
                                     @foreach (var r in ranking)
                                     {
-                                        <tr>
-                                            <td>
+                                        <tr class="ranking-row @(usuarioDetalleAbierto == r.Usuario ? "open" : "")">
+                                            <td class="ranking-rank-cell" data-label="#">
                                                 @(ranking.IndexOf(r) + 1)
                                             </td>
 
-                                            <td class="fw-bold ranking-user-col">
+                                            <td class="fw-bold ranking-user-col ranking-user-cell" data-label="Usuario">
                                                 @r.Usuario
                                             </td>
 
                                             @if (EsCreador)
                                             {
-                                                <td class="ranking-observation-col">
+                                                <td class="ranking-observation-col ranking-observation-cell" data-label="Observación">
                                                     <div class="ranking-observation-editor">
                                                         <input class="form-control form-control-sm"
                                                                maxlength="160"
@@ -523,11 +752,11 @@ else
                                                 </td>
                                             }
 
-                                            <td class="text-end fw-bold">
+                                            <td class="text-end fw-bold ranking-points-cell" data-label="Puntos">
                                                 @r.Puntos
                                             </td>
 
-                                            <td class="text-end">
+                                            <td class="text-end ranking-action-cell" data-label="Detalle">
 
                                                 <button class="btn btn-sm btn-outline-primary ranking-detail-toggle"
                                                         @onclick="() => ToggleDetalleUsuario(r.Usuario)">
@@ -543,7 +772,7 @@ else
 
                                         @if (usuarioDetalleAbierto == r.Usuario)
                                         {
-                                            <tr>
+                                            <tr class="ranking-detail-row">
                                                 <td colspan="@RankingColspan" class="ranking-detail-cell">
 
                                                 <div class="table-responsive mt-2 mb-3 detalle-ranking-scroll">
@@ -634,21 +863,21 @@ else
                                                             else if (resumenFaseActivo)
                                                             {
                                                                 <tr class="detalle-resumen-row">
-                                                                    <td>
+                                                                    <td data-label="Partido">
                                                                         <strong>Resumen</strong><br />
                                                                         <small>@detallesFiltrados.Count partido(s)</small>
                                                                     </td>
-                                                                    <td><span class="badge bg-light text-dark">@NombreFase(detalleFaseResumenFiltro!)</span></td>
-                                                                    <td>-</td>
-                                                                    <td>-</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExacto), "bg-success")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGanador), "bg-info text-dark")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosDiferencia), "bg-secondary")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGoles), "bg-primary")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosClasificacion), "bg-warning text-dark")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExtras), "bg-dark")</td>
-                                                                    <td class="text-center">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosPodio), "bg-danger")</td>
-                                                                    <td class="text-center fw-bold">@detallesFiltrados.Sum(x => x.Total)</td>
+                                                                    <td data-label="Fase"><span class="badge bg-light text-dark">@NombreFase(detalleFaseResumenFiltro!)</span></td>
+                                                                    <td data-label="Pronóstico">-</td>
+                                                                    <td data-label="Resultado">-</td>
+                                                                    <td class="text-center" data-label="Exacto">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExacto), "bg-success")</td>
+                                                                    <td class="text-center" data-label="Ganador">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGanador), "bg-info text-dark")</td>
+                                                                    <td class="text-center" data-label="Diferencia">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosDiferencia), "bg-secondary")</td>
+                                                                    <td class="text-center" data-label="Goles">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosGoles), "bg-primary")</td>
+                                                                    <td class="text-center" data-label="Clasificación">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosClasificacion), "bg-warning text-dark")</td>
+                                                                    <td class="text-center" data-label="Extras">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosExtras), "bg-dark")</td>
+                                                                    <td class="text-center" data-label="Podio">@BadgePuntos(detallesFiltrados.Sum(x => x.PuntosPodio), "bg-danger")</td>
+                                                                    <td class="text-center fw-bold" data-label="Total">@detallesFiltrados.Sum(x => x.Total)</td>
                                                                 </tr>
                                                             }
                                                             else
@@ -682,36 +911,36 @@ else
                                                                         {
                                                                             <tr>
 
-                                                                                <td>
+                                                                                <td data-label="Partido">
                                                                                     <strong>@d.Local</strong>
                                                                                     vs
                                                                                     <strong>@d.Visitante</strong>
                                                                                 </td>
 
-                                                                                <td>
+                                                                                <td data-label="Fase">
                                                                                     <span class="badge bg-light text-dark">
                                                                                         @d.Fase
                                                                                     </span>
                                                                                 </td>
 
-                                                                                <td>
+                                                                                <td data-label="Pronóstico">
                                                                                     <span class="badge bg-primary">
                                                                                         @d.PronosticoLocal - @d.PronosticoVisitante
                                                                                     </span>
                                                                                 </td>
 
-                                                                                <td>
+                                                                                <td data-label="Resultado">
                                                                                     <span class="badge bg-dark">
                                                                                         @d.ResultadoLocal - @d.ResultadoVisitante
                                                                                     </span>
                                                                                 </td>
 
-                                                                                <td class="text-center">@BadgePuntos(d.PuntosExacto, "bg-success")</td>
-                                                                                <td class="text-center">@BadgePuntos(d.PuntosGanador, "bg-info text-dark")</td>
-                                                                                <td class="text-center">@BadgePuntos(d.PuntosDiferencia, "bg-secondary")</td>
-                                                                                <td class="text-center">@BadgePuntos(d.PuntosGoles, "bg-primary")</td>
+                                                                                <td class="text-center" data-label="Exacto">@BadgePuntos(d.PuntosExacto, "bg-success")</td>
+                                                                                <td class="text-center" data-label="Ganador">@BadgePuntos(d.PuntosGanador, "bg-info text-dark")</td>
+                                                                                <td class="text-center" data-label="Diferencia">@BadgePuntos(d.PuntosDiferencia, "bg-secondary")</td>
+                                                                                <td class="text-center" data-label="Goles">@BadgePuntos(d.PuntosGoles, "bg-primary")</td>
 
-                                                                                <td class="text-center">
+                                                                                <td class="text-center" data-label="Clasificación">
 
                                                                                     @if (d.PuntosClasificacion > 0)
                                                                                     {
@@ -729,7 +958,7 @@ else
 
                                                                                 </td>
 
-                                                                                <td class="text-center">
+                                                                                <td class="text-center" data-label="Extras">
 
                                                                                     @if (d.PuntosExtras > 0)
                                                                                     {
@@ -747,7 +976,7 @@ else
 
                                                                                 </td>
 
-                                                                                <td class="text-center">
+                                                                                <td class="text-center" data-label="Podio">
 
                                                                                     @if (d.PuntosPodio > 0)
                                                                                     {
@@ -765,7 +994,7 @@ else
 
                                                                                 </td>
 
-                                                                                <td class="text-center fw-bold">
+                                                                                <td class="text-center fw-bold" data-label="Total">
                                                                                     @d.Total
                                                                                 </td>
 
@@ -857,6 +1086,7 @@ else
         </div>
     }
 
+    </div>
 }
 
 @if (detallePuntosVisible)
@@ -886,6 +1116,213 @@ else
 <style>
     .ranking-card-body {
         overflow: hidden;
+    }
+
+    .polla-detail-header {
+        min-width: 0;
+    }
+
+    .polla-title-box {
+        min-width: 0;
+    }
+
+    .polla-sections {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .registration-state-panel {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .85rem;
+        border: 1px solid #d9e5df;
+        border-radius: 8px;
+        background: #f8fbfa;
+        padding: .8rem;
+    }
+
+    .registration-state-panel span,
+    .quick-user-card > span {
+        display: block;
+        color: #667085;
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .registration-state-panel strong,
+    .quick-user-card > strong {
+        display: block;
+        color: #13201c;
+        font-size: 1.05rem;
+        line-height: 1.2;
+    }
+
+    .registration-state-panel small {
+        display: block;
+        color: #667085;
+        margin-top: .1rem;
+    }
+
+    .quick-user-section {
+        order: 1;
+    }
+
+    .capacity-section {
+        order: 2;
+    }
+
+    .invite-section {
+        order: 3;
+    }
+
+    .pin-section {
+        order: 4;
+    }
+
+    .rules-section {
+        order: 5;
+    }
+
+    .payment-section {
+        order: 6;
+    }
+
+    .payment-list-section {
+        order: 7;
+    }
+
+    .ranking-section {
+        order: 8;
+    }
+
+    .inscripciones-cerradas .payment-section {
+        order: 2;
+    }
+
+    .inscripciones-cerradas .capacity-section {
+        order: 20;
+    }
+
+    .inscripciones-cerradas .invite-section {
+        order: 21;
+    }
+
+    .inscripciones-cerradas .pin-section {
+        order: 22;
+    }
+
+    .inscripciones-cerradas .rules-section {
+        order: 23;
+    }
+
+    .inscripciones-cerradas .payment-list-section {
+        order: 4;
+    }
+
+    .inscripciones-cerradas .ranking-section {
+        display: contents;
+    }
+
+    .inscripciones-cerradas .ranking-col {
+        order: 3;
+        flex: 0 0 100%;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .inscripciones-cerradas .participants-col {
+        order: 24;
+        flex: 0 0 100%;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .polla-sections > .alert {
+        order: 100;
+    }
+
+    .quick-user-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .8rem;
+    }
+
+    .quick-user-card {
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: .85rem;
+        min-width: 0;
+    }
+
+    .quick-user-results {
+        display: grid;
+        gap: .35rem;
+        margin-top: .5rem;
+        max-height: 220px;
+        overflow: auto;
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #fff;
+        padding: .4rem;
+    }
+
+    .quick-user-results button {
+        border: 0;
+        border-radius: 6px;
+        background: #f5f8f7;
+        color: #13201c;
+        padding: .55rem .65rem;
+        text-align: left;
+        font-weight: 750;
+    }
+
+    .quick-user-results button:hover,
+    .quick-user-results button:focus-visible {
+        background: #e8f5ee;
+        outline: 2px solid rgba(20, 108, 67, .18);
+    }
+
+    .quick-user-mini {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+
+    .quick-user-mini span {
+        color: #667085;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .quick-payment-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .45rem .55rem;
+        margin-top: .45rem;
+    }
+
+    .quick-payment-fields label {
+        align-self: center;
+        color: #667085;
+        font-size: .74rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .quick-payment-fields .form-control,
+    .quick-payment-fields .form-select {
+        min-width: 0;
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .45rem;
     }
 
     .ranking-col,
@@ -1342,12 +1779,62 @@ else
     }
 
     @@media (max-width: 768px) {
-        .ranking-card-body {
+        .polla-detail-header {
+            display: grid !important;
+            gap: .85rem !important;
+        }
+
+        .polla-back-btn {
+            width: 100%;
+            min-height: 46px;
+        }
+
+        .polla-title-box h2 {
+            font-size: 1.45rem;
+            line-height: 1.2;
+        }
+
+        .polla-title-box .fs-5 {
+            display: inline-block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+
+        .card {
+            border-radius: 8px;
+        }
+
+        .card-body {
             padding: .9rem;
         }
 
-        .ranking-table {
-            min-width: 700px;
+        .codigo-cupos .input-group {
+            display: grid;
+            gap: .55rem;
+        }
+
+        .codigo-cupos .input-group > .form-control,
+        .codigo-cupos .input-group > .btn {
+            width: 100%;
+            border-radius: 6px !important;
+        }
+
+        .registration-state-panel {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .registration-state-panel .btn {
+            width: 100%;
+            min-height: 40px;
+        }
+
+        .quick-user-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .quick-actions {
+            grid-template-columns: 1fr;
         }
 
         .payment-summary,
@@ -1356,20 +1843,354 @@ else
             grid-template-columns: 1fr;
         }
 
-        .ranking-action-col {
-            width: 104px;
+        .payment-kpis {
+            gap: .55rem;
         }
 
-        .ranking-observation-col {
-            width: 230px;
+        .payment-control-scroll,
+        .ranking-table-scroll,
+        .detalle-ranking-scroll {
+            width: 100%;
+            max-width: 100%;
+            overflow: visible !important;
+            border: 0;
+            background: transparent;
         }
 
-        .ranking-points-col {
-            width: 76px;
+        .payment-control-table,
+        .payment-control-table tbody,
+        .ranking-table,
+        .ranking-table tbody,
+        .detalle-ranking-table,
+        .detalle-ranking-table tbody {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+        }
+
+        .payment-control-table thead,
+        .ranking-table thead,
+        .detalle-ranking-table thead {
+            display: none;
+        }
+
+        .payment-control-table tbody,
+        .ranking-table tbody,
+        .detalle-ranking-table tbody {
+            display: grid !important;
+            gap: .7rem;
+        }
+
+        .payment-control-table tr {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-areas:
+                "usuario usuario"
+                "valor abono"
+                "debe estado"
+                "forma forma"
+                "acciones acciones";
+            gap: .65rem;
+            padding: .75rem;
+            border: 1px solid #dce8e1;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(16, 24, 40, .06);
+        }
+
+        .ranking-table tr.ranking-row,
+        .detalle-ranking-table tbody tr:not(.detalle-fase-row) {
+            display: grid;
+            gap: .5rem;
+            padding: .75rem;
+            border: 1px solid #dce8e1;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(16, 24, 40, .06);
+        }
+
+        .payment-control-table td,
+        .detalle-ranking-table tbody tr:not(.detalle-fase-row) td {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            min-height: 30px;
+            padding: 0;
+            border: 0;
+            text-align: right !important;
+        }
+
+        .payment-control-table td[data-label="Usuario"] {
+            grid-area: usuario;
+        }
+
+        .payment-control-table td[data-label="Valor"] {
+            grid-area: valor;
+        }
+
+        .payment-control-table td[data-label="Abono"] {
+            grid-area: abono;
+        }
+
+        .payment-control-table td[data-label="Debe"] {
+            grid-area: debe;
+        }
+
+        .payment-control-table td[data-label="Estado"] {
+            grid-area: estado;
+        }
+
+        .payment-control-table td[data-label="Forma de pago"] {
+            grid-area: forma;
+        }
+
+        .payment-control-table td[data-label="Acciones"] {
+            grid-area: acciones;
+        }
+
+        .payment-control-table td::before,
+        .detalle-ranking-table tbody tr:not(.detalle-fase-row) td::before {
+            content: attr(data-label);
+            flex: 0 0 auto;
+            color: #667085;
+            font-size: .74rem;
+            font-weight: 850;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .payment-control-table td[data-label="Valor"],
+        .payment-control-table td[data-label="Abono"],
+        .payment-control-table td[data-label="Forma de pago"],
+        .payment-control-table td[data-label="Acciones"],
+        .detalle-ranking-table tbody tr:not(.detalle-fase-row) td[data-label="Partido"] {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .28rem;
+            padding-bottom: .45rem;
+            border-bottom: 1px dashed #dce8e1;
+            text-align: left !important;
+        }
+
+        .payment-control-table td[data-label="Usuario"] {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .25rem;
+            color: #13201c;
+            font-size: 1rem;
+            text-align: left !important;
+        }
+
+        .payment-control-table td[data-label="Debe"],
+        .payment-control-table td[data-label="Estado"] {
+            justify-content: flex-start;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: .22rem;
+            border-bottom: 1px dashed #dce8e1;
+            padding-bottom: .45rem;
+            text-align: left !important;
+        }
+
+        .payment-control-table td[data-label="Acciones"] {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .payment-control-table td[data-label="Acciones"] > .d-flex {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            width: 100%;
+        }
+
+        .payment-control-table td[data-label="Acciones"] .btn {
+            min-height: 38px;
+            padding-left: .45rem;
+            padding-right: .45rem;
+        }
+
+        .payment-money-input,
+        .payment-method-cell,
+        .payment-method-select,
+        .payment-other-input {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .ranking-card-body {
+            padding: .9rem;
+        }
+
+        .ranking-table {
+            table-layout: auto;
+        }
+
+        .ranking-table tr.ranking-row {
+            grid-template-columns: 34px minmax(0, 1fr) auto;
+            grid-template-areas:
+                "rank user points"
+                "observation observation observation"
+                "action action action";
+            align-items: center;
+            gap: .58rem;
+        }
+
+        .ranking-table tr.ranking-row.open {
+            border-color: #bcd9cd;
+            background: #f5fbf8;
+        }
+
+        .ranking-table tr.ranking-row > td {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+            padding: 0;
+            border: 0;
+            text-align: left !important;
+        }
+
+        .ranking-rank-cell {
+            grid-area: rank;
+            display: grid !important;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px !important;
+            background: #eaf4ee;
+            color: #146c43;
+            font-weight: 900;
+        }
+
+        .ranking-user-cell {
+            grid-area: user;
+            min-width: 0;
+            overflow-wrap: anywhere;
+            line-height: 1.2;
+        }
+
+        .ranking-observation-cell {
+            grid-area: observation;
+            display: block !important;
+            width: 100%;
+            min-width: 0;
+            padding-top: .48rem !important;
+            border-top: 1px dashed #dce8e1 !important;
+        }
+
+        .ranking-observation-cell::before,
+        .ranking-points-cell::before {
+            content: attr(data-label);
+            margin-right: .45rem;
+            color: #667085;
+            font-size: .74rem;
+            font-weight: 850;
+            text-transform: uppercase;
+        }
+
+        .ranking-observation-cell::before {
+            display: block;
+            margin: 0 0 .3rem;
+        }
+
+        .ranking-observation-editor {
+            grid-template-columns: minmax(0, 1fr) 74px;
+            width: 100%;
+            gap: .35rem;
+        }
+
+        .ranking-observation-editor input {
+            height: 36px;
+            font-size: .86rem;
+        }
+
+        .ranking-observation-editor .btn,
+        .ranking-detail-toggle {
+            min-height: 38px;
+        }
+
+        .ranking-observation-editor .btn {
+            width: 74px;
+            padding-left: .35rem;
+            padding-right: .35rem;
+        }
+
+        .ranking-points-cell {
+            grid-area: points;
+            justify-content: center;
+            min-width: 54px !important;
+            border-radius: 999px !important;
+            background: #e8f5ee;
+            color: #146c43;
+            font-size: 1rem;
+            font-weight: 900;
+        }
+
+        .ranking-points-cell::before {
+            display: none;
+        }
+
+        .ranking-action-cell {
+            grid-area: action;
+            justify-content: stretch;
+        }
+
+        .ranking-action-cell::before {
+            display: none;
         }
 
         .ranking-detail-toggle {
-            width: 78px;
+            width: 100%;
+        }
+
+        .ranking-detail-row {
+            display: block;
+            width: 100%;
+        }
+
+        .ranking-detail-cell {
+            display: block;
+            padding: 0 !important;
+            border: 0;
+        }
+
+        .detalle-filtros-panel {
+            min-width: 0;
+            margin: .25rem 0 .7rem;
+            box-shadow: none;
+        }
+
+        .detalle-ranking-table {
+            min-width: 0;
+        }
+
+        .detalle-ranking-table tbody tr.detalle-fase-row {
+            display: block;
+            border: 0;
+            box-shadow: none;
+        }
+
+        .detalle-fase-row td {
+            display: block;
+            padding: .7rem !important;
+            border: 1px solid #cfe3d8;
+            border-radius: 8px;
+        }
+
+        .detalle-fase-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .detalle-fase-btn {
+            width: 100%;
+            min-height: 38px;
+        }
+
+        .detalle-ranking-table .badge,
+        .payment-control-table .badge {
+            white-space: normal;
         }
 
         .participant-item {
@@ -1379,16 +2200,6 @@ else
         .participant-delete-btn {
             padding-left: .55rem;
             padding-right: .55rem;
-        }
-
-        .detalle-ranking-table,
-        .detalle-filtros-panel {
-            min-width: 860px;
-        }
-
-        .detalle-fase-header {
-            align-items: flex-start;
-            flex-direction: column;
         }
 
         .cupos-plan-grid {
@@ -1432,6 +2243,8 @@ else
     private bool procesandoCupos;
     private bool accesoDenegado;
     private string? mensajeAcceso;
+    private bool procesandoInscripciones;
+    private string usuarioResumenFiltro = "";
 
     private string TextoCupoPolla =>
         polla?.CuposIlimitados == true
@@ -1439,6 +2252,99 @@ else
             : (polla?.MaximoMiembros ?? 5).ToString();
 
     private int RankingColspan => EsCreador ? 5 : 4;
+
+    private int? UsuarioResumenSeleccionadoId =>
+        UsuarioResumenSeleccionado()?.Id;
+
+    private ParticipanteDto? UsuarioResumenSeleccionado()
+    {
+        var texto = NormalizarBusqueda(usuarioResumenFiltro);
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return null;
+        }
+
+        if (int.TryParse(usuarioResumenFiltro, out var usuarioId))
+        {
+            var porId = participantes.FirstOrDefault(p => p.Id == usuarioId);
+            if (porId != null)
+            {
+                return porId;
+            }
+        }
+
+        var exacto = participantes.FirstOrDefault(p =>
+            NormalizarBusqueda(p.Nombre) == texto);
+        if (exacto != null)
+        {
+            return exacto;
+        }
+
+        var coincidencias = ParticipantesResumenFiltrados().ToList();
+        return coincidencias.Count == 1 ? coincidencias[0] : null;
+    }
+
+    private PollaPagoParticipanteDto? PagoResumenSeleccionado()
+    {
+        var usuarioId = UsuarioResumenSeleccionadoId;
+        return usuarioId.HasValue
+            ? controlPagos?.Participantes.FirstOrDefault(p => p.UsuarioId == usuarioId.Value)
+            : null;
+    }
+
+    private RankingPollaDto? RankingResumenSeleccionado()
+    {
+        var usuarioId = UsuarioResumenSeleccionadoId;
+        return usuarioId.HasValue
+            ? ranking.FirstOrDefault(r => r.UsuarioId == usuarioId.Value)
+            : null;
+    }
+
+    private int PosicionRanking(RankingPollaDto participante)
+    {
+        var index = ranking.FindIndex(r => r.UsuarioId == participante.UsuarioId);
+        return index >= 0 ? index + 1 : 0;
+    }
+
+    private void LimpiarUsuarioResumen()
+    {
+        usuarioResumenFiltro = "";
+    }
+
+    private void SeleccionarUsuarioResumen(ParticipanteDto participante)
+    {
+        usuarioResumenFiltro = participante.Nombre;
+    }
+
+    private IEnumerable<ParticipanteDto> ParticipantesResumenFiltrados()
+    {
+        var texto = NormalizarBusqueda(usuarioResumenFiltro);
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return Enumerable.Empty<ParticipanteDto>();
+        }
+
+        return participantes
+            .Where(p => NormalizarBusqueda(p.Nombre).Contains(texto, StringComparison.Ordinal))
+            .OrderBy(p => p.Nombre)
+            .Take(8);
+    }
+
+    private static string NormalizarBusqueda(string? texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return "";
+        }
+
+        var normalizado = texto.Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var caracteres = normalizado
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) !=
+                System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray();
+
+        return new string(caracteres).Normalize(System.Text.NormalizationForm.FormC);
+    }
 
     private void ToggleDetalleUsuario(string usuario)
     {
@@ -1780,6 +2686,42 @@ else
         }
     }
 
+    private async Task CambiarEstadoInscripciones()
+    {
+        if (polla == null || !Sesion.UsuarioId.HasValue)
+        {
+            mensaje = "Debes iniciar sesión para cambiar el estado de inscripciones.";
+            esError = true;
+            return;
+        }
+
+        try
+        {
+            procesandoInscripciones = true;
+            var nuevoEstado = !polla.InscripcionesAbiertas;
+
+            polla = await PollasService.ActualizarInscripcionesPollaAsync(
+                PollaId,
+                Sesion.UsuarioId.Value,
+                nuevoEstado);
+
+            PrepararDatosPolla();
+            mensaje = nuevoEstado
+                ? "Inscripciones abiertas. Los usuarios nuevos ya pueden ingresar si tienen cupo."
+                : "Inscripciones cerradas. No se aceptarán usuarios nuevos hasta que las abras.";
+            esError = false;
+        }
+        catch (Exception ex)
+        {
+            mensaje = ex.Message;
+            esError = true;
+        }
+        finally
+        {
+            procesandoInscripciones = false;
+        }
+    }
+
     private void EditarDatosPolla()
     {
         PrepararDatosPolla();
@@ -2048,6 +2990,11 @@ else
             await CargarParticipantes();
             await CargarRanking();
             await CargarControlPagos();
+
+            if (UsuarioResumenSeleccionadoId == usuarioAEliminarId)
+            {
+                LimpiarUsuarioResumen();
+            }
 
             mensaje = $"❌ {usuarioAEliminarNombre} fue expulsado de la polla.";
             esError = false;

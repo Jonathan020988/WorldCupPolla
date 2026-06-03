@@ -146,4 +146,11 @@
     .navbar-toggler {
         top: 0.75rem;
     }
+
+    .navbar-toggler:checked ~ .nav-scrollable {
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
 }

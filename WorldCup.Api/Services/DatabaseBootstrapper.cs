@@ -42,6 +42,9 @@ public static class DatabaseBootstrapper
             ALTER TABLE "Pollas"
             ADD COLUMN IF NOT EXISTS "MetodoPago" text NULL;
 
+            ALTER TABLE "Pollas"
+            ADD COLUMN IF NOT EXISTS "InscripcionesAbiertas" boolean NOT NULL DEFAULT true;
+
             ALTER TABLE "PollaMiembros"
             ADD COLUMN IF NOT EXISTS "ValorAPagar" numeric(12,2) NULL;
 

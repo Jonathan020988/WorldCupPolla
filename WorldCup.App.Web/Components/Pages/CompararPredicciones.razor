@@ -168,19 +168,19 @@
                                 @foreach (var d in MarcadoresFiltrados())
                                 {
                                     <tr>
-                                        <td>
+                                        <td data-label="Partido">
                                             <strong>@d.Local</strong> vs <strong>@d.Visitante</strong>
                                         </td>
-                                        <td><span class="phase-pill">@NombreFase(d.Fase)</span></td>
-                                        <td>@FechaCorta(d.Fecha)</td>
-                                        <td>@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
-                                        <td>@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
-                                        <td>
+                                        <td data-label="Fase"><span class="phase-pill">@NombreFase(d.Fase)</span></td>
+                                        <td data-label="Fecha">@FechaCorta(d.Fecha)</td>
+                                        <td data-label="Mi marcador">@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
+                                        <td data-label="Real">@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                        <td data-label="Estado">
                                             <span class="status-pill @EstadoMarcadorCss(d)">
                                                 @EstadoMarcador(d)
                                             </span>
                                         </td>
-                                        <td class="text-end">
+                                        <td class="text-end" data-label="Puntos">
                                             <strong>@d.Total</strong>
                                         </td>
                                     </tr>
@@ -221,7 +221,7 @@
                     </div>
                     <div>
                         <span>Mejores terceros reales</span>
-                        <strong>@TextoGrupos(TercerosReales())</strong>
+                        <strong>@TextoTercerosReales()</strong>
                     </div>
                 </div>
 
@@ -247,12 +247,12 @@
                                     @foreach (var equipo in grupo.Equipos)
                                     {
                                         <tr>
-                                            <td><strong>@equipo.Equipo</strong></td>
-                                            <td>@TextoPosicion(equipo.PosicionPredicha)</td>
-                                            <td>@TextoPosicion(equipo.PosicionReal)</td>
-                                            <td>
-                                                <span class="status-pill @(equipo.ClasificacionCoincide ? "ok" : "miss")">
-                                                    @(equipo.ClasificacionCoincide ? "Coincide" : "Diferente")
+                                            <td data-label="Equipo"><strong>@equipo.Equipo</strong></td>
+                                            <td data-label="Mi pos.">@TextoPosicion(equipo.PosicionPredicha)</td>
+                                            <td data-label="Real">@TextoPosicionReal(equipo)</td>
+                                            <td data-label="Clasifica">
+                                                <span class="status-pill @EstadoClasificacionCss(equipo)">
+                                                    @EstadoClasificacion(equipo)
                                                 </span>
                                             </td>
                                         </tr>
@@ -622,6 +622,164 @@
             grid-template-columns: 1fr;
         }
     }
+
+    @@media (max-width: 640px) {
+        .compare-page {
+            margin: 0 -.15rem;
+        }
+
+        .compare-hero {
+            padding: 1rem;
+        }
+
+        .compare-hero h1 {
+            font-size: 1.42rem;
+        }
+
+        .switch-btn,
+        .clear-btn {
+            min-height: 42px;
+            width: 100%;
+        }
+
+        .active-polla,
+        .compare-panel,
+        .compare-summary,
+        .compare-tabs,
+        .thirds-box {
+            box-shadow: 0 6px 18px rgba(16, 24, 40, .05);
+        }
+
+        .compare-summary {
+            gap: .55rem;
+            padding: .65rem;
+        }
+
+        .compare-summary div {
+            padding: .65rem;
+        }
+
+        .compare-summary strong {
+            font-size: 1.15rem;
+        }
+
+        .compare-tabs {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .compare-tabs button {
+            min-height: 42px;
+        }
+
+        .panel-title {
+            padding: .85rem;
+        }
+
+        .compare-filters,
+        .compare-filters.compact {
+            grid-template-columns: 1fr;
+            padding: .75rem;
+        }
+
+        .compare-filters select,
+        .compare-filters input {
+            min-height: 42px;
+        }
+
+        .table-wrap {
+            max-height: none;
+            overflow: visible;
+            padding: .75rem;
+        }
+
+        .compare-table,
+        .compare-table tbody,
+        .group-table,
+        .group-table tbody {
+            display: block;
+            width: 100%;
+        }
+
+        .compare-table thead,
+        .group-table thead {
+            display: none;
+        }
+
+        .compare-table tbody,
+        .group-table tbody {
+            display: grid;
+            gap: .65rem;
+        }
+
+        .compare-table tr,
+        .group-table tr {
+            display: grid;
+            gap: .45rem;
+            padding: .7rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .compare-table td,
+        .group-table td {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            min-height: 28px;
+            padding: 0;
+            border: 0;
+            text-align: right !important;
+        }
+
+        .compare-table td::before,
+        .group-table td::before {
+            content: attr(data-label);
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: .74rem;
+            font-weight: 850;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .compare-table td[data-label="Partido"],
+        .group-table td[data-label="Equipo"] {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .22rem;
+            padding-bottom: .4rem;
+            border-bottom: 1px dashed var(--line);
+            text-align: left !important;
+        }
+
+        .phase-pill,
+        .prediction-pill,
+        .result-pill,
+        .status-pill {
+            white-space: normal;
+        }
+
+        .thirds-box {
+            margin: 0 .75rem .75rem;
+            padding: .75rem;
+        }
+
+        .group-grid {
+            grid-template-columns: 1fr;
+            gap: .75rem;
+            padding: 0 .75rem .75rem;
+        }
+
+        .group-title {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .25rem;
+        }
+    }
 </style>
 
 @code {
@@ -788,6 +946,7 @@
 
                 tablasReales.TryGetValue(grupo, out var tabla);
                 tabla ??= new();
+                var realDisponible = GrupoRealCompleto(tabla);
 
                 return new GrupoComparadoDto
                 {
@@ -799,15 +958,16 @@
                             var posPredicha = PosicionPredicha(e.EquipoId, prediccion);
                             var clasificaPredicha = posPredicha <= 2 ||
                                 (posPredicha == 3 && tercerosUsuario.Contains(grupo));
-                            var clasificaReal = e.PosicionReal <= 2 ||
-                                (e.PosicionReal == 3 && tercerosReales.Contains(grupo));
+                            var clasificaReal = realDisponible && (e.PosicionReal <= 2 ||
+                                (e.PosicionReal == 3 && tercerosReales.Contains(grupo)));
 
                             return new EquipoComparadoDto
                             {
                                 Equipo = e.Equipo,
                                 PosicionPredicha = posPredicha,
-                                PosicionReal = e.PosicionReal,
-                                ClasificacionCoincide = clasificaPredicha == clasificaReal
+                                PosicionReal = realDisponible ? e.PosicionReal : 0,
+                                RealDisponible = realDisponible,
+                                ClasificacionCoincide = realDisponible && clasificaPredicha == clasificaReal
                             };
                         })
                         .ToList()
@@ -818,6 +978,11 @@
 
     private List<string> TercerosReales()
     {
+        if (!ClasificacionRealCompleta())
+        {
+            return new();
+        }
+
         return tablasReales
             .SelectMany(g => g.Value.Where(e => e.PosicionReal == 3))
             .OrderByDescending(e => e.Puntos)
@@ -827,6 +992,18 @@
             .Take(8)
             .Select(e => e.Grupo)
             .ToList();
+    }
+
+    private bool ClasificacionRealCompleta()
+    {
+        return LetrasGrupos.All(g =>
+            tablasReales.TryGetValue(g, out var tabla) &&
+            GrupoRealCompleto(tabla));
+    }
+
+    private static bool GrupoRealCompleto(List<TablaGrupoRealDto> tabla)
+    {
+        return tabla.Count >= 4 && tabla.All(e => e.PJ >= 3);
     }
 
     private static int PosicionPredicha(int equipoId, ClasificacionGuardadaDto? prediccion)
@@ -921,6 +1098,33 @@
         return posicion <= 0 ? "-" : posicion.ToString();
     }
 
+    private static string TextoPosicionReal(EquipoComparadoDto equipo)
+    {
+        return equipo.RealDisponible
+            ? TextoPosicion(equipo.PosicionReal)
+            : "-";
+    }
+
+    private static string EstadoClasificacion(EquipoComparadoDto equipo)
+    {
+        if (!equipo.RealDisponible)
+        {
+            return "Pendiente";
+        }
+
+        return equipo.ClasificacionCoincide ? "Coincide" : "Diferente";
+    }
+
+    private static string EstadoClasificacionCss(EquipoComparadoDto equipo)
+    {
+        if (!equipo.RealDisponible)
+        {
+            return "pending";
+        }
+
+        return equipo.ClasificacionCoincide ? "ok" : "miss";
+    }
+
     private static string TextoGrupos(IEnumerable<string> grupos)
     {
         var lista = grupos
@@ -933,6 +1137,13 @@
         return lista.Any()
             ? string.Join(", ", lista.Select(g => $"Grupo {g}"))
             : "Sin datos";
+    }
+
+    private string TextoTercerosReales()
+    {
+        return ClasificacionRealCompleta()
+            ? TextoGrupos(TercerosReales())
+            : "Pendiente";
     }
 
     private static MarkupString Marcador(int? local, int? visitante, string clase)
@@ -1009,6 +1220,7 @@
         public string Equipo { get; set; } = "";
         public int PosicionPredicha { get; set; }
         public int PosicionReal { get; set; }
+        public bool RealDisponible { get; set; }
         public bool ClasificacionCoincide { get; set; }
     }
 }

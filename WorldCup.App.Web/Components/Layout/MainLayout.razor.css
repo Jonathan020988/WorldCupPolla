@@ -38,6 +38,13 @@ main {
     }
 
 @media (max-width: 991.98px) {
+    .sidebar {
+        position: sticky;
+        top: 0;
+        z-index: 1050;
+        box-shadow: 0 8px 20px rgba(16, 24, 40, 0.16);
+    }
+
     article.content {
         padding-left: 0.75rem !important;
         padding-right: 0.75rem !important;

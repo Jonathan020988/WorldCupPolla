@@ -706,15 +706,31 @@ else
 
         .grupo-card .card-header .form-check {
             grid-column: 1 / -1;
-            min-height: 40px;
             display: flex;
             align-items: center;
-            gap: .45rem;
+            justify-content: center;
+            gap: .55rem;
+            min-height: 42px;
             margin: 0;
-            padding: .45rem .6rem;
+            padding: .5rem .75rem;
             border: 1px solid rgba(255, 255, 255, .25);
             border-radius: 8px;
             background: rgba(255, 255, 255, .08);
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        .grupo-card .card-header .form-check-input {
+            flex: 0 0 auto;
+            float: none;
+            width: 1.15rem;
+            height: 1.15rem;
+            margin: 0;
+        }
+
+        .grupo-card .card-header .form-check-label {
+            margin: 0;
+            line-height: 1.1;
         }
 
         .grupo-card .card-header .btn {
@@ -746,7 +762,9 @@ else
         }
 
         .grupo-card td:first-child div {
+            justify-content: center;
             min-width: 0;
+            text-align: center;
         }
 
         .grupo-card td:first-child span {
@@ -772,14 +790,49 @@ else
             padding: .85rem;
         }
 
+        .card.mt-4.shadow .card-body > .row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: .45rem;
+            margin: 0;
+        }
+
+        .card.mt-4.shadow .card-body > .row > .col-md-4 {
+            width: auto;
+            max-width: none;
+            padding: 0;
+        }
+
         .card.mt-4.shadow h5 {
             text-align: left !important;
-            font-size: 1rem;
+            min-height: 38px;
+            margin-bottom: .5rem !important;
+            text-align: center !important;
+            font-size: .78rem;
             font-weight: 800;
+            line-height: 1.15;
         }
 
         .card.mt-4.shadow .border.rounded {
-            min-height: 44px;
+            align-items: center !important;
+            flex-direction: column;
+            justify-content: center;
+            gap: .25rem !important;
+            min-height: 74px;
+            padding: .45rem .25rem !important;
+            text-align: center;
+        }
+
+        .card.mt-4.shadow .border.rounded img {
+            width: 24px;
+        }
+
+        .card.mt-4.shadow .border.rounded strong {
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            font-size: .78rem;
+            line-height: 1.15;
         }
     }
 
