@@ -1,4 +1,5 @@
 ﻿using ClosedXML.Excel;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
@@ -35,7 +36,11 @@ namespace WorldCup.Api.Controllers
         public async Task<IActionResult> GuardarMultiples(GuardarPrediccionGrupoDTO dto)
         {
 
-            int usuarioId = UserIdActual(dto.UsuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(dto.PollaId, dto.UsuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuarioId = acceso.UsuarioId;
 
             foreach (var item in dto.Predicciones)
             {
@@ -141,15 +146,16 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int? pollaId,
             [FromQuery] int? usuarioId)
         {
-            var usuario = UserIdActual(usuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            var usuario = acceso.UsuarioId;
 
             var query = _context.Predicciones
                 .AsQueryable();
 
-            if (pollaId.HasValue)
-            {
-                query = query.Where(p => p.PollaId == pollaId.Value);
-            }
+            query = query.Where(p => p.PollaId == acceso.PollaId);
 
             query = query.Where(p => p.UsuarioId == usuario);
 
@@ -178,7 +184,11 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int pollaId,
             [FromQuery] int? usuarioId)
         {
-            var usuario = UserIdActual(usuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            var usuario = acceso.UsuarioId;
 
             var reaperturas = await _context.AdminReaperturasPrediccion
                 .Where(r =>
@@ -207,7 +217,11 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int pollaId,
             [FromQuery] int? usuarioId)
         {
-            var usuario = UserIdActual(usuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            var usuario = acceso.UsuarioId;
 
             var prediccion = await _context.Predicciones
                 .Include(p => p.Partido)
@@ -243,11 +257,50 @@ namespace WorldCup.Api.Controllers
         // MÉTODOS AUXILIARES
         // =========================================================
 
-        // Simulado por ahora (luego JWT)
-        //private int UserIdActual() => 1;
-        private int UserIdActual(int? usuarioId = null)
+        private IActionResult UsuarioPollaInvalido()
         {
-            return usuarioId.GetValueOrDefault(4);
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "No tienes permisos para usar esta polla con ese usuario.");
+        }
+
+        private async Task<(IActionResult? Error, int PollaId, int UsuarioId)> ValidarUsuarioPollaAsync(
+            int? pollaId,
+            int? usuarioId)
+        {
+            if (!pollaId.HasValue || pollaId.Value <= 0)
+                return (BadRequest("Debes indicar una polla válida."), 0, 0);
+
+            if (!usuarioId.HasValue || usuarioId.Value <= 0)
+                return (BadRequest("Debes iniciar sesión para continuar."), 0, 0);
+
+            var pid = pollaId.Value;
+            var uid = usuarioId.Value;
+
+            var usuarioActivo = await _context.Usuarios
+                .AnyAsync(u => u.Id == uid && u.Activo);
+
+            if (!usuarioActivo)
+                return (UsuarioPollaInvalido(), 0, 0);
+
+            var existePolla = await _context.Pollas
+                .AnyAsync(p => p.Id == pid);
+
+            if (!existePolla)
+                return (NotFound("La polla no existe."), 0, 0);
+
+            var esCreador = await _context.Pollas
+                .AnyAsync(p => p.Id == pid && p.CreadorId == uid);
+
+            var esMiembro = await _context.PollaMiembros
+                .AnyAsync(pm =>
+                    pm.PollaId == pid &&
+                    pm.UsuarioId == uid &&
+                    pm.Usuario.Activo);
+
+            return esCreador || esMiembro
+                ? (null, pid, uid)
+                : (UsuarioPollaInvalido(), 0, 0);
         }
 
         private static bool PartidoCerrado(Partido partido)
@@ -562,9 +615,14 @@ namespace WorldCup.Api.Controllers
         [HttpGet("tabla-simulada/{pollaId}/{grupo}")]
         public async Task<IActionResult> GetTablaSimulada(
             int pollaId,
-            string grupo)
+            string grupo,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual();
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             // 1️⃣ Equipos del grupo
             var equipos = await _context.Equipos
@@ -581,7 +639,7 @@ namespace WorldCup.Api.Controllers
                 .Include(p => p.Partido)
                 .Where(p =>
                     p.PollaId == pollaId &&
-                    p.UsuarioId == usuarioId &&
+                    p.UsuarioId == usuario &&
                     p.Partido.Fase == "Grupos" &&
                     equiposIds.Contains(p.Partido.LocalId) &&
                     equiposIds.Contains(p.Partido.VisitanteId) &&
@@ -657,9 +715,14 @@ namespace WorldCup.Api.Controllers
         [HttpGet("tabla/{pollaId}/{grupo}")]
         public async Task<IActionResult> GetTablaPredichaGrupo(
             int pollaId,
-            string grupo)
+            string grupo,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual(); // simulado por ahora
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             // 1️⃣ Equipos del grupo
             var equipos = await _context.Equipos
@@ -676,7 +739,7 @@ namespace WorldCup.Api.Controllers
                 .Include(p => p.Partido)
                 .Where(p =>
                     p.PollaId == pollaId &&
-                    p.UsuarioId == usuarioId &&
+                    p.UsuarioId == usuario &&
                     p.Partido.Fase == "Grupos" &&
                     equiposIds.Contains(p.Partido.LocalId) &&
                     equiposIds.Contains(p.Partido.VisitanteId)
@@ -752,8 +815,13 @@ namespace WorldCup.Api.Controllers
         [HttpGet("comparacion/{pollaId}/{grupo}")]
         public async Task<IActionResult> CompararGrupo(
             int pollaId,
-            string grupo)
+            string grupo,
+            [FromQuery] int? usuarioId)
         {
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
             // 🔵 Tabla real
             var tablaRealResult = await new PartidosController(_context)
                 .GetTablaPosiciones(grupo) as OkObjectResult;
@@ -762,7 +830,7 @@ namespace WorldCup.Api.Controllers
             if (tablaReal == null) return BadRequest("No hay tabla real");
 
             // 🟡 Tabla predicha
-            var tablaPredichaResult = await GetTablaPredichaGrupo(pollaId, grupo) as OkObjectResult;
+            var tablaPredichaResult = await GetTablaPredichaGrupo(pollaId, grupo, acceso.UsuarioId) as OkObjectResult;
             var tablaPredicha = tablaPredichaResult?.Value as List<TablaPosicionDTO>;
             if (tablaPredicha == null) return BadRequest("No hay tabla predicha");
 
@@ -800,7 +868,11 @@ namespace WorldCup.Api.Controllers
 
 
         {
-            int usuarioId = UserIdActual(dto.UsuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(dto.PollaId, dto.UsuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuarioId = acceso.UsuarioId;
             var reaperturaClasificacion = await TieneReaperturaActivaAsync(
                 dto.PollaId,
                 usuarioId,
@@ -906,15 +978,16 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int? pollaId,
             [FromQuery] int? usuarioId)
         {
-            int usuario = UserIdActual(usuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             var query = _context.PrediccionesGrupo
                 .Where(p => p.UsuarioId == usuario);
 
-            if (pollaId.HasValue)
-            {
-                query = query.Where(p => p.PollaId == pollaId.Value);
-            }
+            query = query.Where(p => p.PollaId == acceso.PollaId);
 
             var clasificacion = await query
                 .Select(p => new
@@ -951,9 +1024,15 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("mi-posicion/{pollaId}")]
-        public async Task<IActionResult> GetMiPosicion(int pollaId)
+        public async Task<IActionResult> GetMiPosicion(
+            int pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual(); // luego JWT
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             // 1️⃣ Ranking general
             var ranking = await _context.Predicciones
@@ -971,7 +1050,7 @@ namespace WorldCup.Api.Controllers
                 return NotFound("No hay participantes");
 
             // 2️⃣ Posición del usuario
-            var index = ranking.FindIndex(r => r.UsuarioId == usuarioId);
+            var index = ranking.FindIndex(r => r.UsuarioId == usuario);
             if (index == -1)
                 return NotFound("El usuario no participa en esta polla");
 
@@ -979,8 +1058,8 @@ namespace WorldCup.Api.Controllers
 
             var response = new MiPosicionDTO
             {
-                UsuarioId = usuarioId,
-                Usuario = $"Usuario {usuarioId}", // luego tabla usuarios
+                UsuarioId = usuario,
+                Usuario = $"Usuario {usuario}", // luego tabla usuarios
                 Puntos = miRanking.Puntos,
                 Posicion = index + 1,
                 TotalUsuarios = ranking.Count
@@ -1242,9 +1321,15 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("historial/{pollaId}")]
-        public async Task<IActionResult> GetHistorialPuntos(int pollaId)
+        public async Task<IActionResult> GetHistorialPuntos(
+            int pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual(); // luego JWT
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             // 1️⃣ Predicciones del usuario ordenadas por fecha del partido
             var predicciones = await _context.Predicciones
@@ -1254,7 +1339,7 @@ namespace WorldCup.Api.Controllers
                     .ThenInclude(p => p.Visitante)
                 .Where(p =>
                     p.PollaId == pollaId &&
-                    p.UsuarioId == usuarioId &&
+                    p.UsuarioId == usuario &&
                     p.Partido.Finalizado
                 )
                 .OrderBy(p => p.Partido.Fecha)
@@ -1286,9 +1371,15 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("grafica/{pollaId}")]
-        public async Task<IActionResult> GetGraficaPuntos(int pollaId)
+        public async Task<IActionResult> GetGraficaPuntos(
+            int pollaId,
+            [FromQuery] int? usuarioId)
         {
-            int usuarioId = UserIdActual(); // luego JWT
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             var predicciones = await _context.Predicciones
                 .Include(p => p.Partido)
@@ -1297,7 +1388,7 @@ namespace WorldCup.Api.Controllers
                     .ThenInclude(p => p.Visitante)
                 .Where(p =>
                     p.PollaId == pollaId &&
-                    p.UsuarioId == usuarioId &&
+                    p.UsuarioId == usuario &&
                     p.Partido.Finalizado
                 )
                 .OrderBy(p => p.Partido.Fecha)
@@ -1320,8 +1411,8 @@ namespace WorldCup.Api.Controllers
 
             return Ok(new
             {
-                usuarioId,
-                usuario = $"Usuario {usuarioId}", // luego tabla Usuarios
+                usuarioId = usuario,
+                usuario = $"Usuario {usuario}", // luego tabla Usuarios
                 historial
             });
         }
@@ -1360,8 +1451,12 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int? pollaId,
             [FromQuery] int? usuarioId)
         {
-            int usuario = UserIdActual(usuarioId);
-            int polla = pollaId.GetValueOrDefault(2);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
+            int polla = acceso.PollaId;
             var reaperturaClasificacion = await TieneReaperturaActivaAsync(
                 polla,
                 usuario,
@@ -1420,7 +1515,11 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             [FromQuery] int? usuarioId)
         {
-            int usuario = UserIdActual(usuarioId);
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuario = acceso.UsuarioId;
 
             var grupos = await _context.PrediccionesTerceros
                 .Where(x => x.PollaId == pollaId && x.UsuarioId == usuario)

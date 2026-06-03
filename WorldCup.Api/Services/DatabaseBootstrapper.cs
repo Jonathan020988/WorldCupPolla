@@ -30,6 +30,27 @@ public static class DatabaseBootstrapper
             ALTER TABLE "Usuarios"
             ADD COLUMN IF NOT EXISTS "CuposIlimitados" boolean NOT NULL DEFAULT false;
 
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "AceptaTerminos" boolean NOT NULL DEFAULT false;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "AceptaPoliticaPrivacidad" boolean NOT NULL DEFAULT false;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "AceptaTratamientoDatos" boolean NOT NULL DEFAULT false;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "VersionLegalAceptada" text NULL;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "LegalAceptadoEn" timestamp with time zone NULL;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "LegalAceptadoIp" text NULL;
+
+            ALTER TABLE "Usuarios"
+            ADD COLUMN IF NOT EXISTS "LegalAceptadoUserAgent" text NULL;
+
             UPDATE "Usuarios"
             SET "CuposIlimitados" = true,
                 "MaximoMiembrosPorPolla" = 100000

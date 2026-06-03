@@ -1,4 +1,5 @@
 @using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
 @inject WorldCup.App.Shared.Services.UsuariosService UsuariosService
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
@@ -55,6 +56,22 @@
                 <label class="form-check-label" for="mostrarPassword">
                     Mostrar contrasenas
                 </label>
+            </div>
+
+            <div class="legal-register-box">
+                <label class="form-check">
+                    <input class="form-check-input" type="checkbox" @bind="aceptaLegal" />
+                    <span class="form-check-label">
+                        Acepto los
+                        <a href="/terminos-condiciones" target="_blank">Terminos y Condiciones</a>,
+                        la <a href="/politica-privacidad" target="_blank">Politica de Privacidad</a>
+                        y autorizo el
+                        <a href="/tratamiento-datos" target="_blank">Tratamiento de Datos Personales</a>.
+                    </span>
+                </label>
+                <small>
+                    La plataforma no recauda, administra ni distribuye premios. Las reglas, cobros y pagos de cada polla son responsabilidad de su organizador.
+                </small>
             </div>
 
             <button class="btn btn-success w-100 mt-2"
@@ -135,6 +152,7 @@
     private bool codigoEnviado;
     private bool registroConfirmado;
     private bool mostrarPassword;
+    private bool aceptaLegal;
     private string codigoConfirmacion = "";
     private string emailPendiente = "";
 
@@ -165,6 +183,12 @@
             return;
         }
 
+        if (!aceptaLegal)
+        {
+            error = "Debes aceptar los terminos, la politica de privacidad y el tratamiento de datos para crear la cuenta.";
+            return;
+        }
+
         try
         {
             cargando = true;
@@ -173,7 +197,11 @@
             {
                 Nombre = model.Nombre,
                 Email = model.Email,
-                Password = model.Password
+                Password = model.Password,
+                VersionLegal = LegalService.VersionActual,
+                AceptaTerminos = true,
+                AceptaPoliticaPrivacidad = true,
+                AceptaTratamientoDatos = true
             });
 
             emailPendiente = model.Email.Trim();

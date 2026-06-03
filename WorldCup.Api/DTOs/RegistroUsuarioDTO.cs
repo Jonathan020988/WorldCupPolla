@@ -6,6 +6,10 @@
         public string Email { get; set; } = null!;
         public string Password { get; set; } = null!;
         public string? ConfirmUrlBase { get; set; }
+        public string? VersionLegal { get; set; }
+        public bool AceptaTerminos { get; set; }
+        public bool AceptaPoliticaPrivacidad { get; set; }
+        public bool AceptaTratamientoDatos { get; set; }
     }
 
     public class ConfirmarCodigoCorreoDTO

@@ -23,6 +23,13 @@ namespace WorldCup.Api.Models
         public DateTime? EmailConfirmadoEn { get; set; }
         public int MaximoMiembrosPorPolla { get; set; } = 5;
         public bool CuposIlimitados { get; set; } = false;
+        public bool AceptaTerminos { get; set; } = false;
+        public bool AceptaPoliticaPrivacidad { get; set; } = false;
+        public bool AceptaTratamientoDatos { get; set; } = false;
+        public string? VersionLegalAceptada { get; set; }
+        public DateTime? LegalAceptadoEn { get; set; }
+        public string? LegalAceptadoIp { get; set; }
+        public string? LegalAceptadoUserAgent { get; set; }
 
         // Relaciones
         public List<Polla> PollasCreadas { get; set; } = new();

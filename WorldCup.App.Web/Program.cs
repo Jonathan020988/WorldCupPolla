@@ -65,6 +65,7 @@ builder.Services.AddHttpClient<PartidosService>(ConfigureApiClient);
 builder.Services.AddHttpClient<PrediccionesService>(ConfigureApiClient);
 
 builder.Services.AddHttpClient<PollasService>(ConfigureApiClient);
+builder.Services.AddHttpClient<LegalService>(ConfigureApiClient);
 
 // en la linea anterior se van agregando los servicios
 //builder.Services.AddScoped<PrediccionesService>();

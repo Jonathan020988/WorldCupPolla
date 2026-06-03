@@ -53,6 +53,11 @@ else
 
                     @foreach (var grupo in grupos.Skip(i).Take(2))
                     {
+                        var partidosGrupo = grupo.ToList();
+                        var grupoNormalizado = NormalizarGrupo(grupo.Key);
+                        var grupoCompleto = GrupoConMarcadoresCompletos(partidosGrupo);
+                        var tablaVisible = tablasMarcadoresVisibles.Contains(grupoNormalizado) && grupoCompleto;
+
                         <div class="col-lg-6">
 
                             <div class="card shadow-sm mb-3 border-0">
@@ -63,7 +68,7 @@ else
 
                                 <div class="card-body p-2">
 
-                                    @foreach (var partido in grupo)
+                                    @foreach (var partido in partidosGrupo)
                                     {
                                         <div class="border rounded p-2 mb-2 bg-light">
 
@@ -106,6 +111,59 @@ else
 
                                             </div>
 
+                                        </div>
+                                    }
+
+                                    <div class="sim-group-actions">
+                                        <button class="btn btn-outline-primary btn-sm"
+                                                disabled="@(!grupoCompleto)"
+                                                @onclick="() => MostrarTablaMarcadoresGrupo(grupo.Key)">
+                                            @(tablaVisible ? "Actualizar tabla" : "Ver tabla del grupo")
+                                        </button>
+
+                                        @if (!grupoCompleto)
+                                        {
+                                            <small>Completa todos los marcadores para ver la tabla.</small>
+                                        }
+                                    </div>
+
+                                    @if (tablaVisible)
+                                    {
+                                        var tablaGrupo = CalcularTablaMarcadoresGrupo(partidosGrupo, grupoNormalizado);
+                                        var posicion = 1;
+
+                                        <div class="sim-group-table mt-3">
+                                            <div class="sim-group-table-title">
+                                                Tabla Grupo @grupoNormalizado
+                                            </div>
+
+                                            <table class="table table-sm mb-0 align-middle">
+                                                <thead>
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Equipo</th>
+                                                        <th>Pts</th>
+                                                        <th>GF</th>
+                                                        <th>GC</th>
+                                                        <th>DG</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var equipo in tablaGrupo)
+                                                    {
+                                                        <tr class="@(posicion <= 2 ? "sim-qualified" : posicion == 3 ? "sim-third" : "")">
+                                                            <td>@posicion</td>
+                                                            <td class="sim-team-cell">@equipo.Nombre</td>
+                                                            <td><strong>@equipo.Puntos</strong></td>
+                                                            <td>@equipo.GolesFavor</td>
+                                                            <td>@equipo.GolesContra</td>
+                                                            <td>@equipo.Diferencia</td>
+                                                        </tr>
+
+                                                        posicion++;
+                                                    }
+                                                </tbody>
+                                            </table>
                                         </div>
                                     }
 
@@ -1028,6 +1086,58 @@ else
 }
 
 <style>
+    .sim-group-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: .7rem .2rem .25rem;
+    }
+
+    .sim-group-actions small {
+        color: #6c757d;
+        line-height: 1.2;
+    }
+
+    .sim-group-table {
+        border: 1px solid #dce7f3;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+    }
+
+    .sim-group-table-title {
+        padding: .55rem .75rem;
+        background: #eef6ff;
+        color: #0d3d73;
+        font-weight: 800;
+        border-bottom: 1px solid #dce7f3;
+    }
+
+    .sim-group-table thead th {
+        background: #111827;
+        color: #ffffff;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .sim-group-table td,
+    .sim-group-table th {
+        padding: .55rem .6rem;
+    }
+
+    .sim-group-table .sim-qualified td {
+        background: #eaf8ef;
+    }
+
+    .sim-group-table .sim-third td {
+        background: #fff7df;
+    }
+
+    .sim-team-cell {
+        font-weight: 800;
+    }
+
     @@media (max-width: 640px) {
         h2.mb-4,
         h3.mb-4 {
@@ -1154,6 +1264,54 @@ else
             width: 100%;
         }
 
+        .sim-group-actions {
+            align-items: stretch;
+            flex-direction: column;
+            gap: .45rem;
+            padding: .65rem 0 .15rem;
+        }
+
+        .sim-group-actions .btn {
+            width: 100%;
+        }
+
+        .sim-group-actions small {
+            text-align: center;
+        }
+
+        .sim-group-table {
+            margin-left: -.1rem;
+            margin-right: -.1rem;
+            border-radius: 8px;
+        }
+
+        .sim-group-table-title {
+            text-align: center;
+            font-size: .94rem;
+        }
+
+        .sim-group-table table {
+            table-layout: fixed;
+            font-size: .78rem;
+        }
+
+        .sim-group-table th,
+        .sim-group-table td {
+            padding: .46rem .25rem;
+            text-align: center;
+        }
+
+        .sim-group-table th:nth-child(2),
+        .sim-group-table td:nth-child(2) {
+            width: 42%;
+            text-align: left;
+        }
+
+        .sim-team-cell {
+            line-height: 1.15;
+            overflow-wrap: anywhere;
+        }
+
         .container-fluid table {
             table-layout: fixed;
             font-size: .86rem;
@@ -1242,6 +1400,7 @@ else
     private bool simuladorConError;
     private Dictionary<string, List<SimuladorEquipoPosicion>> posicionesPorGrupo = new();
     private HashSet<string> gruposTerceroSimulador = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> tablasMarcadoresVisibles = new(StringComparer.OrdinalIgnoreCase);
 
     private List<PartidoEliminacionDto> dieciseisavos = new();
     private List<PartidoEliminacionDto> octavos = new();
@@ -1356,12 +1515,84 @@ else
         PrepararPosicionesPorGrupo();
     }
 
-    private async Task GuardarPartido(SimuladorPartidoDto partido)
+    private Task GuardarPartido(SimuladorPartidoDto partido)
     {
-        await Http.PutAsJsonAsync(
-            $"api/Partidos/simulador/{partido.Id}",
-            partido
-        );
+        simuladorConError = false;
+        mensajeSimulador = "Marcador aplicado solo en este simulador. No modifica resultados oficiales.";
+        return Task.CompletedTask;
+    }
+
+    private bool GrupoConMarcadoresCompletos(IEnumerable<SimuladorPartidoDto> partidosGrupo)
+    {
+        return partidosGrupo.All(p => p.GolesLocal.HasValue && p.GolesVisitante.HasValue);
+    }
+
+    private void MostrarTablaMarcadoresGrupo(string grupo)
+    {
+        var grupoNormalizado = NormalizarGrupo(grupo);
+        tablasMarcadoresVisibles.Add(grupoNormalizado);
+        simuladorConError = false;
+        mensajeSimulador = $"Tabla del Grupo {grupoNormalizado} actualizada con los marcadores del simulador.";
+    }
+
+    private List<EquipoGrupoDto> CalcularTablaMarcadoresGrupo(
+        IEnumerable<SimuladorPartidoDto> partidosGrupo,
+        string grupo)
+    {
+        var equipos = new Dictionary<string, EquipoGrupoDto>(StringComparer.OrdinalIgnoreCase);
+        var grupoNormalizado = NormalizarGrupo(grupo);
+
+        foreach (var partido in partidosGrupo)
+        {
+            if (!equipos.ContainsKey(partido.Local))
+            {
+                equipos.Add(partido.Local, new EquipoGrupoDto
+                    {
+                        Nombre = partido.Local,
+                        Grupo = grupoNormalizado
+                    });
+            }
+
+            if (!equipos.ContainsKey(partido.Visitante))
+            {
+                equipos.Add(partido.Visitante, new EquipoGrupoDto
+                    {
+                        Nombre = partido.Visitante,
+                        Grupo = grupoNormalizado
+                    });
+            }
+
+            var local = equipos[partido.Local];
+            var visitante = equipos[partido.Visitante];
+            var golesLocal = partido.GolesLocal ?? 0;
+            var golesVisitante = partido.GolesVisitante ?? 0;
+
+            local.GolesFavor += golesLocal;
+            local.GolesContra += golesVisitante;
+            visitante.GolesFavor += golesVisitante;
+            visitante.GolesContra += golesLocal;
+
+            if (golesLocal > golesVisitante)
+            {
+                local.Puntos += 3;
+            }
+            else if (golesVisitante > golesLocal)
+            {
+                visitante.Puntos += 3;
+            }
+            else
+            {
+                local.Puntos += 1;
+                visitante.Puntos += 1;
+            }
+        }
+
+        return equipos.Values
+            .OrderByDescending(x => x.Puntos)
+            .ThenByDescending(x => x.Diferencia)
+            .ThenByDescending(x => x.GolesFavor)
+            .ThenBy(x => x.Nombre)
+            .ToList();
     }
 
 
@@ -1682,6 +1913,7 @@ else
         clasificados.Clear();
         mejoresTerceros.Clear();
         tablasPorGrupo.Clear();
+        tablasMarcadoresVisibles.Clear();
         dieciseisavos.Clear();
         octavos.Clear();
         cuartos.Clear();

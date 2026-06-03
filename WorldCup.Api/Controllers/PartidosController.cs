@@ -85,8 +85,14 @@ namespace WorldCup.Api.Controllers
 
         // POST: api/Partidos
         [HttpPost]
-        public async Task<ActionResult> CrearPartido(CrearPartidoDTO dto)
+        public async Task<IActionResult> CrearPartido(
+            CrearPartidoDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partido = new Partido
             {
                 Fecha = ColombiaClock.FromColombiaToUtc(dto.Fecha),
@@ -102,8 +108,14 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePartido(int id)
+        public async Task<IActionResult> DeletePartido(
+            int id,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partido = await _context.Partidos.FindAsync(id);
             if (partido == null) return NotFound();
 
@@ -119,8 +131,13 @@ namespace WorldCup.Api.Controllers
         [HttpPut("{id}/marcador")]
         public async Task<IActionResult> ActualizarMarcador(
             int id,
-            ActualizarMarcadorDTO dto)
+            ActualizarMarcadorDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partido = await _context.Partidos.FindAsync(id);
 
             if (partido == null)
@@ -773,8 +790,14 @@ namespace WorldCup.Api.Controllers
 
 
         [HttpPut("reset-grupo/{grupo}")]
-        public async Task<IActionResult> ResetGrupo(string grupo)
+        public async Task<IActionResult> ResetGrupo(
+            string grupo,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var grupoNormalizado = grupo.ToUpper();
 
             // 1️⃣ Obtener equipos del grupo
@@ -812,8 +835,13 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("reset-eliminatorias")]
-        public async Task<IActionResult> ResetEliminatorias()
+        public async Task<IActionResult> ResetEliminatorias(
+            [FromQuery] int? adminUsuarioId)
         {
+                    var adminError = await ValidarAdminAsync(adminUsuarioId);
+                    if (adminError != null)
+                        return adminError;
+
                     var fases = new[]
                     {
                 "Dieciseisavos", "Octavos", "Cuartos",
@@ -1123,6 +1151,26 @@ namespace WorldCup.Api.Controllers
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
+        }
+
+        private async Task<IActionResult?> ValidarAdminAsync(int? adminUsuarioId)
+        {
+            if (!adminUsuarioId.HasValue || adminUsuarioId.Value <= 0)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Debes iniciar sesión como administrador para realizar esta acción.");
+            }
+
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(adminUsuarioId.Value))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "No tienes permisos de administrador para realizar esta acción.");
+            }
+
+            return null;
         }
 
         private string? NormalizarFaseTorneo(string fase)
@@ -1541,8 +1589,13 @@ namespace WorldCup.Api.Controllers
         [HttpPut("{id}/resultado-eliminatoria")]
         public async Task<IActionResult> ActualizarResultadoEliminatoria(
              int id,
-             ActualizarEliminatoriaDTO dto)
+             ActualizarEliminatoriaDTO dto,
+             [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partido = await _context.Partidos.FindAsync(id);
 
             if (partido == null)
@@ -1674,8 +1727,12 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("generar-dieciseisavos")]
-        public async Task<IActionResult> GenerarDieciseisavos()
+        public async Task<IActionResult> GenerarDieciseisavos(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
 
             // 1️⃣ Evitar duplicados
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Dieciseisavos"))
@@ -1761,8 +1818,13 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("generar-octavos")]
-        public async Task<IActionResult> GenerarOctavos()
+        public async Task<IActionResult> GenerarOctavos(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             // 1️⃣ Evitar que se generen dos veces
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Octavos"))
                 return Conflict("Los octavos ya fueron generados");
@@ -1809,8 +1871,13 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("generar-cuartos")]
-        public async Task<IActionResult> GenerarCuartos()
+        public async Task<IActionResult> GenerarCuartos(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Cuartos"))
                 return Conflict("Los cuartos ya fueron generados");
 
@@ -1853,8 +1920,13 @@ namespace WorldCup.Api.Controllers
 
 
         [HttpPost("generar-semifinales")]
-        public async Task<IActionResult> GenerarSemifinales()
+        public async Task<IActionResult> GenerarSemifinales(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Semifinales"))
                 return Conflict("Las semifinales ya fueron generadas");
 
@@ -1886,8 +1958,13 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("generar-final")]
-        public async Task<IActionResult> GenerarFinal()
+        public async Task<IActionResult> GenerarFinal(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             if (await _context.Partidos.AnyAsync(p => p.Fase == "Final"))
                 return Conflict("La final ya fue generada");
 
@@ -1914,8 +1991,13 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("generar-tercer-puesto")]
-        public async Task<IActionResult> GenerarTercerPuesto()
+        public async Task<IActionResult> GenerarTercerPuesto(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             if (await _context.Partidos.AnyAsync(p => p.Fase == "TercerPuesto"))
                 return Conflict("El partido por el tercer puesto ya fue generado");
 
@@ -2591,8 +2673,13 @@ namespace WorldCup.Api.Controllers
         // metdodos temporales para pruebas
 
         [HttpPost("autofinalizar-grupos")]
-        public async Task<IActionResult> AutoFinalizarGrupos()
+        public async Task<IActionResult> AutoFinalizarGrupos(
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partidos = await _context.Partidos
                 .Where(p => p.Fase == "Grupos" && !p.Finalizado)
                 .ToListAsync();
@@ -2622,8 +2709,14 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpPost("autofinalizar-fase/{fase}")]
-        public async Task<IActionResult> AutoFinalizarFase(string fase)
+        public async Task<IActionResult> AutoFinalizarFase(
+            string fase,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partidos = await _context.Partidos
                 .Where(p => p.Fase == fase && !p.Finalizado)
                 .ToListAsync();
@@ -2797,9 +2890,14 @@ namespace WorldCup.Api.Controllers
         [HttpPut("simulador/{id}")]
         public async Task<IActionResult> ActualizarSimulacion(
             int id,
-            SimuladorPartidoDto dto
+            SimuladorPartidoDto dto,
+            [FromQuery] int? adminUsuarioId
         )
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var partido = await _context.Partidos.FindAsync(id);
 
             if (partido == null)

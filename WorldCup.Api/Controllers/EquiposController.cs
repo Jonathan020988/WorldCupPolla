@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 
 namespace WorldCup.Api.Controllers
 {
@@ -12,10 +13,27 @@ namespace WorldCup.Api.Controllers
     public class EquiposController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly AdminAuthorizationService _adminAuthorization;
 
-        public EquiposController(AppDbContext context)
+        public EquiposController(
+            AppDbContext context,
+            AdminAuthorizationService adminAuthorization)
         {
             _context = context;
+            _adminAuthorization = adminAuthorization;
+        }
+
+        private async Task<IActionResult?> ValidarAdminAsync(int? adminUsuarioId)
+        {
+            if (!adminUsuarioId.HasValue || adminUsuarioId.Value <= 0 ||
+                !await _adminAuthorization.EsAdminAsync(adminUsuarioId.Value))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "No tienes permisos de administrador para realizar esta acción.");
+            }
+
+            return null;
         }
 
         // GET: api/Equipos
@@ -55,8 +73,14 @@ namespace WorldCup.Api.Controllers
 
         // POST: api/Equipos
         [HttpPost]
-        public async Task<ActionResult> CrearEquipo(CrearEquipoDTO dto)
+        public async Task<IActionResult> CrearEquipo(
+            CrearEquipoDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var equipo = new Equipo
             {
                 Nombre = dto.Nombre,
@@ -72,8 +96,15 @@ namespace WorldCup.Api.Controllers
 
         // PUT: api/Equipos/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> ActualizarEquipo(int id, CrearEquipoDTO dto)
+        public async Task<IActionResult> ActualizarEquipo(
+            int id,
+            CrearEquipoDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var equipo = await _context.Equipos.FindAsync(id);
 
             if (equipo == null)
@@ -90,8 +121,14 @@ namespace WorldCup.Api.Controllers
 
         // DELETE: api/Equipos/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteEquipo(int id)
+        public async Task<IActionResult> DeleteEquipo(
+            int id,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var equipo = await _context.Equipos.FindAsync(id);
 
             if (equipo == null)

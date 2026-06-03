@@ -10,6 +10,8 @@ bin/
 obj/
 Debug/
 Release/
+publish/
+**/publish/
 
 # VS Code
 .vscode/
@@ -19,8 +21,19 @@ Release/
 
 # Secretos de despliegue local
 appsettings.Production.local.json
+appsettings.*.local.json
 *.pubxml.user
 deploy/secrets.*
+*.pem
+*.key
+*.pfx
+*.p12
+*contrase*
+*password*
+*secret*
+usuario admin.txt
+pagina aws.docx
+configurar correo smtp*.txt
 
 # EF migrations snapshots temporales
 *Migrations/*.Designer.cs

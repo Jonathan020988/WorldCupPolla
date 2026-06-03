@@ -1,0 +1,312 @@
+@rendermode InteractiveServer
+@implements IDisposable
+
+@using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+
+@inject LegalService LegalService
+@inject SesionService Sesion
+@inject NavigationManager Navigation
+
+@if (mostrarModal && estadoLegal != null)
+{
+    <div class="legal-consent-backdrop" role="dialog" aria-modal="true" aria-labelledby="legalConsentTitle">
+        <div class="legal-consent-modal">
+            <div class="legal-consent-accent"></div>
+            <div class="legal-consent-body">
+                <span class="legal-consent-kicker">Actualizacion legal requerida</span>
+                <h2 id="legalConsentTitle">Terminos, privacidad y tratamiento de datos</h2>
+                <p>
+                    Para continuar usando WorldCup.App debes leer y aceptar la version vigente de los documentos legales.
+                    Esto protege a los usuarios, a los organizadores de cada polla y a la plataforma.
+                </p>
+
+                <div class="legal-consent-summary">
+                    <strong>Puntos clave:</strong>
+                    <ul>
+                        <li>La plataforma es una herramienta de gestion y pronosticos deportivos.</li>
+                        <li>Los organizadores de cada polla son responsables de reglas, premios y cobros.</li>
+                        <li>WorldCup.App no recauda, administra ni distribuye dinero de premios.</li>
+                        <li>Los datos personales se tratan para operar cuentas, pollas, predicciones, notificaciones, soporte y seguridad.</li>
+                    </ul>
+                </div>
+
+                <div class="legal-consent-links">
+                    <a href="/terminos-condiciones" target="_blank">Terminos y Condiciones</a>
+                    <a href="/politica-privacidad" target="_blank">Politica de Privacidad</a>
+                    <a href="/tratamiento-datos" target="_blank">Tratamiento de Datos</a>
+                </div>
+
+                <label class="legal-consent-check">
+                    <input type="checkbox" @bind="aceptaLegal" />
+                    <span>
+                        He leido y acepto los Terminos y Condiciones, la Politica de Privacidad y autorizo el Tratamiento de Datos Personales.
+                    </span>
+                </label>
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <div class="alert alert-danger py-2 mb-0">@error</div>
+                }
+
+                <div class="legal-consent-actions">
+                    <button class="btn btn-primary"
+                            disabled="@(procesando || !aceptaLegal)"
+                            @onclick="Aceptar">
+                        @(procesando ? "Guardando..." : "Aceptar y continuar")
+                    </button>
+                    <button class="btn btn-outline-secondary"
+                            disabled="@procesando"
+                            @onclick="CerrarSesion">
+                        Cerrar sesion
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private LegalConsentStatusDto? estadoLegal;
+    private bool mostrarModal;
+    private bool aceptaLegal;
+    private bool consultando;
+    private bool procesando;
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        Sesion.OnChange += OnSesionChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await Sesion.RestaurarSesionAsync();
+        await ConsultarEstadoLegal();
+        StateHasChanged();
+    }
+
+    private void OnSesionChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await ConsultarEstadoLegal();
+            StateHasChanged();
+        });
+    }
+
+    private async Task ConsultarEstadoLegal()
+    {
+        if (consultando)
+        {
+            return;
+        }
+
+        if (!Sesion.EstaLogueado || !Sesion.UsuarioId.HasValue)
+        {
+            estadoLegal = null;
+            mostrarModal = false;
+            aceptaLegal = false;
+            error = null;
+            return;
+        }
+
+        try
+        {
+            consultando = true;
+            estadoLegal = await LegalService.GetEstadoAsync(Sesion.UsuarioId.Value);
+            mostrarModal = estadoLegal?.RequiereAceptacion == true;
+            aceptaLegal = false;
+            error = null;
+        }
+        catch
+        {
+            estadoLegal = null;
+            mostrarModal = false;
+        }
+        finally
+        {
+            consultando = false;
+        }
+    }
+
+    private async Task Aceptar()
+    {
+        if (!Sesion.UsuarioId.HasValue || estadoLegal == null)
+        {
+            return;
+        }
+
+        try
+        {
+            procesando = true;
+            error = null;
+            var apiError = await LegalService.AceptarAsync(new AceptarLegalDto
+            {
+                UsuarioId = Sesion.UsuarioId.Value,
+                Version = estadoLegal.VersionActual,
+                AceptaTerminos = aceptaLegal,
+                AceptaPoliticaPrivacidad = aceptaLegal,
+                AceptaTratamientoDatos = aceptaLegal
+            });
+
+            if (apiError != null)
+            {
+                error = apiError;
+                return;
+            }
+
+            mostrarModal = false;
+            estadoLegal.RequiereAceptacion = false;
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task CerrarSesion()
+    {
+        await Sesion.LogoutAsync();
+        mostrarModal = false;
+        Navigation.NavigateTo("/login", true);
+    }
+
+    public void Dispose()
+    {
+        Sesion.OnChange -= OnSesionChanged;
+    }
+}
+
+<style>
+    .legal-consent-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2400;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, .62);
+        backdrop-filter: blur(8px);
+    }
+
+    .legal-consent-modal {
+        width: min(680px, 100%);
+        max-height: min(92vh, 760px);
+        overflow: auto;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 28px 80px rgba(15, 23, 42, .35);
+    }
+
+    .legal-consent-accent {
+        height: 8px;
+        background: linear-gradient(90deg, #0ea5e9, #10b981, #f59e0b);
+    }
+
+    .legal-consent-body {
+        display: grid;
+        gap: 1rem;
+        padding: 1.35rem;
+    }
+
+    .legal-consent-kicker {
+        color: #0f766e;
+        font-size: .82rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .legal-consent-body h2 {
+        margin: -.4rem 0 0;
+        font-size: 1.55rem;
+        font-weight: 850;
+    }
+
+    .legal-consent-body p {
+        margin: 0;
+        color: #475569;
+        line-height: 1.5;
+    }
+
+    .legal-consent-summary {
+        padding: .9rem;
+        border: 1px solid #dce7f3;
+        border-radius: 8px;
+        background: #f8fbff;
+    }
+
+    .legal-consent-summary ul {
+        margin: .55rem 0 0;
+        padding-left: 1.15rem;
+        color: #334155;
+    }
+
+    .legal-consent-links {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .55rem;
+    }
+
+    .legal-consent-links a {
+        display: grid;
+        min-height: 42px;
+        place-items: center;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        color: #0d6efd;
+        font-weight: 800;
+        text-align: center;
+        text-decoration: none;
+        background: #eff6ff;
+    }
+
+    .legal-consent-check {
+        display: flex;
+        gap: .65rem;
+        align-items: flex-start;
+        padding: .9rem;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        background: #f0fdf4;
+        color: #14532d;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .legal-consent-check input {
+        flex: 0 0 auto;
+        margin-top: .2rem;
+    }
+
+    .legal-consent-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .7rem;
+    }
+
+    @@media (max-width: 640px) {
+        .legal-consent-backdrop {
+            align-items: start;
+            padding: 10px;
+        }
+
+        .legal-consent-body {
+            padding: 1rem;
+        }
+
+        .legal-consent-body h2 {
+            font-size: 1.25rem;
+        }
+
+        .legal-consent-links,
+        .legal-consent-actions {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

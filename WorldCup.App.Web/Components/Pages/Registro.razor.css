@@ -75,6 +75,42 @@
     letter-spacing: 0.35rem;
 }
 
+.legal-register-box {
+    display: grid;
+    gap: .45rem;
+    margin: .9rem 0 1rem;
+    padding: .85rem;
+    border: 1px solid #d8e9df;
+    border-radius: 10px;
+    background: #f8fcfa;
+}
+
+.legal-register-box .form-check {
+    display: flex;
+    gap: .55rem;
+    align-items: flex-start;
+    margin: 0;
+}
+
+.legal-register-box .form-check-input {
+    flex: 0 0 auto;
+    margin-top: .25rem;
+}
+
+.legal-register-box .form-check-label {
+    color: #23352f;
+    line-height: 1.35;
+}
+
+.legal-register-box a {
+    font-weight: 700;
+}
+
+.legal-register-box small {
+    color: #66766f;
+    line-height: 1.3;
+}
+
 .registro-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -123,5 +159,9 @@
     .codigo-input {
         font-size: 1.25rem;
         letter-spacing: 0.22rem;
+    }
+
+    .legal-register-box {
+        padding: .75rem;
     }
 }

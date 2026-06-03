@@ -13,6 +13,10 @@ namespace WorldCup.App.Shared.DTOs
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;
         public string? ConfirmUrlBase { get; set; }
+        public string? VersionLegal { get; set; }
+        public bool AceptaTerminos { get; set; }
+        public bool AceptaPoliticaPrivacidad { get; set; }
+        public bool AceptaTratamientoDatos { get; set; }
     }
 
     public class ConfirmarCodigoCorreoDTO

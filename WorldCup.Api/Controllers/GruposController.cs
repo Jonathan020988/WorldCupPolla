@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
+using WorldCup.Api.Services;
 
 namespace WorldCup.Api.Controllers
 {
@@ -12,10 +13,27 @@ namespace WorldCup.Api.Controllers
     public class GruposController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly AdminAuthorizationService _adminAuthorization;
 
-        public GruposController(AppDbContext context)
+        public GruposController(
+            AppDbContext context,
+            AdminAuthorizationService adminAuthorization)
         {
             _context = context;
+            _adminAuthorization = adminAuthorization;
+        }
+
+        private async Task<IActionResult?> ValidarAdminAsync(int? adminUsuarioId)
+        {
+            if (!adminUsuarioId.HasValue || adminUsuarioId.Value <= 0 ||
+                !await _adminAuthorization.EsAdminAsync(adminUsuarioId.Value))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "No tienes permisos de administrador para realizar esta acción.");
+            }
+
+            return null;
         }
 
         // GET: api/Grupos
@@ -51,8 +69,14 @@ namespace WorldCup.Api.Controllers
 
         // POST: api/Grupos
         [HttpPost]
-        public async Task<ActionResult> CrearGrupo(CrearGrupoDTO dto)
+        public async Task<IActionResult> CrearGrupo(
+            CrearGrupoDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var grupo = new Grupo
             {
                 Nombre = dto.Nombre
@@ -66,8 +90,15 @@ namespace WorldCup.Api.Controllers
 
         // PUT: api/Grupos/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> ActualizarGrupo(int id, CrearGrupoDTO dto)
+        public async Task<IActionResult> ActualizarGrupo(
+            int id,
+            CrearGrupoDTO dto,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var grupo = await _context.Grupos.FindAsync(id);
             if (grupo == null)
                 return NotFound();
@@ -80,8 +111,14 @@ namespace WorldCup.Api.Controllers
 
         // DELETE: api/Grupos/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteGrupo(int id)
+        public async Task<IActionResult> DeleteGrupo(
+            int id,
+            [FromQuery] int? adminUsuarioId)
         {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
             var grupo = await _context.Grupos.FindAsync(id);
             if (grupo == null)
                 return NotFound();

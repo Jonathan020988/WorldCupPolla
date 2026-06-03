@@ -40,6 +40,14 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Nombre, correo y contrasena son obligatorios");
             }
 
+            if (dto.VersionLegal != LegalVersion.Actual ||
+                !dto.AceptaTerminos ||
+                !dto.AceptaPoliticaPrivacidad ||
+                !dto.AceptaTratamientoDatos)
+            {
+                return BadRequest("Debes aceptar terminos, politica de privacidad y tratamiento de datos para crear la cuenta.");
+            }
+
             var nombre = dto.Nombre.Trim();
             var limitado = ValidarIntentos(
                 $"registro:{email}",
@@ -77,6 +85,13 @@ namespace WorldCup.Api.Controllers
                 Email = email,
                 Activo = true,
                 EmailConfirmado = false,
+                AceptaTerminos = true,
+                AceptaPoliticaPrivacidad = true,
+                AceptaTratamientoDatos = true,
+                VersionLegalAceptada = LegalVersion.Actual,
+                LegalAceptadoEn = DateTime.UtcNow,
+                LegalAceptadoIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                LegalAceptadoUserAgent = Request.Headers.UserAgent.ToString(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 

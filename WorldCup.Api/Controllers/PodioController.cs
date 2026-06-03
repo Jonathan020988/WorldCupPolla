@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
@@ -21,7 +22,11 @@ namespace WorldCup.Api.Controllers
         [HttpPost("guardar")]
         public async Task<IActionResult> GuardarPodio(GuardarPodioDTO dto)
         {
-            int usuarioId = dto.UsuarioId;
+            var acceso = await ValidarUsuarioPollaAsync(dto.PollaId, dto.UsuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            int usuarioId = acceso.UsuarioId;
             var reaperturaPodio = await TieneReaperturaPodioActivaAsync(dto.PollaId, usuarioId);
 
             bool gruposTerminados = await GruposTerminados();
@@ -76,15 +81,19 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int pollaId,
             [FromQuery] int usuarioId)
         {
+            var acceso = await ValidarUsuarioPollaAsync(pollaId, usuarioId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
             var gruposTerminados = await GruposTerminados();
             var cerrado = await DieciseisavosIniciados();
-            var reaperturaPodio = await TieneReaperturaPodioActivaAsync(pollaId, usuarioId);
+            var reaperturaPodio = await TieneReaperturaPodioActivaAsync(acceso.PollaId, acceso.UsuarioId);
             var equipos = gruposTerminados
                 ? await ObtenerEquiposPodioDisponibles()
                 : new List<object>();
 
             var prediccion = await _context.PrediccionesPodio
-                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .Where(p => p.PollaId == acceso.PollaId && p.UsuarioId == acceso.UsuarioId)
                 .Select(p => new
                 {
                     p.CampeonId,
@@ -175,6 +184,52 @@ namespace WorldCup.Api.Controllers
                 r.Fase == "Podio" &&
                 r.Tipo == "Podio" &&
                 r.Activa);
+        }
+
+        private IActionResult UsuarioPollaInvalido()
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "No tienes permisos para usar esta polla con ese usuario.");
+        }
+
+        private async Task<(IActionResult? Error, int PollaId, int UsuarioId)> ValidarUsuarioPollaAsync(
+            int? pollaId,
+            int? usuarioId)
+        {
+            if (!pollaId.HasValue || pollaId.Value <= 0)
+                return (BadRequest("Debes indicar una polla válida."), 0, 0);
+
+            if (!usuarioId.HasValue || usuarioId.Value <= 0)
+                return (BadRequest("Debes iniciar sesión para continuar."), 0, 0);
+
+            var pid = pollaId.Value;
+            var uid = usuarioId.Value;
+
+            var usuarioActivo = await _context.Usuarios
+                .AnyAsync(u => u.Id == uid && u.Activo);
+
+            if (!usuarioActivo)
+                return (UsuarioPollaInvalido(), 0, 0);
+
+            var existePolla = await _context.Pollas
+                .AnyAsync(p => p.Id == pid);
+
+            if (!existePolla)
+                return (NotFound("La polla no existe."), 0, 0);
+
+            var esCreador = await _context.Pollas
+                .AnyAsync(p => p.Id == pid && p.CreadorId == uid);
+
+            var esMiembro = await _context.PollaMiembros
+                .AnyAsync(pm =>
+                    pm.PollaId == pid &&
+                    pm.UsuarioId == uid &&
+                    pm.Usuario.Activo);
+
+            return esCreador || esMiembro
+                ? (null, pid, uid)
+                : (UsuarioPollaInvalido(), 0, 0);
         }
 
         private async Task RecalcularPodioUsuarioSiDefinidoAsync(int pollaId, int usuarioId)
