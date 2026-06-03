@@ -5,7 +5,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<h2 class="mb-4">Panel administrador</h2>
+<h2 class="mb-4 admin-title">Panel administrador</h2>
 
 @if (cargando)
 {
@@ -19,9 +19,10 @@ else if (!Sesion.EsAdmin)
 }
 else
 {
-    <div class="row g-3 mb-4">
+    <section class="admin-page" id="admin-inicio">
+    <div class="row g-3 mb-4 admin-summary">
         <div class="col-md-3">
-            <div class="card">
+            <div class="card admin-stat-card">
                 <div class="card-body">
                     <small class="text-muted">Usuarios</small>
                     <h3>@resumen?.Usuarios</h3>
@@ -30,7 +31,7 @@ else
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card">
+            <div class="card admin-stat-card">
                 <div class="card-body">
                     <small class="text-muted">Pollas</small>
                     <h3>@resumen?.Pollas</h3>
@@ -38,7 +39,7 @@ else
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card">
+            <div class="card admin-stat-card">
                 <div class="card-body">
                     <small class="text-muted">Finalizados</small>
                     <h3>@resumen?.PartidosFinalizados</h3>
@@ -46,7 +47,7 @@ else
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card">
+            <div class="card admin-stat-card">
                 <div class="card-body">
                     <small class="text-muted">Pendientes</small>
                     <h3>@resumen?.PartidosPendientes</h3>
@@ -59,6 +60,14 @@ else
     {
         <div class="alert alert-info">@mensaje</div>
     }
+
+    <nav class="admin-quick-nav" aria-label="Accesos rapidos del panel administrador">
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-cupos")'>Solicitudes cupos</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-fases")'>Fases torneo</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-calendario")'>Calendario</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-usuarios")'>Usuarios</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-pollas")'>Pollas</button>
+    </nav>
 
     <div class="card mb-4">
         <div class="card-header fw-bold">Prueba de correo SMTP</div>
@@ -80,7 +89,7 @@ else
         </div>
     </div>
 
-    <div class="card mb-4">
+    <div class="card mb-4 admin-anchor" id="admin-cupos">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>Solicitudes de ampliación de cupos</span>
             <small class="text-muted">@solicitudesCupos.Count solicitud(es)</small>
@@ -95,7 +104,7 @@ else
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0 align-middle">
+                    <table class="table table-sm mb-0 align-middle admin-mobile-table cupos-table">
                         <thead>
                             <tr>
                                 <th>Usuario</th>
@@ -229,14 +238,14 @@ else
         </div>
     }
 
-    <div class="card mb-4 phase-control">
+    <div class="card mb-4 phase-control admin-anchor" id="admin-fases">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>Control del torneo por fases</span>
             <small class="text-muted">Finaliza, genera la siguiente fase o reinicia para pruebas</small>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-sm mb-0 align-middle">
+                <table class="table table-sm mb-0 align-middle admin-mobile-table phase-table">
                     <thead>
                         <tr>
                             <th>Fase</th>
@@ -305,7 +314,7 @@ else
         </div>
     </div>
 
-    <div class="card mb-4 calendario-admin">
+    <div class="card mb-4 calendario-admin admin-anchor" id="admin-calendario">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
             <span>Calendario de partidos</span>
             <small class="text-muted">Fechas y horas en Colombia</small>
@@ -340,7 +349,7 @@ else
             else
             {
                 <div class="table-responsive calendario-scroll">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 admin-mobile-table calendar-table">
                         <thead>
                             <tr>
                                 <th>Fase</th>
@@ -383,7 +392,7 @@ else
 
     <div class="row g-4">
         <div class="col-lg-6">
-            <div class="card usuarios-admin">
+            <div class="card usuarios-admin admin-anchor" id="admin-usuarios">
                 <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <span>Usuarios</span>
                     <div class="btn-group btn-group-sm usuarios-filtro" role="group" aria-label="Filtro de usuarios">
@@ -405,7 +414,7 @@ else
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0 align-middle">
+                    <table class="table table-sm mb-0 align-middle admin-mobile-table users-table">
                         <thead>
                             <tr>
                                 <th>Usuario</th>
@@ -496,10 +505,10 @@ else
         </div>
 
         <div class="col-lg-6">
-            <div class="card">
+            <div class="card admin-anchor" id="admin-pollas">
                 <div class="card-header fw-bold">Pollas</div>
                 <div class="card-body p-0">
-                    <table class="table table-sm mb-0 align-middle">
+                    <table class="table table-sm mb-0 align-middle admin-mobile-table pollas-table">
                         <thead>
                             <tr>
                                 <th>Polla</th>
@@ -547,7 +556,7 @@ else
                 Miembros de @pollaSeleccionada.Nombre
             </div>
             <div class="card-body p-0">
-                <table class="table table-sm mb-0 align-middle">
+                <table class="table table-sm mb-0 align-middle admin-mobile-table members-table">
                     <thead>
                         <tr>
                             <th>Usuario</th>
@@ -655,7 +664,7 @@ else
                     }
                 </div>
 
-                <table class="table table-sm mb-0 align-middle">
+                <table class="table table-sm mb-0 align-middle admin-mobile-table predictions-table">
                     <thead>
                         <tr>
                             <th>Partido</th>
@@ -839,7 +848,7 @@ else
                                                 }
                                             </summary>
                                             <div class="table-responsive">
-                                                <table class="table table-sm align-middle mb-0 historial-table">
+                                                <table class="table table-sm align-middle mb-0 historial-table admin-mobile-table history-table">
                                                     <thead>
                                                         <tr>
                                                             <th>Partido</th>
@@ -875,9 +884,53 @@ else
             </div>
         </div>
     }
+    </section>
 }
 
 <style>
+    .admin-anchor {
+        scroll-margin-top: 1.25rem;
+    }
+
+    .admin-quick-nav {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: .55rem;
+        border: 1px solid #dbeafe;
+        border-radius: 8px;
+        background: #f8fbff;
+        padding: .75rem;
+        margin-bottom: 1rem;
+    }
+
+    .admin-quick-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        background: #fff;
+        color: #0d6efd;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: .9rem;
+        font-weight: 800;
+        line-height: 1.15;
+        padding: .55rem .65rem;
+        text-align: center;
+        text-decoration: none;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+
+    .admin-quick-link:hover,
+    .admin-quick-link:focus {
+        border-color: #0d6efd;
+        background: #eaf3ff;
+        color: #084298;
+        text-decoration: none;
+    }
+
     .admin-contact-backdrop {
         position: fixed;
         inset: 0;
@@ -1274,7 +1327,331 @@ else
         color: #664d03;
     }
 
-    @@media (max-width: 768px) {
+    @@media (max-width: 991.98px) {
+        .admin-title {
+            margin-top: 3.65rem;
+        }
+
+        .admin-page {
+            padding-bottom: 1rem;
+        }
+
+        .admin-anchor {
+            scroll-margin-top: 8.75rem;
+        }
+
+        .admin-quick-nav {
+            position: fixed;
+            top: 4.05rem;
+            left: .75rem;
+            right: .75rem;
+            z-index: 1040;
+            display: flex;
+            gap: .5rem;
+            overflow-x: auto;
+            max-width: calc(100vw - 1.5rem);
+            margin: 0;
+            padding: .55rem;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .admin-quick-link {
+            flex: 0 0 auto;
+            min-width: 142px;
+            min-height: 40px;
+            font-size: .82rem;
+            padding: .45rem .55rem;
+        }
+
+        .admin-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .65rem;
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .admin-summary > [class*="col-"] {
+            width: 100%;
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        .admin-stat-card {
+            height: 100%;
+            border-radius: 8px;
+            border-color: #dbe7f3;
+            background: #f8fbff;
+        }
+
+        .admin-stat-card .card-body {
+            padding: .85rem;
+        }
+
+        .admin-stat-card h3 {
+            margin: .2rem 0;
+            color: #0f5132;
+            font-size: 1.45rem;
+            font-weight: 900;
+        }
+
+        .admin-page > .card,
+        .admin-page .row.g-4 > [class*="col-"] > .card,
+        .admin-page > .card.mt-4 {
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+        }
+
+        .admin-page .card-header {
+            align-items: flex-start !important;
+            flex-direction: column;
+            gap: .3rem;
+            padding: .9rem 1rem;
+        }
+
+        .admin-page .card-header small {
+            font-size: .8rem;
+            line-height: 1.25;
+        }
+
+        .admin-page .card-body {
+            padding: 1rem;
+        }
+
+        .admin-page .card-body.p-0 {
+            padding: 0 !important;
+        }
+
+        .admin-page .table-responsive {
+            overflow: visible;
+        }
+
+        .admin-page .admin-mobile-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 0;
+        }
+
+        .admin-page .admin-mobile-table thead {
+            display: none;
+        }
+
+        .admin-page .admin-mobile-table tbody {
+            display: block;
+            padding: .75rem;
+            background: #f8fafc;
+        }
+
+        .admin-page .admin-mobile-table tr {
+            display: block;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            padding: .85rem;
+            margin-bottom: .75rem;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
+            overflow: hidden;
+        }
+
+        .admin-page .admin-mobile-table tr:last-child {
+            margin-bottom: 0;
+        }
+
+        .admin-page .admin-mobile-table td {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: .85rem;
+            width: 100% !important;
+            border: 0 !important;
+            border-bottom: 1px dashed #e5e7eb !important;
+            padding: .5rem 0 !important;
+            text-align: right !important;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .admin-page .admin-mobile-table td::before {
+            flex: 0 0 38%;
+            max-width: 38%;
+            color: #64748b;
+            content: "";
+            font-size: .72rem;
+            font-weight: 900;
+            letter-spacing: .02em;
+            line-height: 1.25;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .admin-page .admin-mobile-table td:first-child {
+            display: block;
+            border-bottom: 1px solid #dbe3ec !important;
+            margin-bottom: .2rem;
+            padding-bottom: .7rem !important;
+            text-align: left !important;
+        }
+
+        .admin-page .admin-mobile-table td:first-child::before,
+        .admin-page .admin-mobile-table td[colspan]::before {
+            display: none;
+        }
+
+        .admin-page .admin-mobile-table td:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .admin-page .admin-mobile-table td:last-child:not(:first-child) {
+            display: block;
+            padding-top: .7rem !important;
+            text-align: left !important;
+        }
+
+        .admin-page .admin-mobile-table td:last-child:not(:first-child)::before {
+            display: block;
+            max-width: none;
+            margin-bottom: .45rem;
+        }
+
+        .admin-page .admin-mobile-table td[colspan] {
+            display: block;
+            padding: 1rem !important;
+            text-align: center !important;
+        }
+
+        .admin-page .admin-mobile-table .btn {
+            width: 100%;
+            margin: .25rem 0 0 !important;
+            min-height: 38px;
+            white-space: normal;
+        }
+
+        .admin-page .admin-mobile-table input,
+        .admin-page .admin-mobile-table select {
+            max-width: 100%;
+        }
+
+        .admin-page .cupos-table td:nth-child(2)::before { content: "Celular"; }
+        .admin-page .cupos-table td:nth-child(3)::before { content: "Plan"; }
+        .admin-page .cupos-table td:nth-child(4)::before { content: "Estado"; }
+        .admin-page .cupos-table td:nth-child(5)::before { content: "Codigo"; }
+        .admin-page .cupos-table td:nth-child(6)::before { content: "Permitir hasta"; }
+        .admin-page .cupos-table td:nth-child(7)::before { content: "Acciones"; }
+
+        .admin-page .phase-table td:nth-child(2)::before { content: "Partidos"; }
+        .admin-page .phase-table td:nth-child(3)::before { content: "Finalizados"; }
+        .admin-page .phase-table td:nth-child(4)::before { content: "Faltan marcador"; }
+        .admin-page .phase-table td:nth-child(5)::before { content: "Siguiente fase"; }
+        .admin-page .phase-table td:nth-child(6)::before { content: "Acciones"; }
+
+        .admin-page .calendar-table td:nth-child(2)::before { content: "Partido"; }
+        .admin-page .calendar-table td:nth-child(3)::before { content: "Fecha Colombia"; }
+        .admin-page .calendar-table td:nth-child(4)::before { content: "Estado"; }
+        .admin-page .calendar-table td:nth-child(5)::before { content: "Accion"; }
+
+        .admin-page .users-table td:nth-child(2)::before { content: "Email"; }
+        .admin-page .users-table td:nth-child(3)::before { content: "Estado"; }
+        .admin-page .users-table td:nth-child(4)::before { content: "Pollas"; }
+        .admin-page .users-table td:nth-child(5)::before { content: "Historial"; }
+        .admin-page .users-table td:nth-child(6)::before { content: "Acciones"; }
+
+        .admin-page .pollas-table td:nth-child(2)::before { content: "Creador"; }
+        .admin-page .pollas-table td:nth-child(3)::before { content: "Miembros"; }
+        .admin-page .pollas-table td:nth-child(4)::before { content: "Acciones"; }
+
+        .admin-page .members-table td:nth-child(2)::before { content: "Email"; }
+        .admin-page .members-table td:nth-child(3)::before { content: "Estado"; }
+        .admin-page .members-table td:nth-child(4)::before { content: "Acciones"; }
+
+        .admin-page .predictions-table td:nth-child(2)::before { content: "Pronostico"; }
+        .admin-page .predictions-table td:nth-child(3)::before { content: "Resultado real"; }
+        .admin-page .predictions-table td:nth-child(4)::before { content: "Puntos"; }
+        .admin-page .predictions-table td:nth-child(5)::before { content: "Acciones"; }
+
+        .admin-page .history-table td:nth-child(2)::before { content: "Estado"; }
+        .admin-page .history-table td:nth-child(3)::before { content: "Pronostico"; }
+        .admin-page .history-table td:nth-child(4)::before { content: "Extras"; }
+
+        .admin-page .cupos-table td:nth-child(6),
+        .admin-page .calendar-table td:nth-child(3),
+        .admin-page .predictions-table td:nth-child(2) {
+            display: block;
+            text-align: left !important;
+        }
+
+        .admin-page .cupos-table td:nth-child(6)::before,
+        .admin-page .calendar-table td:nth-child(3)::before,
+        .admin-page .predictions-table td:nth-child(2)::before {
+            display: block;
+            max-width: none;
+            margin-bottom: .35rem;
+        }
+
+        .admin-page .cupos-table td:nth-child(6) input,
+        .admin-page .calendar-table td:nth-child(3) input {
+            width: 100% !important;
+            margin-left: 0 !important;
+            text-align: left !important;
+        }
+
+        .admin-page .predictions-table td:nth-child(2) input {
+            width: 74px;
+            text-align: center;
+        }
+
+        .admin-page .usuarios-filtro {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            width: 100%;
+        }
+
+        .admin-page .usuarios-filtro .btn {
+            border-radius: 6px !important;
+            font-size: .78rem;
+            line-height: 1.15;
+            padding: .45rem .25rem;
+            white-space: normal;
+        }
+
+        .calendario-scroll {
+            max-height: none;
+            overflow: visible;
+        }
+
+        .reopen-panel .d-flex.flex-wrap.gap-2 {
+            display: grid !important;
+            grid-template-columns: 1fr;
+        }
+
+        .reopen-panel .btn {
+            width: 100%;
+            min-height: 40px;
+        }
+
+        .admin-contact-backdrop,
+        .admin-modal-backdrop {
+            align-items: stretch;
+            padding: 10px;
+        }
+
+        .admin-contact-modal,
+        .admin-modal {
+            width: 100%;
+            max-height: calc(100vh - 20px);
+            border-radius: 8px;
+        }
+
+        .admin-contact-body,
+        .admin-modal-header {
+            padding: 1rem;
+        }
+
+        .historial-content {
+            max-height: calc(100vh - 92px);
+            padding: .75rem;
+        }
+
         .historial-summary-grid,
         .podio-mini {
             grid-template-columns: 1fr;
@@ -1352,6 +1729,11 @@ else
         return filtroUsuarios == filtro
             ? "btn btn-primary"
             : "btn btn-outline-primary";
+    }
+
+    private Task ScrollAdminSection(string sectionId)
+    {
+        return JS.InvokeVoidAsync("worldCupAdmin.scrollToSection", sectionId).AsTask();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

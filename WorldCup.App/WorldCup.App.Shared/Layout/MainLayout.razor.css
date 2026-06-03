@@ -36,7 +36,21 @@ main {
         text-overflow: ellipsis;
     }
 
-@media (max-width: 640.98px) {
+@media (max-width: 991.98px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 1050;
+        box-shadow: 0 8px 20px rgba(16, 24, 40, 0.16);
+    }
+
+    main {
+        padding-top: 4rem;
+    }
+
     .top-row {
         justify-content: space-between;
     }
