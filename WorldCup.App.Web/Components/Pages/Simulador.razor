@@ -2,6 +2,7 @@
 @page "/simulador/{PollaId:int}"
 @using WorldCup.App.Shared.DTOs
 @inject HttpClient Http
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 
 <h2 class="mb-4">🌎 Simulador Mundial</h2>
@@ -34,6 +35,25 @@ else
 
                 <div class="text-muted small">
                     Por marcadores calcula la tabla automáticamente. Por posición te deja ordenar cada grupo manualmente.
+                </div>
+
+                <div class="sim-draft-actions">
+                    <button class="btn btn-primary"
+                            disabled="@(guardandoBorrador || partidos == null)"
+                            @onclick="GuardarBorradorSimulador">
+                        💾 Guardar simulación
+                    </button>
+
+                    <button class="btn btn-outline-danger"
+                            disabled="@(guardandoBorrador || partidos == null)"
+                            @onclick="LimpiarBorradorSimulador">
+                        Limpiar simulación
+                    </button>
+
+                    @if (!string.IsNullOrWhiteSpace(UltimoGuardadoTexto))
+                    {
+                        <small>@UltimoGuardadoTexto</small>
+                    }
                 </div>
             </div>
         </div>
@@ -1086,6 +1106,21 @@ else
 }
 
 <style>
+    .sim-draft-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .55rem;
+    }
+
+    .sim-draft-actions small {
+        width: 100%;
+        color: #64748b;
+        font-weight: 700;
+        text-align: right;
+    }
+
     .sim-group-actions {
         display: flex;
         align-items: center;
@@ -1155,6 +1190,20 @@ else
             align-items: stretch !important;
             flex-direction: column;
             padding: .85rem;
+        }
+
+        .sim-draft-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .5rem;
+        }
+
+        .sim-draft-actions .btn {
+            width: 100%;
+        }
+
+        .sim-draft-actions small {
+            text-align: center;
         }
 
         .container-fluid > .card:first-of-type select {
@@ -1401,6 +1450,21 @@ else
     private Dictionary<string, List<SimuladorEquipoPosicion>> posicionesPorGrupo = new();
     private HashSet<string> gruposTerceroSimulador = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> tablasMarcadoresVisibles = new(StringComparer.OrdinalIgnoreCase);
+    private bool guardandoBorrador;
+    private DateTime? borradorGuardadoEnUtc;
+
+    private string SimuladorStorageKey =>
+        $"worldcup.simulador.{(PollaId.HasValue ? $"polla-{PollaId.Value}" : "general")}.v1";
+
+    private string UltimoGuardadoTexto =>
+        borradorGuardadoEnUtc.HasValue
+            ? $"Último guardado: {borradorGuardadoEnUtc.Value.ToLocalTime():dd/MM/yyyy HH:mm}"
+            : "";
+
+    private static readonly System.Text.Json.JsonSerializerOptions BorradorJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     private List<PartidoEliminacionDto> dieciseisavos = new();
     private List<PartidoEliminacionDto> octavos = new();
@@ -1515,11 +1579,218 @@ else
         PrepararPosicionesPorGrupo();
     }
 
-    private Task GuardarPartido(SimuladorPartidoDto partido)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        simuladorConError = false;
-        mensajeSimulador = "Marcador aplicado solo en este simulador. No modifica resultados oficiales.";
-        return Task.CompletedTask;
+        if (!firstRender || partidos == null)
+        {
+            return;
+        }
+
+        await RestaurarBorradorSimulador();
+        StateHasChanged();
+    }
+
+    private async Task GuardarPartido(SimuladorPartidoDto partido)
+    {
+        await GuardarBorradorSimulador("Marcador guardado en tu simulación. No modifica resultados oficiales.");
+    }
+
+    private Task GuardarBorradorSimulador()
+    {
+        return GuardarBorradorSimulador("Simulación guardada correctamente. Puedes cerrar la página y volver después.");
+    }
+
+    private async Task GuardarBorradorSimulador(string mensajeExito)
+    {
+        if (partidos == null)
+        {
+            return;
+        }
+
+        try
+        {
+            guardandoBorrador = true;
+
+            var guardadoEnUtc = DateTime.UtcNow;
+            var borrador = new SimuladorBorrador
+            {
+                Version = "1",
+                ModoSimulador = modoSimulador,
+                GuardadoEnUtc = guardadoEnUtc,
+                Partidos = partidos
+                    .Select(p => new SimuladorPartidoGuardado
+                    {
+                        Id = p.Id,
+                        Grupo = p.Grupo,
+                        Local = p.Local,
+                        Visitante = p.Visitante,
+                        GolesLocal = p.GolesLocal,
+                        GolesVisitante = p.GolesVisitante
+                    })
+                    .ToList(),
+                PosicionesPorGrupo = posicionesPorGrupo.ToDictionary(
+                    g => g.Key,
+                    g => g.Value
+                        .Select(e => new SimuladorEquipoPosicionGuardado
+                        {
+                            Grupo = e.Grupo,
+                            Equipo = e.Equipo,
+                            Posicion = e.Posicion
+                        })
+                        .ToList(),
+                    StringComparer.OrdinalIgnoreCase),
+                GruposTerceroSimulador = gruposTerceroSimulador.ToList(),
+                TablasMarcadoresVisibles = tablasMarcadoresVisibles.ToList(),
+                Clasificados = clasificados,
+                MejoresTerceros = mejoresTerceros,
+                TablasPorGrupo = tablasPorGrupo,
+                Dieciseisavos = dieciseisavos,
+                Octavos = octavos,
+                Cuartos = cuartos,
+                Semifinales = semifinales,
+                TercerPuesto = tercerPuesto,
+                Final = final
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(borrador, BorradorJsonOptions);
+            await JS.InvokeVoidAsync("localStorage.setItem", SimuladorStorageKey, json);
+
+            borradorGuardadoEnUtc = guardadoEnUtc;
+            simuladorConError = false;
+            mensajeSimulador = mensajeExito;
+        }
+        catch
+        {
+            simuladorConError = true;
+            mensajeSimulador = "No se pudo guardar la simulación en este navegador. Intenta de nuevo.";
+        }
+        finally
+        {
+            guardandoBorrador = false;
+        }
+    }
+
+    private async Task RestaurarBorradorSimulador()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", SimuladorStorageKey);
+            if (string.IsNullOrWhiteSpace(json) || partidos == null)
+            {
+                return;
+            }
+
+            var borrador = System.Text.Json.JsonSerializer.Deserialize<SimuladorBorrador>(
+                json,
+                BorradorJsonOptions);
+
+            if (borrador == null)
+            {
+                return;
+            }
+
+            modoSimulador = borrador.ModoSimulador == "posiciones"
+                ? "posiciones"
+                : "marcadores";
+
+            foreach (var guardado in borrador.Partidos)
+            {
+                var partido = partidos.FirstOrDefault(p =>
+                    p.Id == guardado.Id ||
+                    (string.Equals(NormalizarGrupo(p.Grupo), NormalizarGrupo(guardado.Grupo), StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(p.Local, guardado.Local, StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(p.Visitante, guardado.Visitante, StringComparison.OrdinalIgnoreCase)));
+
+                if (partido == null)
+                {
+                    continue;
+                }
+
+                partido.GolesLocal = guardado.GolesLocal;
+                partido.GolesVisitante = guardado.GolesVisitante;
+            }
+
+            PrepararPosicionesPorGrupo();
+            foreach (var grupoGuardado in borrador.PosicionesPorGrupo)
+            {
+                var grupo = NormalizarGrupo(grupoGuardado.Key);
+                if (!posicionesPorGrupo.TryGetValue(grupo, out var posicionesActuales))
+                {
+                    continue;
+                }
+
+                foreach (var equipoGuardado in grupoGuardado.Value)
+                {
+                    var equipo = posicionesActuales.FirstOrDefault(e =>
+                        string.Equals(e.Equipo, equipoGuardado.Equipo, StringComparison.OrdinalIgnoreCase));
+
+                    if (equipo != null)
+                    {
+                        equipo.Posicion = equipoGuardado.Posicion;
+                    }
+                }
+            }
+
+            gruposTerceroSimulador = borrador.GruposTerceroSimulador
+                .Select(NormalizarGrupo)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            tablasMarcadoresVisibles = borrador.TablasMarcadoresVisibles
+                .Select(NormalizarGrupo)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            clasificados = borrador.Clasificados ?? new();
+            mejoresTerceros = borrador.MejoresTerceros ?? new();
+            tablasPorGrupo = borrador.TablasPorGrupo ?? new(StringComparer.OrdinalIgnoreCase);
+            dieciseisavos = borrador.Dieciseisavos ?? new();
+            octavos = borrador.Octavos ?? new();
+            cuartos = borrador.Cuartos ?? new();
+            semifinales = borrador.Semifinales ?? new();
+            tercerPuesto = borrador.TercerPuesto ?? new();
+            final = borrador.Final ?? new();
+
+            borradorGuardadoEnUtc = borrador.GuardadoEnUtc == default
+                ? null
+                : borrador.GuardadoEnUtc;
+
+            simuladorConError = false;
+            mensajeSimulador = "Se restauró tu simulación guardada en este navegador.";
+        }
+        catch
+        {
+            simuladorConError = true;
+            mensajeSimulador = "No se pudo restaurar la simulación guardada. Puedes limpiar y empezar de nuevo.";
+        }
+    }
+
+    private async Task LimpiarBorradorSimulador()
+    {
+        if (partidos != null)
+        {
+            foreach (var partido in partidos)
+            {
+                partido.GolesLocal = null;
+                partido.GolesVisitante = null;
+            }
+        }
+
+        modoSimulador = "marcadores";
+        gruposTerceroSimulador.Clear();
+        PrepararPosicionesPorGrupo();
+        LimpiarSimulacionDesdeGrupos();
+        borradorGuardadoEnUtc = null;
+
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", SimuladorStorageKey);
+            simuladorConError = false;
+            mensajeSimulador = "Simulación limpia. Ya puedes empezar de nuevo.";
+        }
+        catch
+        {
+            simuladorConError = true;
+            mensajeSimulador = "Se limpió la pantalla, pero no se pudo borrar el borrador guardado del navegador.";
+        }
     }
 
     private bool GrupoConMarcadoresCompletos(IEnumerable<SimuladorPartidoDto> partidosGrupo)
@@ -2148,6 +2419,43 @@ else
     }
 
     private class SimuladorEquipoPosicion
+    {
+        public string Grupo { get; set; } = "";
+        public string Equipo { get; set; } = "";
+        public int Posicion { get; set; }
+    }
+
+    private class SimuladorBorrador
+    {
+        public string Version { get; set; } = "1";
+        public string ModoSimulador { get; set; } = "marcadores";
+        public DateTime GuardadoEnUtc { get; set; }
+        public List<SimuladorPartidoGuardado> Partidos { get; set; } = new();
+        public Dictionary<string, List<SimuladorEquipoPosicionGuardado>> PosicionesPorGrupo { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> GruposTerceroSimulador { get; set; } = new();
+        public List<string> TablasMarcadoresVisibles { get; set; } = new();
+        public List<EquipoGrupoDto> Clasificados { get; set; } = new();
+        public List<EquipoGrupoDto> MejoresTerceros { get; set; } = new();
+        public Dictionary<string, List<EquipoGrupoDto>> TablasPorGrupo { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<PartidoEliminacionDto> Dieciseisavos { get; set; } = new();
+        public List<PartidoEliminacionDto> Octavos { get; set; } = new();
+        public List<PartidoEliminacionDto> Cuartos { get; set; } = new();
+        public List<PartidoEliminacionDto> Semifinales { get; set; } = new();
+        public List<PartidoEliminacionDto> TercerPuesto { get; set; } = new();
+        public List<PartidoEliminacionDto> Final { get; set; } = new();
+    }
+
+    private class SimuladorPartidoGuardado
+    {
+        public int Id { get; set; }
+        public string Grupo { get; set; } = "";
+        public string Local { get; set; } = "";
+        public string Visitante { get; set; } = "";
+        public int? GolesLocal { get; set; }
+        public int? GolesVisitante { get; set; }
+    }
+
+    private class SimuladorEquipoPosicionGuardado
     {
         public string Grupo { get; set; } = "";
         public string Equipo { get; set; } = "";
