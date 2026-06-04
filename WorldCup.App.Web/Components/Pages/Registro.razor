@@ -177,6 +177,12 @@
             return;
         }
 
+        if (!EmailValido(model.Email))
+        {
+            error = "El correo no es valido. Revisa que este escrito completo, por ejemplo usuario@gmail.com.";
+            return;
+        }
+
         if (model.Password != model.ConfirmPassword)
         {
             error = "Las contrasenas no coinciden.";
@@ -307,5 +313,24 @@
     private void IrLogin()
     {
         Navigation.NavigateTo(LoginUrl, true);
+    }
+
+    private static bool EmailValido(string email)
+    {
+        email = (email ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) ||
+            email.Contains(' ') ||
+            email.Contains(',') ||
+            email.Contains(';') ||
+            email.Count(c => c == '@') != 1)
+        {
+            return false;
+        }
+
+        var partes = email.Split('@');
+        return partes[0].Length > 0 &&
+               partes[1].Contains('.') &&
+               partes[1].Split('.', StringSplitOptions.RemoveEmptyEntries).Length >= 2 &&
+               partes[1].All(c => char.IsLetterOrDigit(c) || c == '-' || c == '.');
     }
 }

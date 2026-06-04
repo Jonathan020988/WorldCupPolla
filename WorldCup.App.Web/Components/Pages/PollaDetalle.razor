@@ -1,5 +1,6 @@
 ﻿@page "/polla/{PollaId:int}"
 @rendermode InteractiveServer
+@using Microsoft.JSInterop
 @using System.Net.Http.Json
 @using WorldCup.App.Shared.Services
 @using WorldCup.App.Shared.DTOs
@@ -7,6 +8,7 @@
 @inject SesionService Sesion
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <div class="polla-detail-header d-flex align-items-start gap-3 mb-4 flex-wrap">
     <button class="btn btn-outline-primary btn-lg polla-back-btn"
@@ -352,6 +354,48 @@ else
             }
         </div>
     </div>
+
+    @if (EsCreador)
+    {
+        <div class="card mt-3 manual-formats-section">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Formatos manuales PDF</h5>
+                        <small class="text-muted">
+                            Descarga planillas compactas para imprimir y llenar a mano.
+                        </small>
+                    </div>
+                    <span class="manual-format-pill">PDF</span>
+                </div>
+
+                <div class="manual-formats-grid mt-3">
+                    @foreach (var formato in FormatosManuales)
+                    {
+                        <button type="button"
+                                class="manual-format-btn"
+                                disabled="@descargandoFormatoManual"
+                                @onclick="() => DescargarFormatoManualPdf(formato.Tipo)">
+                            <span>@formato.Etiqueta</span>
+                            <strong>
+                                @(descargandoFormatoManual && formatoManualEnDescarga == formato.Tipo
+                                    ? "Generando..."
+                                    : formato.Titulo)
+                            </strong>
+                            <small>@formato.Descripcion</small>
+                        </button>
+                    }
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(mensajeFormatoManual))
+                {
+                    <div class="alert @(errorFormatoManual ? "alert-danger" : "alert-success") mt-3 mb-0">
+                        @mensajeFormatoManual
+                    </div>
+                }
+            </div>
+        </div>
+    }
 
     @if (EsCreador)
     {
@@ -1185,16 +1229,20 @@ else
         order: 5;
     }
 
-    .payment-section {
+    .manual-formats-section {
         order: 6;
     }
 
-    .payment-list-section {
+    .payment-section {
         order: 7;
     }
 
-    .ranking-section {
+    .payment-list-section {
         order: 8;
+    }
+
+    .ranking-section {
+        order: 9;
     }
 
     .inscripciones-cerradas .payment-section {
@@ -1219,6 +1267,10 @@ else
 
     .inscripciones-cerradas .payment-list-section {
         order: 4;
+    }
+
+    .inscripciones-cerradas .manual-formats-section {
+        order: 5;
     }
 
     .inscripciones-cerradas .ranking-section {
@@ -1472,6 +1524,73 @@ else
 
     .payment-control-card {
         border-color: #cfe8da;
+    }
+
+    .manual-formats-section {
+        border-color: #cfe8da;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbfa 100%);
+    }
+
+    .manual-format-pill {
+        border-radius: 999px;
+        background: #e8f5ee;
+        color: #0f5132;
+        font-size: .76rem;
+        font-weight: 850;
+        letter-spacing: .02em;
+        padding: .35rem .7rem;
+    }
+
+    .manual-formats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: .65rem;
+    }
+
+    .manual-format-btn {
+        display: grid;
+        gap: .18rem;
+        min-height: 96px;
+        border: 1px solid #d7eadd;
+        border-radius: 8px;
+        background: #fff;
+        color: #13201c;
+        padding: .78rem;
+        text-align: left;
+        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+
+    .manual-format-btn:hover,
+    .manual-format-btn:focus-visible {
+        border-color: #198754;
+        box-shadow: 0 8px 22px rgba(25, 135, 84, .12);
+        outline: 0;
+        transform: translateY(-1px);
+    }
+
+    .manual-format-btn:disabled {
+        cursor: wait;
+        opacity: .72;
+        transform: none;
+    }
+
+    .manual-format-btn span {
+        color: #146c43;
+        font-size: .74rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .manual-format-btn strong {
+        color: #101828;
+        font-size: 1rem;
+        line-height: 1.18;
+    }
+
+    .manual-format-btn small {
+        color: #667085;
+        font-size: .78rem;
+        line-height: 1.25;
     }
 
     .payment-kpis {
@@ -1830,6 +1949,10 @@ else
         }
 
         .quick-user-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .manual-formats-grid {
             grid-template-columns: 1fr;
         }
 
@@ -2245,6 +2368,22 @@ else
     private string? mensajeAcceso;
     private bool procesandoInscripciones;
     private string usuarioResumenFiltro = "";
+    private bool descargandoFormatoManual;
+    private string? formatoManualEnDescarga;
+    private string? mensajeFormatoManual;
+    private bool errorFormatoManual;
+
+    private static readonly List<FormatoManualOption> FormatosManuales = new()
+    {
+        new("partidos-grupos", "72 partidos", "Fase de grupos", "Pronosticos, resultado y puntaje en formato compacto."),
+        new("clasificacion-grupos", "Clasificacion", "Grupos", "Equipos por grupo con una casilla para la posicion."),
+        new("fase-dieciseisavos", "16avos", "Dieciseisavos", "Formato manual para la primera fase eliminatoria."),
+        new("fase-octavos", "Octavos", "Octavos", "Formato manual para octavos de final."),
+        new("fase-cuartos", "Cuartos", "Cuartos", "Formato manual para cuartos de final."),
+        new("fase-semifinales", "Semis", "Semifinales", "Formato manual para semifinales."),
+        new("fase-tercer-puesto", "3er puesto", "Tercer puesto", "Formato manual para el partido por el tercer lugar."),
+        new("fase-final", "Final", "Final", "Formato manual para la final.")
+    };
 
     private string TextoCupoPolla =>
         polla?.CuposIlimitados == true
@@ -2607,6 +2746,74 @@ else
     private void VolverADashboard()
     {
         Navigation.NavigateTo("/dashboard");
+    }
+
+    private async Task DescargarFormatoManualPdf(string tipo)
+    {
+        if (!EsCreador || !Sesion.UsuarioId.HasValue)
+        {
+            mensajeFormatoManual = "Solo el creador de la polla puede descargar estos formatos.";
+            errorFormatoManual = true;
+            return;
+        }
+
+        try
+        {
+            descargandoFormatoManual = true;
+            formatoManualEnDescarga = tipo;
+            mensajeFormatoManual = null;
+            errorFormatoManual = false;
+
+            var url = $"api/Polla/{PollaId}/formatos-manuales/pdf?solicitanteId={Sesion.UsuarioId.Value}&tipo={Uri.EscapeDataString(tipo)}";
+            using var response = await Http.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detalle = await response.Content.ReadAsStringAsync();
+                mensajeFormatoManual = string.IsNullOrWhiteSpace(detalle)
+                    ? "No fue posible generar el formato manual."
+                    : detalle;
+                errorFormatoManual = true;
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var nombreArchivo = NombreArchivoFormatoManual(tipo);
+            await JS.InvokeVoidAsync(
+                "worldCupDownloadFile",
+                nombreArchivo,
+                "application/pdf",
+                Convert.ToBase64String(bytes));
+
+            mensajeFormatoManual = "Formato generado. Revisa la descarga del navegador.";
+            errorFormatoManual = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeFormatoManual = ex.Message;
+            errorFormatoManual = true;
+        }
+        finally
+        {
+            descargandoFormatoManual = false;
+            formatoManualEnDescarga = null;
+        }
+    }
+
+    private string NombreArchivoFormatoManual(string tipo)
+    {
+        return tipo switch
+        {
+            "partidos-grupos" => $"polla-{PollaId}-72-partidos.pdf",
+            "clasificacion-grupos" => $"polla-{PollaId}-clasificacion-grupos.pdf",
+            "fase-dieciseisavos" => $"polla-{PollaId}-dieciseisavos.pdf",
+            "fase-octavos" => $"polla-{PollaId}-octavos.pdf",
+            "fase-cuartos" => $"polla-{PollaId}-cuartos.pdf",
+            "fase-semifinales" => $"polla-{PollaId}-semifinales.pdf",
+            "fase-tercer-puesto" => $"polla-{PollaId}-tercer-puesto.pdf",
+            "fase-final" => $"polla-{PollaId}-final.pdf",
+            _ => $"polla-{PollaId}-formato-manual.pdf"
+        };
     }
 
     private void PrepararDatosPolla()
@@ -3205,6 +3412,12 @@ else
             _ => "bg-secondary"
         };
     }
+
+    private sealed record FormatoManualOption(
+        string Tipo,
+        string Etiqueta,
+        string Titulo,
+        string Descripcion);
 
 
 

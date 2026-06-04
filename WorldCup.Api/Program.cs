@@ -26,6 +26,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<AdminAuthorizationService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<FormatoManualPdfService>();
 builder.Services.AddSingleton<AttemptRateLimiter>();
 
 // JWT

@@ -40,6 +40,11 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Nombre, correo y contrasena son obligatorios");
             }
 
+            if (!EmailValido(email))
+            {
+                return BadRequest("El correo no es valido. Revisa que este escrito completo, por ejemplo usuario@gmail.com.");
+            }
+
             if (dto.VersionLegal != LegalVersion.Actual ||
                 !dto.AceptaTerminos ||
                 !dto.AceptaPoliticaPrivacidad ||
@@ -151,6 +156,11 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Debes indicar el correo registrado.");
             }
 
+            if (!EmailValido(email))
+            {
+                return BadRequest("El correo no es valido. Revisa que este escrito completo, por ejemplo usuario@gmail.com.");
+            }
+
             var limitado = ValidarIntentos(
                 $"reenviar:{email}",
                 3,
@@ -214,6 +224,11 @@ namespace WorldCup.Api.Controllers
             if (string.IsNullOrWhiteSpace(email) || codigo.Length != 6 || !codigo.All(char.IsDigit))
             {
                 return BadRequest("El codigo de confirmacion no es valido.");
+            }
+
+            if (!EmailValido(email))
+            {
+                return BadRequest("El correo no es valido. Revisa que este escrito completo, por ejemplo usuario@gmail.com.");
             }
 
             var limitado = ValidarIntentos(
@@ -293,6 +308,24 @@ namespace WorldCup.Api.Controllers
         private static string NormalizarEmail(string? email)
         {
             return (email ?? "").Trim().ToLowerInvariant();
+        }
+
+        private static bool EmailValido(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email) ||
+                email.Contains(' ') ||
+                email.Contains(',') ||
+                email.Contains(';') ||
+                email.Count(c => c == '@') != 1)
+            {
+                return false;
+            }
+
+            var partes = email.Split('@');
+            return partes[0].Length > 0 &&
+                   partes[1].Contains('.') &&
+                   partes[1].Split('.', StringSplitOptions.RemoveEmptyEntries).Length >= 2 &&
+                   partes[1].All(c => char.IsLetterOrDigit(c) || c == '-' || c == '.');
         }
 
         private IActionResult? ValidarIntentos(

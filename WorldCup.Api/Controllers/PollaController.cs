@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using WorldCup.Api.Data;
 using WorldCup.Api.DTOs;
 using WorldCup.Api.Models;
@@ -21,17 +22,20 @@ namespace WorldCup.Api.Controllers
         private readonly EmailService _emailService;
         private readonly AdminAuthorizationService _adminAuthorization;
         private readonly IConfiguration _configuration;
+        private readonly FormatoManualPdfService _formatoManualPdfService;
 
         public PollaController(
             AppDbContext context,
             EmailService emailService,
             AdminAuthorizationService adminAuthorization,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            FormatoManualPdfService formatoManualPdfService)
         {
             _context = context;
             _emailService = emailService;
             _adminAuthorization = adminAuthorization;
             _configuration = configuration;
+            _formatoManualPdfService = formatoManualPdfService;
         }
 
         // =========================================================
@@ -1284,6 +1288,75 @@ namespace WorldCup.Api.Controllers
             });
         }
 
+        // ================= FORMATOS MANUALES PDF =================
+        [HttpGet("{pollaId:int}/formatos-manuales/pdf")]
+        public async Task<IActionResult> DescargarFormatoManualPdf(
+            int pollaId,
+            [FromQuery] int solicitanteId,
+            [FromQuery] string tipo = "partidos-grupos")
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => p.Id == pollaId)
+                .Select(p => new { p.Id, p.Nombre })
+                .FirstOrDefaultAsync();
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            var tipoNormalizado = NormalizarTipoFormatoManual(tipo);
+
+            if (tipoNormalizado == "clasificacion-grupos")
+            {
+                var equipos = await _context.Equipos
+                    .AsNoTracking()
+                    .Where(e => e.Grupo != null && e.Grupo != "")
+                    .OrderBy(e => e.Grupo)
+                    .ThenBy(e => e.Nombre)
+                    .ToListAsync();
+
+                var pdf = _formatoManualPdfService.CrearClasificacionGrupos(
+                    polla.Nombre,
+                    equipos);
+
+                return File(
+                    pdf,
+                    "application/pdf",
+                    CrearNombreArchivoFormato(polla.Nombre, tipoNormalizado));
+            }
+
+            var fase = ObtenerFaseFormatoManual(tipoNormalizado);
+            if (fase == null)
+                return BadRequest("Formato manual no valido");
+
+            var partidos = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Fase == fase)
+                .OrderBy(p => p.Fecha)
+                .ThenBy(p => p.Id)
+                .ToListAsync();
+
+            var titulo = tipoNormalizado == "partidos-grupos"
+                ? "Formato manual - 72 partidos de grupos"
+                : $"Formato manual - {NombreFase(fase)}";
+
+            var pdfPartidos = _formatoManualPdfService.CrearPartidosCompacto(
+                polla.Nombre,
+                titulo,
+                partidos);
+
+            return File(
+                pdfPartidos,
+                "application/pdf",
+                CrearNombreArchivoFormato(polla.Nombre, tipoNormalizado));
+        }
+
         // ================= SOLICITUDES DE INGRESO =================
         [HttpGet("{pollaId:int}/solicitudes")]
         public async Task<IActionResult> GetSolicitudesIngreso(
@@ -2103,6 +2176,76 @@ namespace WorldCup.Api.Controllers
                 : StatusCode(
                     StatusCodes.Status403Forbidden,
                     "Solo el creador puede administrar esta polla.");
+        }
+
+        private static string NormalizarTipoFormatoManual(string? tipo)
+        {
+            return (tipo ?? "partidos-grupos")
+                .Trim()
+                .ToLowerInvariant()
+                .Replace("_", "-", StringComparison.Ordinal)
+                .Replace(" ", "-", StringComparison.Ordinal);
+        }
+
+        private static string? ObtenerFaseFormatoManual(string tipo)
+        {
+            return tipo switch
+            {
+                "partidos-grupos" => "Grupos",
+                "fase-dieciseisavos" => "Dieciseisavos",
+                "fase-16avos" => "Dieciseisavos",
+                "fase-octavos" => "Octavos",
+                "fase-cuartos" => "Cuartos",
+                "fase-semifinales" => "Semifinales",
+                "fase-tercer-puesto" => "TercerPuesto",
+                "fase-final" => "Final",
+                _ => null
+            };
+        }
+
+        private static string NombreFase(string fase)
+        {
+            return fase switch
+            {
+                "Dieciseisavos" => "Dieciseisavos",
+                "TercerPuesto" => "Tercer puesto",
+                _ => fase
+            };
+        }
+
+        private static string CrearNombreArchivoFormato(string nombrePolla, string tipo)
+        {
+            return $"formato-manual-{SlugArchivo(nombrePolla)}-{tipo}.pdf";
+        }
+
+        private static string SlugArchivo(string texto)
+        {
+            var normalizado = (texto ?? "polla")
+                .Trim()
+                .ToLowerInvariant()
+                .Normalize(NormalizationForm.FormD);
+
+            var builder = new StringBuilder();
+            foreach (var caracter in normalizado)
+            {
+                var categoria = CharUnicodeInfo.GetUnicodeCategory(caracter);
+                if (categoria == UnicodeCategory.NonSpacingMark)
+                    continue;
+
+                if (char.IsLetterOrDigit(caracter))
+                {
+                    builder.Append(caracter);
+                }
+                else if (builder.Length == 0 || builder[^1] != '-')
+                {
+                    builder.Append('-');
+                }
+            }
+
+            var slug = builder.ToString().Trim('-');
+            return string.IsNullOrWhiteSpace(slug)
+                ? "polla"
+                : slug;
         }
 
         private static string MensajeAmpliacionCupos(int permitido)
