@@ -374,7 +374,7 @@ else
                     {
                         <button type="button"
                                 class="manual-format-btn"
-                                disabled="@descargandoFormatoManual"
+                                disabled="@FormatoManualProcesando"
                                 @onclick="() => DescargarFormatoManualPdf(formato.Tipo)">
                             <span>@formato.Etiqueta</span>
                             <strong>
@@ -384,6 +384,79 @@ else
                             </strong>
                             <small>@formato.Descripcion</small>
                         </button>
+                    }
+                </div>
+
+                <div class="manual-filled-panel mt-3">
+                    <div>
+                        <h6 class="fw-bold mb-1">Formatos diligenciados por usuario</h6>
+                        <small class="text-muted">
+                            Busca un participante y descarga las planillas con sus predicciones guardadas.
+                        </small>
+                    </div>
+
+                    <div class="manual-user-search mt-3">
+                        <input class="form-control"
+                               placeholder="Buscar participante..."
+                               value="@usuarioFormatoFiltro"
+                               @oninput="ActualizarFiltroFormatoUsuario" />
+
+                        @if (!string.IsNullOrWhiteSpace(usuarioFormatoFiltro))
+                        {
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-sm"
+                                    @onclick="LimpiarUsuarioFormato">
+                                Limpiar
+                            </button>
+                        }
+                    </div>
+
+                    @if (UsuarioFormatoSeleccionado() is { } usuarioFormato)
+                    {
+                        <div class="manual-user-selected mt-2">
+                            <span>Usuario seleccionado</span>
+                            <strong>@usuarioFormato.Nombre</strong>
+                        </div>
+
+                        <div class="manual-formats-grid manual-formats-grid-filled mt-3">
+                            @foreach (var formato in FormatosManuales)
+                            {
+                                <button type="button"
+                                        class="manual-format-btn manual-format-btn-filled"
+                                        disabled="@FormatoManualProcesando"
+                                        @onclick="() => DescargarFormatoUsuarioPdf(formato.Tipo, usuarioFormato.Id)">
+                                    <span>@formato.Etiqueta</span>
+                                    <strong>
+                                        @(descargandoFormatoUsuario && formatoManualEnDescarga == formato.Tipo
+                                            ? "Generando..."
+                                            : $"{formato.Titulo} lleno")
+                                    </strong>
+                                    <small>@usuarioFormato.Nombre</small>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(usuarioFormatoFiltro))
+                    {
+                        var coincidenciasFormato = ParticipantesFormatoFiltrados().ToList();
+                        if (coincidenciasFormato.Any())
+                        {
+                            <div class="quick-user-results manual-user-results">
+                                @foreach (var participante in coincidenciasFormato)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SeleccionarUsuarioFormato(participante)">
+                                        @participante.Nombre
+                                    </button>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-light border mt-2 mb-0">
+                                No encontramos participantes con ese texto.
+                            </div>
+                        }
                     }
                 </div>
 
@@ -1547,6 +1620,10 @@ else
         gap: .65rem;
     }
 
+    .manual-formats-grid-filled {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
     .manual-format-btn {
         display: grid;
         gap: .18rem;
@@ -1591,6 +1668,54 @@ else
         color: #667085;
         font-size: .78rem;
         line-height: 1.25;
+    }
+
+    .manual-filled-panel {
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: .9rem;
+    }
+
+    .manual-user-search {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .55rem;
+    }
+
+    .manual-user-results {
+        max-height: 180px;
+    }
+
+    .manual-user-selected {
+        display: grid;
+        gap: .15rem;
+        border: 1px solid #cfe8da;
+        border-radius: 8px;
+        background: #f4fbf7;
+        padding: .7rem .8rem;
+    }
+
+    .manual-user-selected span {
+        color: #667085;
+        font-size: .74rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .manual-user-selected strong {
+        color: #0f5132;
+        font-size: 1rem;
+        line-height: 1.2;
+    }
+
+    .manual-format-btn-filled {
+        border-color: #cfe0ff;
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+    }
+
+    .manual-format-btn-filled span {
+        color: #174ea6;
     }
 
     .payment-kpis {
@@ -1953,6 +2078,10 @@ else
         }
 
         .manual-formats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .manual-user-search {
             grid-template-columns: 1fr;
         }
 
@@ -2369,9 +2498,14 @@ else
     private bool procesandoInscripciones;
     private string usuarioResumenFiltro = "";
     private bool descargandoFormatoManual;
+    private bool descargandoFormatoUsuario;
     private string? formatoManualEnDescarga;
     private string? mensajeFormatoManual;
     private bool errorFormatoManual;
+    private string usuarioFormatoFiltro = "";
+
+    private bool FormatoManualProcesando =>
+        descargandoFormatoManual || descargandoFormatoUsuario;
 
     private static readonly List<FormatoManualOption> FormatosManuales = new()
     {
@@ -2800,6 +2934,114 @@ else
         }
     }
 
+    private async Task DescargarFormatoUsuarioPdf(string tipo, int usuarioId)
+    {
+        if (!EsCreador || !Sesion.UsuarioId.HasValue)
+        {
+            mensajeFormatoManual = "Solo el creador de la polla puede descargar estos formatos.";
+            errorFormatoManual = true;
+            return;
+        }
+
+        var usuario = participantes.FirstOrDefault(p => p.Id == usuarioId);
+        if (usuario == null)
+        {
+            mensajeFormatoManual = "Selecciona un participante valido.";
+            errorFormatoManual = true;
+            return;
+        }
+
+        try
+        {
+            descargandoFormatoUsuario = true;
+            formatoManualEnDescarga = tipo;
+            mensajeFormatoManual = null;
+            errorFormatoManual = false;
+
+            var url = $"api/Polla/{PollaId}/formatos-manuales/usuario/pdf?solicitanteId={Sesion.UsuarioId.Value}&usuarioId={usuarioId}&tipo={Uri.EscapeDataString(tipo)}";
+            using var response = await Http.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detalle = await response.Content.ReadAsStringAsync();
+                mensajeFormatoManual = string.IsNullOrWhiteSpace(detalle)
+                    ? "No fue posible generar el formato diligenciado."
+                    : detalle;
+                errorFormatoManual = true;
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var nombreArchivo = NombreArchivoFormatoUsuario(tipo, usuario.Nombre);
+            await JS.InvokeVoidAsync(
+                "worldCupDownloadFile",
+                nombreArchivo,
+                "application/pdf",
+                Convert.ToBase64String(bytes));
+
+            mensajeFormatoManual = $"Formato diligenciado generado para {usuario.Nombre}.";
+            errorFormatoManual = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeFormatoManual = ex.Message;
+            errorFormatoManual = true;
+        }
+        finally
+        {
+            descargandoFormatoUsuario = false;
+            formatoManualEnDescarga = null;
+        }
+    }
+
+    private void ActualizarFiltroFormatoUsuario(ChangeEventArgs e)
+    {
+        usuarioFormatoFiltro = e.Value?.ToString() ?? "";
+    }
+
+    private ParticipanteDto? UsuarioFormatoSeleccionado()
+    {
+        var texto = NormalizarBusqueda(usuarioFormatoFiltro);
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return null;
+        }
+
+        var exacto = participantes.FirstOrDefault(p =>
+            NormalizarBusqueda(p.Nombre) == texto);
+        if (exacto != null)
+        {
+            return exacto;
+        }
+
+        var coincidencias = ParticipantesFormatoFiltrados().ToList();
+        return coincidencias.Count == 1 ? coincidencias[0] : null;
+    }
+
+    private IEnumerable<ParticipanteDto> ParticipantesFormatoFiltrados()
+    {
+        var texto = NormalizarBusqueda(usuarioFormatoFiltro);
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return Enumerable.Empty<ParticipanteDto>();
+        }
+
+        return participantes
+            .Where(p => NormalizarBusqueda(p.Nombre).Contains(texto, StringComparison.Ordinal))
+            .OrderBy(p => p.Nombre)
+            .Take(8);
+    }
+
+    private void SeleccionarUsuarioFormato(ParticipanteDto participante)
+    {
+        usuarioFormatoFiltro = participante.Nombre;
+    }
+
+    private void LimpiarUsuarioFormato()
+    {
+        usuarioFormatoFiltro = "";
+    }
+
     private string NombreArchivoFormatoManual(string tipo)
     {
         return tipo switch
@@ -2814,6 +3056,44 @@ else
             "fase-final" => $"polla-{PollaId}-final.pdf",
             _ => $"polla-{PollaId}-formato-manual.pdf"
         };
+    }
+
+    private string NombreArchivoFormatoUsuario(string tipo, string usuario)
+    {
+        var usuarioSlug = SlugArchivo(usuario);
+        return tipo switch
+        {
+            "partidos-grupos" => $"polla-{PollaId}-{usuarioSlug}-72-partidos.pdf",
+            "clasificacion-grupos" => $"polla-{PollaId}-{usuarioSlug}-clasificacion-grupos.pdf",
+            "fase-dieciseisavos" => $"polla-{PollaId}-{usuarioSlug}-dieciseisavos.pdf",
+            "fase-octavos" => $"polla-{PollaId}-{usuarioSlug}-octavos.pdf",
+            "fase-cuartos" => $"polla-{PollaId}-{usuarioSlug}-cuartos.pdf",
+            "fase-semifinales" => $"polla-{PollaId}-{usuarioSlug}-semifinales.pdf",
+            "fase-tercer-puesto" => $"polla-{PollaId}-{usuarioSlug}-tercer-puesto.pdf",
+            "fase-final" => $"polla-{PollaId}-{usuarioSlug}-final.pdf",
+            _ => $"polla-{PollaId}-{usuarioSlug}-formato.pdf"
+        };
+    }
+
+    private static string SlugArchivo(string texto)
+    {
+        var normalizado = NormalizarBusqueda(texto);
+        var caracteres = normalizado
+            .Select(c => char.IsLetterOrDigit(c) ? c : '-')
+            .ToArray();
+
+        var slug = new string(caracteres)
+            .Trim('-')
+            .Replace("--", "-", StringComparison.Ordinal);
+
+        while (slug.Contains("--", StringComparison.Ordinal))
+        {
+            slug = slug.Replace("--", "-", StringComparison.Ordinal);
+        }
+
+        return string.IsNullOrWhiteSpace(slug)
+            ? "usuario"
+            : slug;
     }
 
     private void PrepararDatosPolla()

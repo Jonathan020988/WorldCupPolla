@@ -1357,6 +1357,120 @@ namespace WorldCup.Api.Controllers
                 CrearNombreArchivoFormato(polla.Nombre, tipoNormalizado));
         }
 
+        [HttpGet("{pollaId:int}/formatos-manuales/usuario/pdf")]
+        public async Task<IActionResult> DescargarFormatoUsuarioPdf(
+            int pollaId,
+            [FromQuery] int solicitanteId,
+            [FromQuery] int usuarioId,
+            [FromQuery] string tipo = "partidos-grupos")
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => p.Id == pollaId)
+                .Select(p => new { p.Id, p.Nombre })
+                .FirstOrDefaultAsync();
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            var usuario = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (usuario == null)
+                return NotFound("El usuario no pertenece a esta polla");
+
+            var tipoNormalizado = NormalizarTipoFormatoManual(tipo);
+
+            if (tipoNormalizado == "clasificacion-grupos")
+            {
+                var equipos = await _context.Equipos
+                    .AsNoTracking()
+                    .Where(e => e.Grupo != null && e.Grupo != "")
+                    .OrderBy(e => e.Grupo)
+                    .ThenBy(e => e.Nombre)
+                    .ToListAsync();
+
+                var prediccionesGrupo = await _context.PrediccionesGrupo
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.PollaId == pollaId &&
+                        p.UsuarioId == usuarioId)
+                    .ToListAsync();
+
+                var mejoresTerceros = await _context.PrediccionesTerceros
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.PollaId == pollaId &&
+                        p.UsuarioId == usuarioId)
+                    .Select(p => p.Grupo)
+                    .ToListAsync();
+
+                var pdf = _formatoManualPdfService.CrearClasificacionGruposDiligenciada(
+                    polla.Nombre,
+                    usuario.Nombre,
+                    equipos,
+                    prediccionesGrupo,
+                    mejoresTerceros);
+
+                return File(
+                    pdf,
+                    "application/pdf",
+                    CrearNombreArchivoFormatoUsuario(polla.Nombre, usuario.Nombre, tipoNormalizado));
+            }
+
+            var fase = ObtenerFaseFormatoManual(tipoNormalizado);
+            if (fase == null)
+                return BadRequest("Formato manual no valido");
+
+            var partidos = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Fase == fase)
+                .OrderBy(p => p.Fecha)
+                .ThenBy(p => p.Id)
+                .ToListAsync();
+
+            var partidoIds = partidos.Select(p => p.Id).ToList();
+            var predicciones = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId &&
+                    partidoIds.Contains(p.PartidoId))
+                .ToListAsync();
+
+            var titulo = tipoNormalizado == "partidos-grupos"
+                ? "Formato diligenciado - 72 partidos de grupos"
+                : $"Formato diligenciado - {NombreFase(fase)}";
+
+            var pdfPartidos = _formatoManualPdfService.CrearPartidosCompactoDiligenciado(
+                polla.Nombre,
+                usuario.Nombre,
+                titulo,
+                partidos,
+                predicciones);
+
+            return File(
+                pdfPartidos,
+                "application/pdf",
+                CrearNombreArchivoFormatoUsuario(polla.Nombre, usuario.Nombre, tipoNormalizado));
+        }
+
         // ================= SOLICITUDES DE INGRESO =================
         [HttpGet("{pollaId:int}/solicitudes")]
         public async Task<IActionResult> GetSolicitudesIngreso(
@@ -2216,6 +2330,11 @@ namespace WorldCup.Api.Controllers
         private static string CrearNombreArchivoFormato(string nombrePolla, string tipo)
         {
             return $"formato-manual-{SlugArchivo(nombrePolla)}-{tipo}.pdf";
+        }
+
+        private static string CrearNombreArchivoFormatoUsuario(string nombrePolla, string usuario, string tipo)
+        {
+            return $"formato-{SlugArchivo(nombrePolla)}-{SlugArchivo(usuario)}-{tipo}.pdf";
         }
 
         private static string SlugArchivo(string texto)

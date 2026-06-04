@@ -13,6 +13,38 @@ namespace WorldCup.Api.Services
             string titulo,
             IReadOnlyList<Partido> partidos)
         {
+            return CrearPartidosCompactoInterno(
+                nombrePolla,
+                titulo,
+                partidos,
+                null,
+                null);
+        }
+
+        public byte[] CrearPartidosCompactoDiligenciado(
+            string nombrePolla,
+            string usuario,
+            string titulo,
+            IReadOnlyList<Partido> partidos,
+            IReadOnlyList<Prediccion> predicciones)
+        {
+            return CrearPartidosCompactoInterno(
+                nombrePolla,
+                titulo,
+                partidos,
+                usuario,
+                predicciones
+                    .GroupBy(p => p.PartidoId)
+                    .ToDictionary(g => g.Key, g => g.First()));
+        }
+
+        private byte[] CrearPartidosCompactoInterno(
+            string nombrePolla,
+            string titulo,
+            IReadOnlyList<Partido> partidos,
+            string? usuario,
+            IReadOnlyDictionary<int, Prediccion>? predicciones)
+        {
             var pdf = new PdfDocumentBuilder(PdfPageSize.LetterLandscape);
             var paginas = partidos
                 .OrderBy(p => p.Fecha)
@@ -24,7 +56,11 @@ namespace WorldCup.Api.Services
             {
                 pdf.AddPage(canvas =>
                 {
-                    DibujarEncabezado(canvas, nombrePolla, titulo, "Formato manual");
+                    DibujarEncabezado(
+                        canvas,
+                        nombrePolla,
+                        titulo,
+                        string.IsNullOrWhiteSpace(usuario) ? "Formato manual" : $"Usuario: {usuario}");
                     canvas.SetColor(0.96, 0.98, 0.96);
                     canvas.FillRectangle(36, 430, 720, 76);
                     canvas.SetColor(0.12, 0.28, 0.16);
@@ -43,13 +79,21 @@ namespace WorldCup.Api.Services
 
                 pdf.AddPage(canvas =>
                 {
+                    var subtitulo = string.IsNullOrWhiteSpace(usuario)
+                        ? $"Pagina {numeroPagina} de {totalPaginas}"
+                        : $"Usuario: {usuario} | Pagina {numeroPagina} de {totalPaginas}";
+
                     DibujarEncabezado(
                         canvas,
                         nombrePolla,
                         titulo,
-                        $"Pagina {numeroPagina} de {totalPaginas}");
+                        subtitulo);
 
-                    DibujarTablaPartidos(canvas, partidosPagina);
+                    DibujarTablaPartidos(
+                        canvas,
+                        partidosPagina,
+                        predicciones,
+                        pagina * 36 + 1);
                 });
             }
 
@@ -121,6 +165,74 @@ namespace WorldCup.Api.Services
             return pdf.Build();
         }
 
+        public byte[] CrearClasificacionGruposDiligenciada(
+            string nombrePolla,
+            string usuario,
+            IReadOnlyList<Equipo> equipos,
+            IReadOnlyList<PrediccionGrupo> predicciones,
+            IReadOnlyList<string> mejoresTerceros)
+        {
+            var pdf = new PdfDocumentBuilder(PdfPageSize.LetterPortrait);
+            var prediccionesPorGrupo = predicciones
+                .GroupBy(p => p.Grupo.Trim().ToUpperInvariant())
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var terceros = mejoresTerceros
+                .Select(g => g.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var grupos = equipos
+                .Where(e => !string.IsNullOrWhiteSpace(e.Grupo))
+                .GroupBy(e => e.Grupo.Trim().ToUpperInvariant())
+                .OrderBy(g => OrdenGrupo(g.Key))
+                .Select(g => new
+                {
+                    Grupo = g.Key,
+                    Equipos = g.OrderBy(e => e.Nombre).ToList()
+                })
+                .ToList();
+
+            foreach (var paginaGrupos in grupos.Chunk(6))
+            {
+                pdf.AddPage(canvas =>
+                {
+                    DibujarEncabezado(
+                        canvas,
+                        nombrePolla,
+                        "Formato diligenciado - Clasificacion de grupos",
+                        $"Usuario: {usuario}");
+
+                    var posiciones = new[]
+                    {
+                        (X: 34.0, Y: 610.0),
+                        (X: 314.0, Y: 610.0),
+                        (X: 34.0, Y: 420.0),
+                        (X: 314.0, Y: 420.0),
+                        (X: 34.0, Y: 230.0),
+                        (X: 314.0, Y: 230.0)
+                    };
+
+                    var index = 0;
+                    foreach (var grupo in paginaGrupos)
+                    {
+                        var posicion = posiciones[index++];
+                        prediccionesPorGrupo.TryGetValue(grupo.Grupo, out var prediccionGrupo);
+
+                        DibujarGrupoClasificacion(
+                            canvas,
+                            grupo.Grupo,
+                            grupo.Equipos,
+                            posicion.X,
+                            posicion.Y,
+                            CrearPosicionesGrupo(grupo.Equipos, prediccionGrupo),
+                            terceros.Contains(grupo.Grupo));
+                    }
+                });
+            }
+
+            return pdf.Build();
+        }
+
         private static void DibujarEncabezado(
             PdfCanvas canvas,
             string nombrePolla,
@@ -139,15 +251,24 @@ namespace WorldCup.Api.Services
 
         private static void DibujarTablaPartidos(
             PdfCanvas canvas,
-            IReadOnlyList<Partido> partidos)
+            IReadOnlyList<Partido> partidos,
+            IReadOnlyDictionary<int, Prediccion>? predicciones = null,
+            int numeroInicial = 1)
         {
             const double x = 24;
             const double top = 508;
             const double rowHeight = 13.2;
             const double headerHeight = 17;
 
-            var widths = new[] { 30.0, 82.0, 272.0, 176.0, 112.0, 56.0 };
-            var headers = new[] { "Id", "Horario", "Partido", "Pronostico", "Resultado", "Puntaje" };
+            var widths = new[] { 58.0, 78.0, 250.0, 176.0, 110.0, 56.0 };
+            var starts = new double[widths.Length];
+            starts[0] = x;
+            for (var i = 1; i < widths.Length; i++)
+            {
+                starts[i] = starts[i - 1] + widths[i - 1];
+            }
+
+            var headers = new[] { "No.", "Horario", "Partido", "Pronostico", "Resultado", "Puntaje" };
 
             canvas.SetColor(0.22, 0.57, 0.13);
             canvas.FillRectangle(x, top, widths.Sum(), headerHeight);
@@ -173,27 +294,43 @@ namespace WorldCup.Api.Services
                 var partidoTexto = $"{partido.Local.Nombre} - {partido.Visitante.Nombre}";
                 var pronosticoTexto = $"{CodigoEquipo(partido.Local)}";
                 var pronosticoVisitante = $"{CodigoEquipo(partido.Visitante)}";
+                Prediccion? prediccion = null;
+                predicciones?.TryGetValue(partido.Id, out prediccion);
 
                 canvas.SetColor(0.03, 0.14, 0.08);
-                canvas.DrawText(partido.Id.ToString(CultureInfo.InvariantCulture), x + 5, y + 4, 7.2, false);
-                canvas.DrawText(SinPuntoMes(horario), x + 36, y + 4, 7.2, false);
-                canvas.DrawText(Recortar(partidoTexto, 44), x + 118, y + 4, 7.2, true);
+                canvas.DrawText($"Partido {numeroInicial + index}", starts[0] + 5, y + 4, 7.2, false);
+                canvas.DrawText(SinPuntoMes(horario), starts[1] + 5, y + 4, 7.2, false);
+                canvas.DrawText(Recortar(partidoTexto, 40), starts[2] + 5, y + 4, 7.2, true);
 
-                var pronosticoX = x + widths[0] + widths[1] + widths[2] + 8;
+                var pronosticoX = starts[3] + 8;
                 canvas.DrawText(pronosticoTexto, pronosticoX, y + 4, 7.2, false);
-                DibujarCajaMarcador(canvas, pronosticoX + 34, y + 2.1);
+                DibujarCajaMarcador(canvas, pronosticoX + 34, y + 2.1, prediccion?.GolesLocal);
                 canvas.DrawText("-", pronosticoX + 59, y + 4, 7.2, false);
-                DibujarCajaMarcador(canvas, pronosticoX + 68, y + 2.1);
+                DibujarCajaMarcador(canvas, pronosticoX + 68, y + 2.1, prediccion?.GolesVisitante);
                 canvas.DrawText(pronosticoVisitante, pronosticoX + 96, y + 4, 7.2, false);
+                DibujarClasificadoPredicho(canvas, partido, prediccion, pronosticoX + 123, y + 4);
 
-                var resultadoX = pronosticoX + widths[3] + 7;
-                DibujarCajaMarcador(canvas, resultadoX, y + 2.1);
+                var resultadoX = starts[4] + 7;
+                DibujarCajaMarcador(
+                    canvas,
+                    resultadoX,
+                    y + 2.1,
+                    predicciones == null || !partido.Finalizado ? null : partido.GolesLocal);
                 canvas.DrawText("-", resultadoX + 25, y + 4, 7.2, false);
-                DibujarCajaMarcador(canvas, resultadoX + 34, y + 2.1);
+                DibujarCajaMarcador(
+                    canvas,
+                    resultadoX + 34,
+                    y + 2.1,
+                    predicciones == null || !partido.Finalizado ? null : partido.GolesVisitante);
 
-                var puntajeX = resultadoX + widths[4] + 8;
+                var puntajeX = starts[5] + 8;
                 canvas.SetStrokeColor(0.55, 0.78, 0.49);
                 canvas.Rectangle(puntajeX, y + 2.1, 34, 9);
+                if (predicciones != null && prediccion != null && (partido.Finalizado || prediccion.PuntosTotales > 0))
+                {
+                    canvas.SetColor(0.03, 0.14, 0.08);
+                    canvas.DrawText(prediccion.PuntosTotales.ToString(CultureInfo.InvariantCulture), puntajeX + 12, y + 4, 7.2, true);
+                }
 
                 y -= rowHeight;
             }
@@ -207,7 +344,9 @@ namespace WorldCup.Api.Services
             string grupo,
             IReadOnlyList<Equipo> equipos,
             double x,
-            double y)
+            double y,
+            IReadOnlyDictionary<int, int>? posiciones = null,
+            bool? mejorTercero = null)
         {
             const double width = 264;
             const double headerHeight = 26;
@@ -217,6 +356,10 @@ namespace WorldCup.Api.Services
             canvas.FillRectangle(x, y, width, headerHeight);
             canvas.SetColor(1, 1, 1);
             canvas.DrawText($"Grupo {grupo}", x + 10, y + 9, 11, true);
+            if (mejorTercero.HasValue)
+            {
+                canvas.DrawText($"Mejor 3o: {(mejorTercero.Value ? "SI" : "NO")}", x + width - 88, y + 10, 7, true);
+            }
 
             var rowY = y - rowHeight;
             canvas.SetColor(0.95, 0.99, 0.94);
@@ -236,6 +379,11 @@ namespace WorldCup.Api.Services
                 canvas.DrawText(Recortar(equipo.Nombre, 27), x + 10, rowY + 9, 9, true);
                 canvas.SetStrokeColor(0.36, 0.69, 0.31);
                 canvas.Rectangle(x + width - 48, rowY + 5, 26, 15);
+                if (posiciones != null && posiciones.TryGetValue(equipo.Id, out var posicion))
+                {
+                    canvas.SetColor(0.03, 0.14, 0.08);
+                    canvas.DrawText(posicion.ToString(CultureInfo.InvariantCulture), x + width - 38, rowY + 9, 9, true);
+                }
                 rowY -= rowHeight;
             }
 
@@ -243,15 +391,37 @@ namespace WorldCup.Api.Services
             canvas.Rectangle(x, y - (rowHeight * 5), width, headerHeight + rowHeight * 5);
         }
 
-        private static void DibujarCajaMarcador(PdfCanvas canvas, double x, double y)
+        private static void DibujarCajaMarcador(PdfCanvas canvas, double x, double y, int? valor = null)
         {
             canvas.SetStrokeColor(0.36, 0.69, 0.31);
             canvas.Rectangle(x, y, 19, 9);
+            if (valor.HasValue)
+            {
+                canvas.SetColor(0.03, 0.14, 0.08);
+                canvas.DrawText(valor.Value.ToString(CultureInfo.InvariantCulture), x + 7, y + 2.4, 6.8, true);
+            }
         }
 
-        private static string CodigoEquipo(Partido partido, bool local)
+        private static void DibujarClasificadoPredicho(PdfCanvas canvas, Partido partido, Prediccion? prediccion, double x, double y)
         {
-            return CodigoEquipo(local ? partido.Local : partido.Visitante);
+            if (prediccion?.PrediceClasificadoId == null || partido.Fase == "Grupos")
+            {
+                return;
+            }
+
+            var equipo = prediccion.PrediceClasificadoId == partido.LocalId
+                ? partido.Local
+                : prediccion.PrediceClasificadoId == partido.VisitanteId
+                    ? partido.Visitante
+                    : null;
+
+            if (equipo == null)
+            {
+                return;
+            }
+
+            canvas.SetColor(0.08, 0.30, 0.14);
+            canvas.DrawText($"CL:{CodigoEquipo(equipo)}", x, y, 6.6, true);
         }
 
         private static string CodigoEquipo(Equipo equipo)
@@ -259,6 +429,29 @@ namespace WorldCup.Api.Services
             return string.IsNullOrWhiteSpace(equipo.CodigoFifa)
                 ? Recortar(equipo.Nombre, 3).ToUpperInvariant()
                 : equipo.CodigoFifa.ToUpperInvariant();
+        }
+
+        private static Dictionary<int, int> CrearPosicionesGrupo(
+            IReadOnlyList<Equipo> equipos,
+            PrediccionGrupo? prediccion)
+        {
+            var posiciones = new Dictionary<int, int>();
+            if (prediccion == null)
+            {
+                return posiciones;
+            }
+
+            posiciones[prediccion.PrimeroId] = 1;
+            posiciones[prediccion.SegundoId] = 2;
+            posiciones[prediccion.TerceroId] = 3;
+
+            var cuarto = equipos.FirstOrDefault(e => !posiciones.ContainsKey(e.Id));
+            if (cuarto != null)
+            {
+                posiciones[cuarto.Id] = 4;
+            }
+
+            return posiciones;
         }
 
         private static int OrdenGrupo(string grupo)
