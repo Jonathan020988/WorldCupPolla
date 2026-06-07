@@ -13,6 +13,7 @@
 
         public int? PronosticoLocal { get; set; }
         public int? PronosticoVisitante { get; set; }
+        public bool PronosticoVisible { get; set; } = true;
 
         public int? ResultadoLocal { get; set; }
         public int? ResultadoVisitante { get; set; }

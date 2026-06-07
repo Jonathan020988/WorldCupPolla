@@ -106,6 +106,27 @@ namespace WorldCup.Api.Services
                 "correo-prueba");
         }
 
+        public async Task EnviarAlertaPendienteAsync(
+            string destino,
+            string nombre,
+            string titulo,
+            string mensaje,
+            string pollaNombre,
+            string etiquetaAccion,
+            string link)
+        {
+            var url = ConstruirUrlPublica(link);
+            var asunto = $"{titulo} - WorldCup Polla";
+            var cuerpo =
+                $"Hola {nombre},\n\n" +
+                $"{mensaje}\n\n" +
+                $"Polla: {pollaNombre}\n" +
+                $"{etiquetaAccion}: {url}\n\n" +
+                "Este recordatorio tambien te aparecera al iniciar sesion en la plataforma.";
+
+            await EnviarCorreoAsync(destino, asunto, cuerpo, "alerta-pendientes");
+        }
+
         private async Task EnviarCorreoAsync(
             string destino,
             string asunto,
@@ -199,6 +220,30 @@ namespace WorldCup.Api.Services
             }
 
             return $"{email[0]}***{email[at..]}";
+        }
+
+        private string ConstruirUrlPublica(string link)
+        {
+            var baseUrl = _configuration["AppPublicUrl"];
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                baseUrl = "https://mundialapp2026.com";
+            }
+
+            baseUrl = baseUrl.TrimEnd('/');
+            link = string.IsNullOrWhiteSpace(link) ? "/dashboard" : link.Trim();
+
+            if (Uri.TryCreate(link, UriKind.Absolute, out var absoluta))
+            {
+                return absoluta.ToString();
+            }
+
+            if (!link.StartsWith('/'))
+            {
+                link = "/" + link;
+            }
+
+            return baseUrl + link;
         }
     }
 }

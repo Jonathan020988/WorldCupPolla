@@ -1041,9 +1041,7 @@ else
                                                                                 </td>
 
                                                                                 <td data-label="Pronóstico">
-                                                                                    <span class="badge bg-primary">
-                                                                                        @d.PronosticoLocal - @d.PronosticoVisitante
-                                                                                    </span>
+                                                                                    @BadgePronostico(d)
                                                                                 </td>
 
                                                                                 <td data-label="Resultado">
@@ -1885,6 +1883,12 @@ else
     .detalle-puntos-btn:focus-visible {
         box-shadow: 0 0 0 3px rgba(13, 110, 253, .18);
         transform: translateY(-1px);
+    }
+
+    .prediction-hidden-badge {
+        border: 1px solid #f1d185;
+        background: #fff3cd;
+        color: #7a5200;
     }
 
     .detalle-puntos-modal-backdrop {
@@ -2763,6 +2767,20 @@ else
         return puntos > 0
             ? new MarkupString($"<span class=\"badge {clase}\">+{puntos}</span>")
             : new MarkupString("<span class=\"text-muted\">0</span>");
+    }
+
+    private MarkupString BadgePronostico(DetalleRankingDto detalle)
+    {
+        if (!detalle.PronosticoVisible)
+        {
+            return new MarkupString("<span class=\"badge prediction-hidden-badge\">Oculto</span>");
+        }
+
+        var texto = detalle.PronosticoLocal.HasValue && detalle.PronosticoVisitante.HasValue
+            ? $"{detalle.PronosticoLocal} - {detalle.PronosticoVisitante}"
+            : "--";
+
+        return new MarkupString($"<span class=\"badge bg-primary\">{texto}</span>");
     }
 
     private bool FaseDetalleMinimizada(string usuario, string fase)

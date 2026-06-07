@@ -311,7 +311,7 @@
                                                                         <tr>
                                                                             <td data-label="Partido"><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
                                                                             <td data-label="Fase"><span class="phase-pill">@d.Fase</span></td>
-                                                                            <td data-label="Pronostico">@Marcador(d.PronosticoLocal, d.PronosticoVisitante, "prediction-pill")</td>
+                                                                            <td data-label="Pronostico">@MarcadorPronostico(d)</td>
                                                                             <td data-label="Resultado">@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
                                                                             <td data-label="Exacto">@Puntos(d.PuntosExacto, "points-green")</td>
                                                                             <td data-label="Ganador">@Puntos(d.PuntosGanador, "points-blue")</td>
@@ -884,6 +884,12 @@
     .prediction-pill {
         background: #dbeafe;
         color: #123d7a;
+    }
+
+    .locked-prediction {
+        background: #fff3cd;
+        color: #7a5200;
+        border: 1px solid #f1d185;
     }
 
     .result-pill {
@@ -1529,6 +1535,16 @@
             : "--";
 
         return new MarkupString($"<span class=\"{clase}\">{texto}</span>");
+    }
+
+    private MarkupString MarcadorPronostico(DetalleRankingDto detalle)
+    {
+        if (!detalle.PronosticoVisible)
+        {
+            return new MarkupString("<span class=\"prediction-pill locked-prediction\">Oculto</span>");
+        }
+
+        return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
     }
 
     private MarkupString Puntos(int puntos, string clase)

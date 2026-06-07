@@ -492,7 +492,8 @@ namespace WorldCup.Api.Controllers
                 return NotFound("La polla no existe");
 
             var puedeVerObservaciones = solicitanteId.HasValue &&
-                solicitanteId.Value == creadorId.Value;
+                (solicitanteId.Value == creadorId.Value ||
+                 await _adminAuthorization.EsAdminAsync(solicitanteId.Value));
 
             var miembros = await _context.PollaMiembros
                 .Include(pm => pm.Usuario)
@@ -563,7 +564,15 @@ namespace WorldCup.Api.Controllers
             if (acceso != null)
                 return acceso;
 
-            var detalle = await ObtenerDetalleRanking(pollaId);
+            var usuarioSolicitante = solicitanteId!.Value;
+            var puedeVerTodo = await PuedeVerDetalleCompletoPollaAsync(
+                pollaId,
+                usuarioSolicitante);
+
+            var detalle = await ObtenerDetalleRanking(
+                pollaId,
+                usuarioSolicitante,
+                puedeVerTodo);
 
             return Ok(detalle
                 .OrderBy(x => x.Usuario)
@@ -572,7 +581,10 @@ namespace WorldCup.Api.Controllers
                 .ToList());
         }
 
-        private async Task<List<DetalleRankingDto>> ObtenerDetalleRanking(int pollaId)
+        private async Task<List<DetalleRankingDto>> ObtenerDetalleRanking(
+            int pollaId,
+            int? solicitanteId = null,
+            bool puedeVerTodo = true)
         {
             var predicciones = await _context.Predicciones
                 .Include(p => p.Usuario)
@@ -622,7 +634,9 @@ namespace WorldCup.Api.Controllers
                     tablasGrupo,
                     podiosPorUsuario,
                     final,
-                    tercerPuesto))
+                    tercerPuesto,
+                    solicitanteId,
+                    puedeVerTodo))
                 .ToList();
         }
 
@@ -632,7 +646,9 @@ namespace WorldCup.Api.Controllers
             Dictionary<string, List<TablaPosicionDTO>> tablasGrupo,
             Dictionary<(int UsuarioId, int PollaId), PrediccionPodio> podiosPorUsuario,
             Partido? final,
-            Partido? tercerPuesto)
+            Partido? tercerPuesto,
+            int? solicitanteId = null,
+            bool puedeVerTodo = true)
         {
             var puntosMarcador = DesglosarMarcador(prediccion);
             var puntosKo = DesglosarClasificacionKo(prediccion);
@@ -642,6 +658,10 @@ namespace WorldCup.Api.Controllers
             var puntosClasificacion = prediccion.Partido.Fase == "Grupos"
                 ? prediccion.PuntosClasificacion
                 : puntosKo.Clasificacion;
+            var pronosticoVisible = PuedeVerPronostico(
+                prediccion,
+                solicitanteId,
+                puedeVerTodo);
 
             return new DetalleRankingDto
             {
@@ -652,8 +672,9 @@ namespace WorldCup.Api.Controllers
                 Fecha = prediccion.Partido.Fecha,
                 Local = prediccion.Partido.Local.Nombre,
                 Visitante = prediccion.Partido.Visitante.Nombre,
-                PronosticoLocal = prediccion.GolesLocal,
-                PronosticoVisitante = prediccion.GolesVisitante,
+                PronosticoLocal = pronosticoVisible ? prediccion.GolesLocal : null,
+                PronosticoVisitante = pronosticoVisible ? prediccion.GolesVisitante : null,
+                PronosticoVisible = pronosticoVisible,
                 ResultadoLocal = prediccion.Partido.GolesLocal,
                 ResultadoVisitante = prediccion.Partido.GolesVisitante,
                 PuntosMarcador = puntosMarcador.Total,
@@ -830,6 +851,37 @@ namespace WorldCup.Api.Controllers
             };
 
             return equipos.FirstOrDefault(e => e.Id == equipoId)?.Nombre ?? $"Equipo {equipoId}";
+        }
+
+        private async Task<bool> PuedeVerDetalleCompletoPollaAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            if (await _adminAuthorization.EsAdminAsync(solicitanteId))
+            {
+                return true;
+            }
+
+            return await _context.Pollas
+                .AnyAsync(p =>
+                    p.Id == pollaId &&
+                    p.CreadorId == solicitanteId);
+        }
+
+        private static bool PuedeVerPronostico(
+            Prediccion prediccion,
+            int? solicitanteId,
+            bool puedeVerTodo)
+        {
+            return puedeVerTodo ||
+                   solicitanteId == prediccion.UsuarioId ||
+                   PartidoCerradoParaVisibilidad(prediccion.Partido);
+        }
+
+        private static bool PartidoCerradoParaVisibilidad(Partido partido)
+        {
+            return partido.Finalizado ||
+                   ColombiaClock.Now() >= ColombiaClock.ToColombia(partido.Fecha).AddHours(-1);
         }
 
         private static PuntosMarcadorDetalle DesglosarMarcador(Prediccion prediccion)
@@ -2244,6 +2296,11 @@ namespace WorldCup.Api.Controllers
 
             if (!existePolla)
                 return NotFound("La polla no existe");
+
+            if (await _adminAuthorization.EsAdminAsync(solicitanteId.Value))
+            {
+                return null;
+            }
 
             var puedeVer = await _context.Pollas
                 .AnyAsync(p =>

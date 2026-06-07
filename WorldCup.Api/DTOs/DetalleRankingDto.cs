@@ -14,6 +14,7 @@
         // Pronóstico usuario
         public int? PronosticoLocal { get; set; }
         public int? PronosticoVisitante { get; set; }
+        public bool PronosticoVisible { get; set; } = true;
 
         // Resultado real
         public int? ResultadoLocal { get; set; }

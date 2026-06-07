@@ -62,10 +62,12 @@ else
     }
 
     <nav class="admin-quick-nav" aria-label="Accesos rapidos del panel administrador">
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-alerta-masiva")'>Alerta masiva</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-cupos")'>Solicitudes cupos</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-fases")'>Fases torneo</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-calendario")'>Calendario</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-usuarios")'>Usuarios</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-pollas")'>Predicciones</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-pollas")'>Pollas</button>
     </nav>
 
@@ -85,6 +87,87 @@ else
                         Enviar prueba
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4 admin-anchor alert-mass-card" id="admin-alerta-masiva">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Alerta masiva de pendientes</span>
+            <small class="text-muted">Solo se envia a usuarios activos con ese dato pendiente</small>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrWhiteSpace(alertaMasivaMensaje))
+            {
+                <div class="alert @(alertaMasivaError ? "alert-danger" : "alert-success")">
+                    @alertaMasivaMensaje
+                </div>
+            }
+
+            <div class="mass-alert-grid">
+                <div>
+                    <label class="form-label">Polla</label>
+                    <select class="form-select" @bind="alertaMasiva.PollaId">
+                        <option value="">Todas las pollas</option>
+                        @foreach (var polla in pollas)
+                        {
+                            <option value="@polla.Id">@polla.Nombre</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Pendiente</label>
+                    <select class="form-select" @bind="alertaMasiva.TipoAlerta">
+                        <option value="Todo">Cualquier pendiente</option>
+                        <option value="Marcadores">Marcadores</option>
+                        <option value="Clasificacion">Clasificacion de grupos</option>
+                        <option value="Terceros">Mejores terceros</option>
+                        <option value="Podio">Podio</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Fase de marcadores</label>
+                    <select class="form-select"
+                            disabled="@(alertaMasiva.TipoAlerta != "Marcadores")"
+                            @bind="alertaMasiva.FaseMarcadores">
+                        <option value="">Todas las fases</option>
+                        @foreach (var fase in fasesCalendario)
+                        {
+                            <option value="@fase">@NombreFase(fase)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mass-alert-match">
+                    <label class="form-label">Partido especifico</label>
+                    <select class="form-select"
+                            disabled="@(alertaMasiva.TipoAlerta != "Marcadores")"
+                            @bind="alertaMasivaPartidoId">
+                        <option value="">No filtrar por partido</option>
+                        @foreach (var partido in PartidosAlertaMasiva)
+                        {
+                            <option value="@partido.Id">
+                                @partido.Fecha.ToString("dd/MM HH:mm") - @partido.Local vs @partido.Visitante
+                            </option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="mass-alert-footer">
+                <label class="form-check mass-alert-check">
+                    <input class="form-check-input" type="checkbox" @bind="alertaMasiva.EnviarCorreo" />
+                    <span class="form-check-label">Enviar tambien correo electronico</span>
+                </label>
+
+                <button type="button"
+                        class="btn btn-primary"
+                        disabled="@enviandoAlertaMasiva"
+                        @onclick="EnviarAlertaMasiva">
+                    @(enviandoAlertaMasiva ? "Enviando..." : "Enviar alerta masiva")
+                </button>
             </div>
         </div>
     </div>
@@ -506,7 +589,7 @@ else
 
         <div class="col-lg-6">
             <div class="card admin-anchor" id="admin-pollas">
-                <div class="card-header fw-bold">Pollas</div>
+            <div class="card-header fw-bold">Pollas y predicciones</div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0 align-middle admin-mobile-table pollas-table">
                         <thead>
@@ -664,6 +747,64 @@ else
                     }
                 </div>
 
+                <div class="admin-prediction-extra p-3 border-bottom">
+                    <div class="admin-extra-card">
+                        <div class="admin-extra-head">
+                            <span>Clasificación de grupos</span>
+                            <strong>@clasificacionPrediccionesUsuario.Count / 12</strong>
+                        </div>
+                        @if (!clasificacionPrediccionesUsuario.Any())
+                        {
+                            <small class="text-muted">Sin clasificación guardada.</small>
+                        }
+                        else
+                        {
+                            <div class="admin-group-picks">
+                                @foreach (var grupo in clasificacionPrediccionesUsuario)
+                                {
+                                    <div>
+                                        <strong>Grupo @grupo.Grupo</strong>
+                                        <span>1. @grupo.Primero</span>
+                                        <span>2. @grupo.Segundo</span>
+                                        <span>3. @grupo.Tercero</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="admin-extra-card">
+                        <div class="admin-extra-head">
+                            <span>Mejores terceros</span>
+                            <strong>@tercerosPrediccionesUsuario.Count / 8</strong>
+                        </div>
+                        <p class="mb-0">
+                            @(tercerosPrediccionesUsuario.Any()
+                                ? string.Join(", ", tercerosPrediccionesUsuario.Select(g => $"Grupo {g}"))
+                                : "Sin mejores terceros seleccionados.")
+                        </p>
+                    </div>
+
+                    <div class="admin-extra-card">
+                        <div class="admin-extra-head">
+                            <span>Podio</span>
+                            <strong>@(podioPrediccionesUsuario?.Guardado == true ? "Guardado" : "Pendiente")</strong>
+                        </div>
+                        @if (podioPrediccionesUsuario?.Guardado == true)
+                        {
+                            <div class="admin-podium-picks">
+                                <span>Campeón: <strong>@podioPrediccionesUsuario.Campeon</strong></span>
+                                <span>Subcampeón: <strong>@podioPrediccionesUsuario.Subcampeon</strong></span>
+                                <span>Tercero: <strong>@podioPrediccionesUsuario.Tercero</strong></span>
+                            </div>
+                        }
+                        else
+                        {
+                            <small class="text-muted">Sin podio guardado.</small>
+                        }
+                    </div>
+                </div>
+
                 <table class="table table-sm mb-0 align-middle admin-mobile-table predictions-table">
                     <thead>
                         <tr>
@@ -735,7 +876,7 @@ else
                 {
                     <div class="alert alert-danger m-3">@errorHistorial</div>
                 }
-                else if (historialUsuario == null || !historialUsuario.Pollas.Any())
+                else if (historialUsuario == null || (!historialUsuario.Pollas.Any() && !historialUsuario.Alertas.Any()))
                 {
                     <div class="empty-history">
                         Este usuario no pertenece a ninguna polla y no tiene registros asociados.
@@ -744,6 +885,48 @@ else
                 else
                 {
                     <div class="historial-content">
+                        <section class="historial-alerts-panel">
+                            <div class="historial-alerts-header">
+                                <div>
+                                    <strong>Alertas enviadas</strong>
+                                    <small>
+                                        @historialUsuario.Alertas.Count alerta(s) registradas /
+                                        @historialUsuario.Alertas.Count(a => a.Estado == "Pendiente") pendiente(s)
+                                    </small>
+                                </div>
+                            </div>
+
+                            @if (historialUsuario.Alertas.Any())
+                            {
+                                <div class="alert-history-list">
+                                    @foreach (var alerta in historialUsuario.Alertas.Take(12))
+                                    {
+                                        <article class="alert-history-item">
+                                            <div class="alert-history-top">
+                                                <div>
+                                                    <strong>@TipoAlertaHistorial(alerta.TipoDestino)</strong>
+                                                    <small>
+                                                        @(string.IsNullOrWhiteSpace(alerta.PollaNombre) ? "Sin polla" : alerta.PollaNombre)
+                                                        - @alerta.FechaCreacion.ToString("dd/MM/yyyy HH:mm")
+                                                    </small>
+                                                </div>
+                                                <span class="mini-status @EstadoAlertaClase(alerta.Estado)">
+                                                    @alerta.Estado
+                                                </span>
+                                            </div>
+                                            <p>@alerta.Mensaje</p>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert-history-empty">
+                                    Todavia no se han enviado alertas a este usuario.
+                                </div>
+                            }
+                        </section>
+
                         @foreach (var polla in historialUsuario.Pollas)
                         {
                             <section class="historial-polla">
@@ -760,9 +943,9 @@ else
                                         {
                                             <button type="button"
                                                     class="btn btn-sm btn-primary alert-send-btn"
-                                                    disabled="@(procesandoAlertaPollaId == polla.PollaId)"
-                                                    @onclick="() => EnviarAlertaPendientes(polla)">
-                                                @(procesandoAlertaPollaId == polla.PollaId ? "Enviando..." : "Enviar alerta")
+                                                    disabled="@ProcesandoAlerta"
+                                                    @onclick='() => EnviarAlertaPendientes(polla, "Todo")'>
+                                                @(AlertaEnProceso(polla.PollaId, "Todo") ? "Enviando..." : "Alertar todo")
                                             </button>
                                         }
                                     </div>
@@ -786,6 +969,37 @@ else
                                         <strong>@(polla.Resumen.PodioGuardado ? "Guardado" : "Falta")</strong>
                                     </div>
                                 </div>
+
+                                @if (polla.Resumen.TotalFaltante > 0)
+                                {
+                                    <div class="alert-category-actions">
+                                        <span>Alerta especifica</span>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                disabled="@(ProcesandoAlerta || polla.Resumen.MarcadoresFaltantes == 0)"
+                                                @onclick='() => EnviarAlertaPendientes(polla, "Marcadores")'>
+                                            @(AlertaEnProceso(polla.PollaId, "Marcadores") ? "Enviando..." : $"Marcadores ({polla.Resumen.MarcadoresFaltantes})")
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                disabled="@(ProcesandoAlerta || polla.Resumen.GruposFaltantes == 0)"
+                                                @onclick='() => EnviarAlertaPendientes(polla, "Clasificacion")'>
+                                            @(AlertaEnProceso(polla.PollaId, "Clasificacion") ? "Enviando..." : $"Clasificacion ({polla.Resumen.GruposFaltantes})")
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                disabled="@(ProcesandoAlerta || polla.Resumen.TercerosFaltantes == 0)"
+                                                @onclick='() => EnviarAlertaPendientes(polla, "Terceros")'>
+                                            @(AlertaEnProceso(polla.PollaId, "Terceros") ? "Enviando..." : $"Terceros ({polla.Resumen.TercerosFaltantes})")
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                disabled="@(ProcesandoAlerta || polla.Resumen.PodioGuardado)"
+                                                @onclick='() => EnviarAlertaPendientes(polla, "Podio")'>
+                                            @(AlertaEnProceso(polla.PollaId, "Podio") ? "Enviando..." : "Podio")
+                                        </button>
+                                    </div>
+                                }
 
                                 <div class="historial-section">
                                     <h5>Clasificacion de grupos</h5>
@@ -1024,6 +1238,111 @@ else
         background: #f8fbff;
     }
 
+    .admin-prediction-extra {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) minmax(0, .9fr);
+        gap: .8rem;
+        background: #fbfcfd;
+    }
+
+    .admin-extra-card {
+        border: 1px solid #d8e2ef;
+        border-radius: 8px;
+        background: #fff;
+        padding: .85rem;
+    }
+
+    .admin-extra-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .65rem;
+        align-items: center;
+        margin-bottom: .55rem;
+    }
+
+    .admin-extra-head span {
+        color: #5f6b7a;
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .admin-extra-head strong {
+        color: #0f5132;
+        white-space: nowrap;
+    }
+
+    .admin-group-picks {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: .55rem;
+        max-height: 220px;
+        overflow: auto;
+    }
+
+    .admin-group-picks > div,
+    .admin-podium-picks {
+        display: grid;
+        gap: .18rem;
+        border: 1px solid #eef2f7;
+        border-radius: 6px;
+        background: #f8fafc;
+        padding: .55rem;
+    }
+
+    .admin-group-picks strong {
+        color: #123d7a;
+    }
+
+    .admin-group-picks span,
+    .admin-podium-picks span {
+        color: #344054;
+        font-size: .86rem;
+    }
+
+    .alert-mass-card {
+        border-color: #bfdbfe;
+    }
+
+    .mass-alert-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .85rem;
+    }
+
+    .mass-alert-grid label,
+    .mass-alert-check {
+        color: #475569;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+    .mass-alert-match {
+        grid-column: span 2;
+    }
+
+    .mass-alert-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+
+    .mass-alert-footer .btn {
+        min-width: 210px;
+        font-weight: 800;
+    }
+
+    .mass-alert-check {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        margin: 0;
+    }
+
     .active-reopens {
         display: flex;
         flex-wrap: wrap;
@@ -1223,6 +1542,101 @@ else
         font-size: 1.05rem;
     }
 
+    .historial-alerts-panel {
+        border: 1px solid #dbeafe;
+        border-radius: 8px;
+        background: #eff6ff;
+        margin-bottom: 14px;
+        padding: 12px;
+    }
+
+    .historial-alerts-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .historial-alerts-header strong,
+    .historial-alerts-header small {
+        display: block;
+    }
+
+    .historial-alerts-header strong {
+        color: #0f172a;
+        font-weight: 900;
+    }
+
+    .historial-alerts-header small {
+        color: #475569;
+        font-weight: 700;
+    }
+
+    .alert-history-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .alert-history-item {
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 10px;
+    }
+
+    .alert-history-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .alert-history-top strong,
+    .alert-history-top small {
+        display: block;
+    }
+
+    .alert-history-top small {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    .alert-history-item p {
+        margin: 8px 0 0;
+        color: #334155;
+        font-size: .88rem;
+        line-height: 1.45;
+        white-space: pre-line;
+    }
+
+    .alert-history-empty {
+        border: 1px dashed #93c5fd;
+        border-radius: 8px;
+        background: rgba(255,255,255,.65);
+        color: #475569;
+        font-weight: 700;
+        padding: 12px;
+        text-align: center;
+    }
+
+    .alert-category-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        border-top: 1px solid #edf2f7;
+        padding: 12px 14px;
+        background: #fbfdff;
+    }
+
+    .alert-category-actions span {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
     .historial-section {
         border-top: 1px solid #edf2f7;
         padding: 14px;
@@ -1327,6 +1741,11 @@ else
         color: #664d03;
     }
 
+    .mini-status.replaced {
+        background: #e2e8f0;
+        color: #475569;
+    }
+
     @@media (max-width: 991.98px) {
         .admin-title {
             margin-top: 3.65rem;
@@ -1387,6 +1806,27 @@ else
 
         .admin-stat-card .card-body {
             padding: .85rem;
+        }
+
+        .admin-prediction-extra {
+            grid-template-columns: 1fr;
+        }
+
+        .mass-alert-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .mass-alert-match {
+            grid-column: auto;
+        }
+
+        .mass-alert-footer {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .mass-alert-footer .btn {
+            width: 100%;
         }
 
         .admin-stat-card h3 {
@@ -1658,9 +2098,14 @@ else
         }
 
         .fase-detail summary,
-        .historial-polla-header {
+        .historial-polla-header,
+        .alert-history-top {
             flex-direction: column;
             align-items: stretch;
+        }
+
+        .alert-category-actions .btn {
+            flex: 1 1 calc(50% - 8px);
         }
     }
 </style>
@@ -1673,6 +2118,9 @@ else
     private List<PollaAdminDto> pollas = new();
     private List<MiembroAdminDto> miembros = new();
     private List<PrediccionAdminDto> prediccionesUsuario = new();
+    private List<ClasificacionPrediccionAdminDto> clasificacionPrediccionesUsuario = new();
+    private List<string> tercerosPrediccionesUsuario = new();
+    private PodioPrediccionAdminDto? podioPrediccionesUsuario;
     private List<FaseAdminDto> fasesAdmin = new();
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
     private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
@@ -1685,7 +2133,7 @@ else
     private int? procesandoPartidoFecha;
     private int? procesandoSolicitudCupos;
     private string? procesandoReapertura;
-    private int? procesandoAlertaPollaId;
+    private string? procesandoAlertaKey;
     private SolicitudCuposAdminDto? solicitudContactoSeleccionada;
     private string mensajeContactoCupos = "";
     private bool enviandoAlertaContacto;
@@ -1697,6 +2145,11 @@ else
     private string faseReapertura = "Grupos";
     private string filtroUsuarios = "Activos";
     private string correoPrueba = "";
+    private AlertaMasivaForm alertaMasiva = new();
+    private string alertaMasivaPartidoId = "";
+    private string? alertaMasivaMensaje;
+    private bool alertaMasivaError;
+    private bool enviandoAlertaMasiva;
 
     private readonly List<string> fasesCalendario = new()
     {
@@ -1719,6 +2172,12 @@ else
         _ => usuarios.Where(u => u.Activo)
     };
 
+    private IEnumerable<PartidoCalendarioAdminDto> PartidosAlertaMasiva => partidosCalendario
+        .Where(p => alertaMasiva.TipoAlerta == "Marcadores")
+        .Where(p => string.IsNullOrWhiteSpace(alertaMasiva.FaseMarcadores) || p.Fase == alertaMasiva.FaseMarcadores)
+        .OrderBy(p => p.Fecha)
+        .ThenBy(p => p.Id);
+
     private void CambiarFiltroUsuarios(string filtro)
     {
         filtroUsuarios = filtro;
@@ -1730,6 +2189,13 @@ else
             ? "btn btn-primary"
             : "btn btn-outline-primary";
     }
+
+    private bool ProcesandoAlerta => !string.IsNullOrWhiteSpace(procesandoAlertaKey);
+
+    private static string AlertaKey(int pollaId, string tipoAlerta) => $"{pollaId}:{tipoAlerta}";
+
+    private bool AlertaEnProceso(int pollaId, string tipoAlerta) =>
+        procesandoAlertaKey == AlertaKey(pollaId, tipoAlerta);
 
     private Task ScrollAdminSection(string sectionId)
     {
@@ -1838,6 +2304,60 @@ else
         mensaje = response.IsSuccessStatusCode
             ? "Correo de prueba solicitado. Revisa la bandeja de entrada y spam."
             : await response.Content.ReadAsStringAsync();
+    }
+
+    private async Task EnviarAlertaMasiva()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Vas a enviar una alerta masiva solo a los usuarios que tengan pendiente el filtro seleccionado. Continuar?");
+        if (!confirmado)
+        {
+            return;
+        }
+
+        alertaMasivaMensaje = null;
+        alertaMasivaError = false;
+        enviandoAlertaMasiva = true;
+
+        try
+        {
+            var request = new AdminEnviarAlertaMasivaPendientesRequest
+            {
+                AdminUsuarioId = Sesion.UsuarioId.Value,
+                PollaId = int.TryParse(alertaMasiva.PollaId, out var pollaId) ? pollaId : null,
+                TipoAlerta = alertaMasiva.TipoAlerta,
+                FaseMarcadores = alertaMasiva.TipoAlerta == "Marcadores"
+                    ? alertaMasiva.FaseMarcadores
+                    : "",
+                PartidoId = alertaMasiva.TipoAlerta == "Marcadores" &&
+                    int.TryParse(alertaMasivaPartidoId, out var partidoId)
+                        ? partidoId
+                        : null,
+                EnviarCorreo = alertaMasiva.EnviarCorreo
+            };
+
+            var response = await Http.PostAsJsonAsync(
+                "api/Admin/alertas-masivas/pendientes",
+                request);
+
+            alertaMasivaMensaje = await LeerMensajeRespuesta(response);
+            alertaMasivaError = !response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            alertaMasivaMensaje = $"No se pudo enviar la alerta masiva: {ex.Message}";
+            alertaMasivaError = true;
+        }
+        finally
+        {
+            enviandoAlertaMasiva = false;
+        }
     }
 
     private async Task GenerarCodigoCupos(SolicitudCuposAdminDto solicitud)
@@ -2076,11 +2596,35 @@ else
             : fase;
     }
 
+    private static string TipoAlertaHistorial(string tipoDestino) => tipoDestino switch
+    {
+        "Marcadores" => "Marcadores pendientes",
+        "Clasificacion" => "Clasificacion de grupos",
+        "Terceros" => "Mejores terceros",
+        "Podio" => "Podio final",
+        "PendientesClasificacion" => "Pendientes generales",
+        "SolicitudCupos" => "Solicitud de cupos",
+        _ when tipoDestino.StartsWith("Marcadores:", StringComparison.OrdinalIgnoreCase) => "Marcadores por fase",
+        _ when tipoDestino.StartsWith("MarcadoresPartido:", StringComparison.OrdinalIgnoreCase) => "Marcador de partido",
+        _ => "Registros pendientes"
+    };
+
+    private static string EstadoAlertaClase(string estado) => estado switch
+    {
+        "Pendiente" => "missing",
+        "Cerrada" => "saved",
+        "Reemplazada" => "replaced",
+        _ => "missing"
+    };
+
     private async Task CargarMiembros(PollaAdminDto polla)
     {
         pollaSeleccionada = polla;
         usuarioPredicciones = null;
         prediccionesUsuario.Clear();
+        clasificacionPrediccionesUsuario.Clear();
+        tercerosPrediccionesUsuario.Clear();
+        podioPrediccionesUsuario = null;
         reaperturasUsuario.Clear();
 
         miembros = await Http.GetFromJsonAsync<List<MiembroAdminDto>>(
@@ -2154,11 +2698,11 @@ else
         errorHistorial = null;
         alertaHistorialMensaje = null;
         alertaHistorialError = false;
-        procesandoAlertaPollaId = null;
+        procesandoAlertaKey = null;
         cargandoHistorial = false;
     }
 
-    private async Task EnviarAlertaPendientes(PollaHistorialAdminDto polla)
+    private async Task EnviarAlertaPendientes(PollaHistorialAdminDto polla, string tipoAlerta)
     {
         if (historialUsuario == null || !Sesion.UsuarioId.HasValue)
         {
@@ -2167,7 +2711,7 @@ else
 
         alertaHistorialMensaje = null;
         alertaHistorialError = false;
-        procesandoAlertaPollaId = polla.PollaId;
+        procesandoAlertaKey = AlertaKey(polla.PollaId, tipoAlerta);
 
         try
         {
@@ -2176,11 +2720,17 @@ else
                 new AdminEnviarAlertaPendientesRequest
                 {
                     AdminUsuarioId = Sesion.UsuarioId.Value,
-                    PollaId = polla.PollaId
+                    PollaId = polla.PollaId,
+                    TipoAlerta = tipoAlerta
                 });
 
             alertaHistorialMensaje = await LeerMensajeRespuesta(response);
             alertaHistorialError = !response.IsSuccessStatusCode;
+
+            if (response.IsSuccessStatusCode)
+            {
+                await RecargarHistorialUsuarioActual();
+            }
         }
         catch (Exception ex)
         {
@@ -2189,7 +2739,24 @@ else
         }
         finally
         {
-            procesandoAlertaPollaId = null;
+            procesandoAlertaKey = null;
+        }
+    }
+
+    private async Task RecargarHistorialUsuarioActual()
+    {
+        if (historialUsuario == null || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        var usuarioId = historialUsuario.UsuarioId;
+        var historialActualizado = await Http.GetFromJsonAsync<HistorialUsuarioAdminDto>(
+            $"api/Admin/usuarios/{usuarioId}/historial?adminUsuarioId={Sesion.UsuarioId.Value}");
+
+        if (historialActualizado != null)
+        {
+            historialUsuario = historialActualizado;
         }
     }
 
@@ -2234,8 +2801,11 @@ else
         if (usuarioPredicciones?.UsuarioId == usuario.Id)
         {
             usuarioPredicciones = null;
-            prediccionesUsuario.Clear();
-            reaperturasUsuario.Clear();
+        prediccionesUsuario.Clear();
+        clasificacionPrediccionesUsuario.Clear();
+        tercerosPrediccionesUsuario.Clear();
+        podioPrediccionesUsuario = null;
+        reaperturasUsuario.Clear();
         }
 
         await CargarPanel();
@@ -2346,6 +2916,11 @@ else
         usuarioPredicciones = miembro;
         prediccionesUsuario = await Http.GetFromJsonAsync<List<PrediccionAdminDto>>(
             $"api/Admin/predicciones?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={miembro.UsuarioId}") ?? new();
+        var complemento = await Http.GetFromJsonAsync<PrediccionesComplementoAdminDto>(
+            $"api/Admin/predicciones/complemento?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={miembro.UsuarioId}");
+        clasificacionPrediccionesUsuario = complemento?.Clasificacion ?? new();
+        tercerosPrediccionesUsuario = complemento?.MejoresTerceros ?? new();
+        podioPrediccionesUsuario = complemento?.Podio;
         await CargarReaperturasUsuario();
     }
 
@@ -2454,6 +3029,25 @@ else
     {
         public int AdminUsuarioId { get; set; }
         public int PollaId { get; set; }
+        public string TipoAlerta { get; set; } = "Todo";
+    }
+
+    private class AdminEnviarAlertaMasivaPendientesRequest
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? PollaId { get; set; }
+        public string TipoAlerta { get; set; } = "Todo";
+        public string FaseMarcadores { get; set; } = "";
+        public int? PartidoId { get; set; }
+        public bool EnviarCorreo { get; set; } = true;
+    }
+
+    private class AlertaMasivaForm
+    {
+        public string PollaId { get; set; } = "";
+        public string TipoAlerta { get; set; } = "Todo";
+        public string FaseMarcadores { get; set; } = "";
+        public bool EnviarCorreo { get; set; } = true;
     }
 
     private class AdminGenerarCodigoCuposRequestDto
@@ -2543,6 +3137,25 @@ else
         public string Email { get; set; } = "";
         public bool Activo { get; set; }
         public List<PollaHistorialAdminDto> Pollas { get; set; } = new();
+        public List<AlertaHistorialAdminDto> Alertas { get; set; } = new();
+    }
+
+    private class AlertaHistorialAdminDto
+    {
+        public int Id { get; set; }
+        public int? PollaId { get; set; }
+        public string PollaNombre { get; set; } = "";
+        public int? AdminUsuarioId { get; set; }
+        public string AdminNombre { get; set; } = "";
+        public string Titulo { get; set; } = "";
+        public string Mensaje { get; set; } = "";
+        public string TipoDestino { get; set; } = "";
+        public string Link { get; set; } = "";
+        public string EtiquetaAccion { get; set; } = "";
+        public string Estado { get; set; } = "";
+        public DateTime FechaCreacion { get; set; }
+        public DateTime? FechaVista { get; set; }
+        public DateTime? FechaCierre { get; set; }
     }
 
     private class PollaHistorialAdminDto
@@ -2647,5 +3260,28 @@ else
         public int? ResultadoLocal { get; set; }
         public int? ResultadoVisitante { get; set; }
         public int PuntosTotales { get; set; }
+    }
+
+    private class PrediccionesComplementoAdminDto
+    {
+        public List<ClasificacionPrediccionAdminDto> Clasificacion { get; set; } = new();
+        public List<string> MejoresTerceros { get; set; } = new();
+        public PodioPrediccionAdminDto Podio { get; set; } = new();
+    }
+
+    private class ClasificacionPrediccionAdminDto
+    {
+        public string Grupo { get; set; } = "";
+        public string Primero { get; set; } = "";
+        public string Segundo { get; set; } = "";
+        public string Tercero { get; set; } = "";
+    }
+
+    private class PodioPrediccionAdminDto
+    {
+        public bool Guardado { get; set; }
+        public string Campeon { get; set; } = "";
+        public string Subcampeon { get; set; } = "";
+        public string Tercero { get; set; } = "";
     }
 }

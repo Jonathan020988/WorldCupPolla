@@ -50,6 +50,17 @@ namespace WorldCup.Api.DTOs
     {
         public int AdminUsuarioId { get; set; }
         public int PollaId { get; set; }
+        public string TipoAlerta { get; set; } = "Todo";
+    }
+
+    public class AdminEnviarAlertaMasivaPendientesDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? PollaId { get; set; }
+        public string TipoAlerta { get; set; } = "Todo";
+        public string FaseMarcadores { get; set; } = "";
+        public int? PartidoId { get; set; }
+        public bool EnviarCorreo { get; set; } = true;
     }
 
     public class AdminEnviarAlertaContactoCuposDTO

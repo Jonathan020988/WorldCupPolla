@@ -15,10 +15,14 @@ namespace WorldCup.Api.Controllers
     public class PrediccionesController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly AdminAuthorizationService _adminAuthorization;
 
-        public PrediccionesController(AppDbContext context)
+        public PrediccionesController(
+            AppDbContext context,
+            AdminAuthorizationService adminAuthorization)
         {
             _context = context;
+            _adminAuthorization = adminAuthorization;
         }
 
         private readonly DateTime FechaInicioMundial = new(2026, 6, 11, 14, 0, 0);
@@ -313,6 +317,61 @@ namespace WorldCup.Api.Controllers
             // La marca persistida puede quedar prendida por pruebas/reinicios de fase;
             // el cierre real siempre lo manda el partido y su hora de bloqueo.
             return partido.Finalizado ||
+                   PartidoCerrado(partido);
+        }
+
+        private async Task<(IActionResult? Error, int UsuarioId, bool PuedeVerTodo)> ValidarLecturaPollaAsync(
+            int pollaId,
+            int? solicitanteId)
+        {
+            if (!solicitanteId.HasValue || solicitanteId.Value <= 0)
+            {
+                return (StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Debes iniciar sesión para ver esta información."), 0, false);
+            }
+
+            var usuarioId = solicitanteId.Value;
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => p.Id == pollaId)
+                .Select(p => new { p.Id, p.CreadorId })
+                .FirstOrDefaultAsync();
+
+            if (polla == null)
+                return (NotFound("La polla no existe."), 0, false);
+
+            if (await _adminAuthorization.EsAdminAsync(usuarioId))
+            {
+                return (null, usuarioId, true);
+            }
+
+            if (polla.CreadorId == usuarioId)
+            {
+                return (null, usuarioId, true);
+            }
+
+            var esMiembro = await _context.PollaMiembros
+                .AnyAsync(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo);
+
+            return esMiembro
+                ? (null, usuarioId, false)
+                : (StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "No tienes permisos para ver esta polla."), 0, false);
+        }
+
+        private static bool PuedeVerPronostico(
+            Prediccion prediccion,
+            Partido partido,
+            int solicitanteId,
+            bool puedeVerTodo)
+        {
+            return puedeVerTodo ||
+                   prediccion.UsuarioId == solicitanteId ||
                    PartidoCerrado(partido);
         }
 
@@ -1117,8 +1176,15 @@ namespace WorldCup.Api.Controllers
 
 
         [HttpGet("resumen-final/{pollaId}/{grupo}")]
-        public async Task<IActionResult> GetResumenFinalGrupo(int pollaId, string grupo)
+        public async Task<IActionResult> GetResumenFinalGrupo(
+            int pollaId,
+            string grupo,
+            [FromQuery] int? solicitanteId)
         {
+            var acceso = await ValidarLecturaPollaAsync(pollaId, solicitanteId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
             var grupoNorm = grupo.ToUpper();
 
             // 1️⃣ Partidos del grupo
@@ -1145,24 +1211,38 @@ namespace WorldCup.Api.Controllers
 
             foreach (var partido in partidos)
             {
-                var predicciones = await _context.Predicciones
+                var prediccionesDb = await _context.Predicciones
                     .Include(p => p.Usuario)
                     .Where(p =>
                         p.PollaId == pollaId &&
                         p.PartidoId == partido.Id
                     )
-                    .Select(p => new
+                    .ToListAsync();
+
+                var predicciones = prediccionesDb
+                    .Select(p =>
                     {
-                        usuarioId = p.UsuarioId,
-                        usuario = p.Usuario.Nombre,
-                        prediccion = p.GolesLocal != null && p.GolesVisitante != null
-                            ? $"{p.GolesLocal} - {p.GolesVisitante}"
-                            : "Sin predicción",
-                        puntos = p.PuntosTotales
+                        var visible = PuedeVerPronostico(
+                            p,
+                            partido,
+                            acceso.UsuarioId,
+                            acceso.PuedeVerTodo);
+
+                        return new
+                        {
+                            usuarioId = p.UsuarioId,
+                            usuario = p.Usuario.Nombre,
+                            prediccion = visible
+                                ? p.GolesLocal != null && p.GolesVisitante != null
+                                    ? $"{p.GolesLocal} - {p.GolesVisitante}"
+                                    : "Sin predicción"
+                                : "Oculto hasta cierre",
+                            puntos = p.PuntosTotales
+                        };
                     })
                     .OrderByDescending(p => p.puntos)
                     .ThenBy(p => p.usuario)
-                    .ToListAsync();
+                    .ToList();
 
                 partidosDto.Add(new
                 {
@@ -1190,8 +1270,13 @@ namespace WorldCup.Api.Controllers
         // RESUMEN FINAL DE TODA LA POLLA
         // =========================================================
         [HttpGet("resumen-final-polla/{pollaId}")]
-        public async Task<IActionResult> GetResumenFinalPolla(int pollaId)
+        public async Task<IActionResult> GetResumenFinalPolla(
+            int pollaId,
+            [FromQuery] int? solicitanteId)
         {
+            var acceso = await ValidarLecturaPollaAsync(pollaId, solicitanteId);
+            if (acceso.Error != null)
+                return acceso.Error;
 
             // 1️⃣ Todos los partidos de fase de grupos
             var partidos = await _context.Partidos
@@ -1203,53 +1288,59 @@ namespace WorldCup.Api.Controllers
                  .ToListAsync();
 
 
-            if (!partidos.Any())
-            {
-                return Ok(new
-                {
-                    pollaId,
-                    grupos = new List<object>()
-                });
-            }
+            var gruposDto = new List<ResumenGrupoDTO>();
 
-            // 2️⃣ Agrupar por grupo
-            var gruposDto = partidos
-            .GroupBy(p => p.Local.Grupo)
-            .Select(g => new ResumenGrupoDTO
+            foreach (var grupoPartidos in partidos.GroupBy(p => p.Local.Grupo).OrderBy(g => g.Key))
             {
-                Grupo = g.Key!,
-                Partidos = g.Select(partido => new ResumenPartidoFinalDTO
+                var grupoDto = new ResumenGrupoDTO
                 {
-                    Local = partido.Local.Nombre,
-                    Visitante = partido.Visitante.Nombre,
-                    MarcadorReal = new MarcadorDTO
-                    {
-                        Local = partido.GolesLocal,
-                        Visitante = partido.GolesVisitante
-                    },
-                    Predicciones = _context.Predicciones
+                    Grupo = grupoPartidos.Key!
+                };
+
+                foreach (var partido in grupoPartidos)
+                {
+                    var prediccionesDb = await _context.Predicciones
                         .Include(p => p.Usuario)
                         .Where(p =>
                             p.PollaId == pollaId &&
                             p.PartidoId == partido.Id
                         )
+                        .ToListAsync();
+
+                    var predicciones = prediccionesDb
                         .Select(p => new PrediccionUsuarioFinalDTO
                         {
                             Usuario = p.Usuario.Nombre,
-                            Prediccion = p.GolesLocal != null && p.GolesVisitante != null
-                                ? $"{p.GolesLocal} - {p.GolesVisitante}"
-                                : "Sin predicción",
+                            Prediccion = PuedeVerPronostico(
+                                p,
+                                partido,
+                                acceso.UsuarioId,
+                                acceso.PuedeVerTodo)
+                                    ? p.GolesLocal != null && p.GolesVisitante != null
+                                        ? $"{p.GolesLocal} - {p.GolesVisitante}"
+                                        : "Sin predicción"
+                                    : "Oculto hasta cierre",
                             Puntos = p.PuntosTotales
                         })
                         .OrderByDescending(p => p.Puntos)
                         .ThenBy(p => p.Usuario)
-                        .ToList()
-                }).ToList()
-            })
-            .OrderBy(g => g.Grupo)
-            .ToList();
+                        .ToList();
 
+                    grupoDto.Partidos.Add(new ResumenPartidoFinalDTO
+                    {
+                        Local = partido.Local.Nombre,
+                        Visitante = partido.Visitante.Nombre,
+                        MarcadorReal = new MarcadorDTO
+                        {
+                            Local = partido.GolesLocal,
+                            Visitante = partido.GolesVisitante
+                        },
+                        Predicciones = predicciones
+                    });
+                }
 
+                gruposDto.Add(grupoDto);
+            }
 
             return Ok(new ResumenFinalPollaDTO
             {
@@ -1260,10 +1351,12 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("exportar-excel/{pollaId}")]
-        public async Task<IActionResult> ExportarResumenExcel(int pollaId)
+        public async Task<IActionResult> ExportarResumenExcel(
+            int pollaId,
+            [FromQuery] int? solicitanteId)
         {
             // 🔹 Reutilizamos el resumen final
-            var resumenResult = await GetResumenFinalPolla(pollaId) as OkObjectResult;
+            var resumenResult = await GetResumenFinalPolla(pollaId, solicitanteId) as OkObjectResult;
             if (resumenResult?.Value == null)
                 return BadRequest("No hay datos para exportar");
 

@@ -15,16 +15,19 @@ namespace WorldCup.Api.Controllers
         private readonly AppDbContext _context;
         private readonly AdminAuthorizationService _adminAuthorization;
         private readonly EmailService _emailService;
+        private readonly ILogger<AdminController> _logger;
         private static readonly DateTime FechaInicioMundial = new(2026, 6, 11, 14, 0, 0);
 
         public AdminController(
             AppDbContext context,
             AdminAuthorizationService adminAuthorization,
-            EmailService emailService)
+            EmailService emailService,
+            ILogger<AdminController> logger)
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
             _emailService = emailService;
+            _logger = logger;
         }
 
         [HttpGet("resumen")]
@@ -497,13 +500,47 @@ namespace WorldCup.Api.Controllers
                 });
             }
 
+            var alertasUsuario = await _context.AlertasUsuario
+                .AsNoTracking()
+                .Include(a => a.Polla)
+                .Include(a => a.AdminUsuario)
+                .Where(a => a.UsuarioId == usuarioId)
+                .OrderByDescending(a => a.FechaCreacion)
+                .Take(100)
+                .ToListAsync();
+
+            var alertas = alertasUsuario
+                .Select(a => new
+                {
+                    a.Id,
+                    a.PollaId,
+                    PollaNombre = a.Polla?.Nombre ?? "",
+                    AdminUsuarioId = a.AdminUsuarioId,
+                    AdminNombre = a.AdminUsuario?.Nombre ?? "Administrador",
+                    a.Titulo,
+                    a.Mensaje,
+                    a.TipoDestino,
+                    a.Link,
+                    a.EtiquetaAccion,
+                    a.Estado,
+                    FechaCreacion = ColombiaClock.ToColombia(a.FechaCreacion),
+                    FechaVista = a.FechaVista.HasValue
+                        ? ColombiaClock.ToColombia(a.FechaVista.Value)
+                        : (DateTime?)null,
+                    FechaCierre = a.FechaCierre.HasValue
+                        ? ColombiaClock.ToColombia(a.FechaCierre.Value)
+                        : (DateTime?)null
+                })
+                .ToList();
+
             return Ok(new
             {
                 usuarioId = usuario.Id,
                 usuario = usuario.Nombre,
                 usuario.Email,
                 usuario.Activo,
-                pollas
+                pollas,
+                alertas
             });
         }
 
@@ -535,50 +572,139 @@ namespace WorldCup.Api.Controllers
             if (!pertenece)
                 return BadRequest("El usuario no pertenece a esta polla.");
 
-            var alertaPendientes = await ConstruirAlertaPendientesAsync(usuarioId, dto.PollaId);
+            var tipoAlerta = NormalizarTipoAlertaPendientes(dto.TipoAlerta);
+            if (tipoAlerta == null)
+                return BadRequest("El tipo de alerta no es valido.");
+
+            var alertaPendientes = await ConstruirAlertaPendientesAsync(usuarioId, dto.PollaId, tipoAlerta);
             if (alertaPendientes == null)
             {
                 return BadRequest(
-                    "No hay faltantes abiertos para enviar en este momento. Puede que ya este completo o que esos registros ya esten cerrados por fase.");
+                    "No hay faltantes abiertos para enviar en esta categoria. Puede que ya este completo o que esos registros ya esten cerrados por fase.");
             }
 
-            var ahoraUtc = DateTime.UtcNow;
-            var alerta = await _context.AlertasUsuario
-                .FirstOrDefaultAsync(a =>
-                    a.UsuarioId == usuarioId &&
-                    a.PollaId == dto.PollaId &&
-                    a.Estado == "Pendiente");
+            var alerta = await RegistrarAlertaPendienteAsync(
+                usuarioId,
+                dto.AdminUsuarioId,
+                dto.PollaId,
+                alertaPendientes,
+                DateTime.UtcNow);
+            await _context.SaveChangesAsync();
 
-            if (alerta == null)
+            var correoEnviado = await EnviarCorreoAlertaAsync(usuario, polla, alertaPendientes);
+            return Ok(new
             {
-                alerta = new AlertaUsuario
-                {
-                    UsuarioId = usuarioId,
-                    PollaId = dto.PollaId,
-                    AdminUsuarioId = dto.AdminUsuarioId
-                };
+                mensaje = correoEnviado
+                    ? $"Alerta y correo enviados a {usuario.Nombre}. Le aparecera al iniciar sesion y tambien en notificaciones."
+                    : $"Alerta enviada a {usuario.Nombre}. No se pudo enviar el correo; revisa los logs SMTP.",
+                alertaId = alerta.Id,
+                tipoAlerta = alertaPendientes.TipoDestino,
+                totalFaltantes = alertaPendientes.TotalFaltantes,
+                correoEnviado
+            });
+        }
 
-                _context.AlertasUsuario.Add(alerta);
+        [HttpPost("alertas-masivas/pendientes")]
+        public async Task<IActionResult> EnviarAlertaMasivaPendientes(
+            [FromBody] AdminEnviarAlertaMasivaPendientesDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            var tipoAlerta = dto.PartidoId.HasValue
+                ? "Partido"
+                : NormalizarTipoAlertaPendientes(dto.TipoAlerta);
+            if (tipoAlerta == null)
+                return BadRequest("El tipo de alerta masiva no es valido.");
+
+            var faseMarcadores = string.IsNullOrWhiteSpace(dto.FaseMarcadores)
+                ? ""
+                : NormalizarFaseReapertura(dto.FaseMarcadores);
+            if (!string.IsNullOrWhiteSpace(dto.FaseMarcadores) && faseMarcadores == null)
+                return BadRequest("La fase indicada para marcadores no es valida.");
+
+            if (tipoAlerta != "Marcadores" && !dto.PartidoId.HasValue)
+                faseMarcadores = "";
+
+            if (dto.PartidoId.HasValue && !await _context.Partidos.AnyAsync(p => p.Id == dto.PartidoId.Value))
+                return BadRequest("El partido seleccionado no existe.");
+
+            var miembrosQuery = _context.PollaMiembros
+                .Include(pm => pm.Usuario)
+                .Include(pm => pm.Polla)
+                .Where(pm => pm.Usuario.Activo);
+
+            if (dto.PollaId.HasValue)
+            {
+                var pollaExiste = await _context.Pollas.AnyAsync(p => p.Id == dto.PollaId.Value);
+                if (!pollaExiste)
+                    return BadRequest("La polla seleccionada no existe.");
+
+                miembrosQuery = miembrosQuery.Where(pm => pm.PollaId == dto.PollaId.Value);
             }
 
-            alerta.AdminUsuarioId = dto.AdminUsuarioId;
-            alerta.Titulo = alertaPendientes.Titulo;
-            alerta.Mensaje = alertaPendientes.Mensaje;
-            alerta.TipoDestino = alertaPendientes.TipoDestino;
-            alerta.Link = alertaPendientes.Link;
-            alerta.EtiquetaAccion = alertaPendientes.EtiquetaAccion;
-            alerta.Estado = "Pendiente";
-            alerta.FechaCreacion = ahoraUtc;
-            alerta.FechaVista = null;
-            alerta.FechaCierre = null;
+            var miembros = await miembrosQuery
+                .OrderBy(pm => pm.Polla.Nombre)
+                .ThenBy(pm => pm.Usuario.Nombre)
+                .ToListAsync();
+
+            var correosPendientes = new List<(Usuario Usuario, Polla Polla, AlertaPendientesConstruida Alerta)>();
+            var ahoraUtc = DateTime.UtcNow;
+
+            foreach (var miembro in miembros)
+            {
+                var alertaConstruida = dto.PartidoId.HasValue
+                    ? await ConstruirAlertaPartidoPendienteAsync(
+                        miembro.UsuarioId,
+                        miembro.PollaId,
+                        dto.PartidoId.Value)
+                    : await ConstruirAlertaPendientesAsync(
+                        miembro.UsuarioId,
+                        miembro.PollaId,
+                        tipoAlerta,
+                        faseMarcadores);
+
+                if (alertaConstruida == null)
+                    continue;
+
+                await RegistrarAlertaPendienteAsync(
+                    miembro.UsuarioId,
+                    dto.AdminUsuarioId,
+                    miembro.PollaId,
+                    alertaConstruida,
+                    ahoraUtc);
+
+                correosPendientes.Add((miembro.Usuario, miembro.Polla, alertaConstruida));
+            }
+
+            if (!correosPendientes.Any())
+            {
+                return BadRequest("No hay usuarios activos con ese pendiente abierto para enviar alerta.");
+            }
 
             await _context.SaveChangesAsync();
 
+            var correosEnviados = 0;
+            var correosFallidos = 0;
+            if (dto.EnviarCorreo)
+            {
+                foreach (var pendiente in correosPendientes)
+                {
+                    if (await EnviarCorreoAlertaAsync(pendiente.Usuario, pendiente.Polla, pendiente.Alerta))
+                        correosEnviados++;
+                    else
+                        correosFallidos++;
+                }
+            }
+
             return Ok(new
             {
-                mensaje = $"Alerta enviada a {usuario.Nombre}. Le aparecera al iniciar sesion y tambien en notificaciones.",
-                alertaId = alerta.Id,
-                totalFaltantes = alertaPendientes.TotalFaltantes
+                mensaje = dto.EnviarCorreo
+                    ? $"Alerta masiva enviada a {correosPendientes.Count} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}."
+                    : $"Alerta masiva enviada a {correosPendientes.Count} usuario(s). No se enviaron correos por configuracion de esta accion.",
+                usuariosAlertados = correosPendientes.Count,
+                correosEnviados,
+                correosFallidos
             });
         }
 
@@ -723,6 +849,80 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             return Ok(predicciones);
+        }
+
+        [HttpGet("predicciones/complemento")]
+        public async Task<IActionResult> GetPrediccionesComplementoUsuario(
+            [FromQuery] int adminUsuarioId,
+            [FromQuery] int pollaId,
+            [FromQuery] int usuarioId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var equipos = await _context.Equipos
+                .AsNoTracking()
+                .ToDictionaryAsync(e => e.Id, e => e.Nombre);
+
+            var clasificacion = await _context.PrediccionesGrupo
+                .AsNoTracking()
+                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .OrderBy(p => p.Grupo)
+                .Select(p => new
+                {
+                    p.Grupo,
+                    p.PrimeroId,
+                    p.SegundoId,
+                    p.TerceroId
+                })
+                .ToListAsync();
+
+            var clasificacionDto = clasificacion.Select(p => new
+            {
+                grupo = p.Grupo,
+                primero = equipos.TryGetValue(p.PrimeroId, out var primero) ? primero : $"Equipo {p.PrimeroId}",
+                segundo = equipos.TryGetValue(p.SegundoId, out var segundo) ? segundo : $"Equipo {p.SegundoId}",
+                tercero = equipos.TryGetValue(p.TerceroId, out var tercero) ? tercero : $"Equipo {p.TerceroId}"
+            }).ToList();
+
+            var terceros = await _context.PrediccionesTerceros
+                .AsNoTracking()
+                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .Select(p => p.Grupo)
+                .OrderBy(g => g)
+                .ToListAsync();
+
+            var podio = await _context.PrediccionesPodio
+                .AsNoTracking()
+                .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
+                .Select(p => new
+                {
+                    p.CampeonId,
+                    p.SubcampeonId,
+                    p.TerceroId
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                clasificacion = clasificacionDto,
+                mejoresTerceros = terceros,
+                podio = podio == null
+                    ? new
+                    {
+                        guardado = false,
+                        campeon = "",
+                        subcampeon = "",
+                        tercero = ""
+                    }
+                    : new
+                    {
+                        guardado = true,
+                        campeon = equipos.TryGetValue(podio.CampeonId, out var campeon) ? campeon : $"Equipo {podio.CampeonId}",
+                        subcampeon = equipos.TryGetValue(podio.SubcampeonId, out var subcampeon) ? subcampeon : $"Equipo {podio.SubcampeonId}",
+                        tercero = equipos.TryGetValue(podio.TerceroId, out var tercero) ? tercero : $"Equipo {podio.TerceroId}"
+                    }
+            });
         }
 
         [HttpGet("reaperturas")]
@@ -1002,9 +1202,146 @@ namespace WorldCup.Api.Controllers
             return NoContent();
         }
 
+        private async Task<AlertaUsuario> RegistrarAlertaPendienteAsync(
+            int usuarioId,
+            int adminUsuarioId,
+            int pollaId,
+            AlertaPendientesConstruida alertaPendientes,
+            DateTime ahoraUtc)
+        {
+            var alertasPendientesPrevias = await _context.AlertasUsuario
+                .Where(a =>
+                    a.UsuarioId == usuarioId &&
+                    a.PollaId == pollaId &&
+                    a.Estado == "Pendiente" &&
+                    a.TipoDestino == alertaPendientes.TipoDestino)
+                .ToListAsync();
+
+            foreach (var alertaPrevia in alertasPendientesPrevias)
+            {
+                alertaPrevia.Estado = "Reemplazada";
+                alertaPrevia.FechaCierre = ahoraUtc;
+            }
+
+            var alerta = new AlertaUsuario
+            {
+                UsuarioId = usuarioId,
+                PollaId = pollaId,
+                AdminUsuarioId = adminUsuarioId,
+                Titulo = alertaPendientes.Titulo,
+                Mensaje = alertaPendientes.Mensaje,
+                TipoDestino = alertaPendientes.TipoDestino,
+                Link = alertaPendientes.Link,
+                EtiquetaAccion = alertaPendientes.EtiquetaAccion,
+                Estado = "Pendiente",
+                FechaCreacion = ahoraUtc,
+                FechaVista = null,
+                FechaCierre = null
+            };
+
+            _context.AlertasUsuario.Add(alerta);
+            return alerta;
+        }
+
+        private async Task<bool> EnviarCorreoAlertaAsync(
+            Usuario usuario,
+            Polla polla,
+            AlertaPendientesConstruida alertaPendientes)
+        {
+            try
+            {
+                await _emailService.EnviarAlertaPendienteAsync(
+                    usuario.Email,
+                    usuario.Nombre,
+                    alertaPendientes.Titulo,
+                    alertaPendientes.Mensaje,
+                    polla.Nombre,
+                    alertaPendientes.EtiquetaAccion,
+                    alertaPendientes.Link);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de alerta pendiente al usuario {UsuarioId} en polla {PollaId}",
+                    usuario.Id,
+                    polla.Id);
+                return false;
+            }
+        }
+
+        private async Task<AlertaPendientesConstruida?> ConstruirAlertaPartidoPendienteAsync(
+            int usuarioId,
+            int pollaId,
+            int partidoId)
+        {
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .FirstAsync(p => p.Id == pollaId);
+
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null ||
+                partido.Finalizado ||
+                partido.Estado == "Postergado")
+            {
+                return null;
+            }
+
+            var ahora = ColombiaClock.Now();
+            var reapertura = await _context.AdminReaperturasPrediccion
+                .AsNoTracking()
+                .AnyAsync(r =>
+                    r.PollaId == pollaId &&
+                    r.UsuarioId == usuarioId &&
+                    r.Fase == partido.Fase &&
+                    r.Tipo == "Marcadores" &&
+                    r.Activa);
+
+            if (!reapertura && ahora >= ColombiaClock.ToColombia(partido.Fecha).AddHours(-1))
+            {
+                return null;
+            }
+
+            var tieneMarcador = await _context.Predicciones
+                .AsNoTracking()
+                .AnyAsync(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId &&
+                    p.PartidoId == partidoId &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue);
+
+            if (tieneMarcador)
+            {
+                return null;
+            }
+
+            var fecha = ColombiaClock.ToColombia(partido.Fecha);
+            var partidoTexto = $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}";
+
+            return new AlertaPendientesConstruida
+            {
+                TotalFaltantes = 1,
+                Titulo = "Te falta un marcador por llenar",
+                Mensaje = $"Te falta completar esto en la polla {polla.Nombre}:\n- Marcador pendiente: {partidoTexto}. El partido empieza el {fecha:dd/MM/yyyy HH:mm}.",
+                TipoDestino = $"MarcadoresPartido:{partidoId}",
+                Link = "/predicciones",
+                EtiquetaAccion = "Ir a predicciones"
+            };
+        }
+
         private async Task<AlertaPendientesConstruida?> ConstruirAlertaPendientesAsync(
             int usuarioId,
-            int pollaId)
+            int pollaId,
+            string tipoAlerta,
+            string? faseMarcadores = null)
         {
             var polla = await _context.Pollas
                 .AsNoTracking()
@@ -1049,6 +1386,9 @@ namespace WorldCup.Api.Controllers
                 .Where(p =>
                     TieneReapertura(p.Fase, "Marcadores") ||
                     ahora < ColombiaClock.ToColombia(p.Fecha).AddHours(-1))
+                .Where(p =>
+                    string.IsNullOrWhiteSpace(faseMarcadores) ||
+                    p.Fase == faseMarcadores)
                 .Where(p =>
                     !predicciones.TryGetValue(p.Id, out var prediccion) ||
                     !prediccion.GolesLocal.HasValue ||
@@ -1173,17 +1513,22 @@ namespace WorldCup.Api.Controllers
                     (gruposTerminados && !dieciseisavosIniciados);
             }
 
+            var incluirMarcadores = tipoAlerta is "Todo" or "Marcadores";
+            var incluirClasificacion = tipoAlerta is "Todo" or "Clasificacion";
+            var incluirTerceros = tipoAlerta is "Todo" or "Terceros";
+            var incluirPodio = tipoAlerta is "Todo" or "Podio";
+
             var totalFaltantes =
-                marcadoresFaltantes.Count +
-                gruposFaltantes.Count +
-                tercerosFaltantes +
-                (podioFaltante ? 1 : 0);
+                (incluirMarcadores ? marcadoresFaltantes.Count : 0) +
+                (incluirClasificacion ? gruposFaltantes.Count : 0) +
+                (incluirTerceros ? tercerosFaltantes : 0) +
+                (incluirPodio && podioFaltante ? 1 : 0);
 
             if (totalFaltantes == 0)
                 return null;
 
             var detalles = new List<string>();
-            if (gruposFaltantes.Any())
+            if (incluirClasificacion && gruposFaltantes.Any())
             {
                 var grupos = gruposFaltantes
                     .Select(g => $"Grupo {g}")
@@ -1192,12 +1537,12 @@ namespace WorldCup.Api.Controllers
                 detalles.Add($"Clasificacion de grupos: falta {FormatearListaAlerta(grupos, 6)}.");
             }
 
-            if (tercerosFaltantes > 0)
+            if (incluirTerceros && tercerosFaltantes > 0)
             {
                 detalles.Add($"Mejores terceros: faltan {tercerosFaltantes} seleccion(es).");
             }
 
-            if (marcadoresFaltantes.Any())
+            if (incluirMarcadores && marcadoresFaltantes.Any())
             {
                 var partidosTexto = marcadoresFaltantes
                     .Select(p => $"{NombreFaseAlerta(p.Fase)}: {p.Partido}")
@@ -1206,29 +1551,34 @@ namespace WorldCup.Api.Controllers
                 detalles.Add($"Partidos por llenar: {FormatearListaAlerta(partidosTexto, 6)}.");
             }
 
-            if (podioFaltante)
+            if (incluirPodio && podioFaltante)
             {
                 detalles.Add("Podio final: falta escoger campeon, subcampeon y tercer puesto.");
             }
 
-            var tipoDestino = gruposFaltantes.Any() || tercerosFaltantes > 0
-                ? "Clasificacion"
-                : podioFaltante
-                    ? "Podio"
-                    : "Predicciones";
+            var tipoDestino = tipoAlerta == "Marcadores" && !string.IsNullOrWhiteSpace(faseMarcadores)
+                ? $"Marcadores:{faseMarcadores}"
+                : tipoAlerta == "Todo"
+                ? (gruposFaltantes.Any() || tercerosFaltantes > 0
+                    ? "PendientesClasificacion"
+                    : podioFaltante
+                        ? "Podio"
+                        : "Marcadores")
+                : tipoAlerta;
 
-            var link = tipoDestino == "Clasificacion"
+            var abreClasificacion = tipoDestino is "Clasificacion" or "Terceros" or "PendientesClasificacion";
+            var link = abreClasificacion
                 ? "/clasificacion-grupos"
                 : "/predicciones";
 
-            var etiqueta = tipoDestino == "Clasificacion"
+            var etiqueta = abreClasificacion
                 ? "Ir a clasificacion de grupos"
                 : "Ir a predicciones";
 
             return new AlertaPendientesConstruida
             {
                 TotalFaltantes = totalFaltantes,
-                Titulo = "Tienes registros pendientes",
+                Titulo = TituloAlertaPendientes(tipoDestino),
                 Mensaje = $"Te falta completar esto en la polla {polla.Nombre}:\n- " +
                     string.Join("\n- ", detalles),
                 TipoDestino = tipoDestino,
@@ -1248,6 +1598,36 @@ namespace WorldCup.Api.Controllers
             return string.Join(", ", valores.Take(maximo)) +
                 $" y {valores.Count - maximo} mas";
         }
+
+        private static string? NormalizarTipoAlertaPendientes(string? tipo)
+        {
+            var limpia = (tipo ?? "")
+                .Trim()
+                .Replace(" ", "")
+                .Replace("-", "")
+                .ToLowerInvariant();
+
+            return limpia switch
+            {
+                "" or "todo" or "todos" or "pendientes" => "Todo",
+                "marcadores" or "predicciones" or "partidos" => "Marcadores",
+                "clasificacion" or "clasificaciongrupos" or "grupos" => "Clasificacion",
+                "terceros" or "mejoresterceros" => "Terceros",
+                "podio" => "Podio",
+                _ => null
+            };
+        }
+
+        private static string TituloAlertaPendientes(string tipoDestino) => tipoDestino switch
+        {
+            "Marcadores" => "Te faltan marcadores por llenar",
+            "Clasificacion" => "Te falta clasificacion de grupos",
+            "Terceros" => "Te faltan mejores terceros",
+            "Podio" => "Te falta el podio final",
+            _ when tipoDestino.StartsWith("Marcadores:", StringComparison.OrdinalIgnoreCase) => "Te faltan marcadores de una fase",
+            _ when tipoDestino.StartsWith("MarcadoresPartido:", StringComparison.OrdinalIgnoreCase) => "Te falta un marcador por llenar",
+            _ => "Tienes registros pendientes"
+        };
 
         private static string NombreFaseAlerta(string fase) =>
             fase == "TercerPuesto" ? "Tercer puesto" : fase;
