@@ -241,7 +241,7 @@ namespace WorldCup.Api.Controllers
             if (!await EsAdmin(adminUsuarioId))
                 return Forbid();
 
-            var usuarios = await (
+            var usuariosBase = await (
                 from u in _context.Usuarios
                 let pollas = _context.PollaMiembros.Count(pm => pm.UsuarioId == u.Id)
                 let pollasCreadas = _context.Pollas.Count(p => p.CreadorId == u.Id)
@@ -282,6 +282,114 @@ namespace WorldCup.Api.Controllers
                 })
                 .OrderBy(u => u.Nombre)
                 .ToListAsync();
+
+            var miembrosPorUsuario = await _context.PollaMiembros
+                .AsNoTracking()
+                .GroupBy(pm => pm.UsuarioId)
+                .Select(g => new { UsuarioId = g.Key, Total = g.Count() })
+                .ToDictionaryAsync(g => g.UsuarioId, g => g.Total);
+
+            var marcadoresPorUsuario = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p => p.GolesLocal.HasValue && p.GolesVisitante.HasValue)
+                .GroupBy(p => p.UsuarioId)
+                .Select(g => new { UsuarioId = g.Key, Total = g.Count() })
+                .ToDictionaryAsync(g => g.UsuarioId, g => g.Total);
+
+            var gruposPorUsuario = (await _context.PrediccionesGrupo
+                    .AsNoTracking()
+                    .Select(p => new { p.UsuarioId, p.PollaId, p.Grupo })
+                    .ToListAsync())
+                .Select(p => new
+                {
+                    p.UsuarioId,
+                    p.PollaId,
+                    Grupo = (p.Grupo ?? "").Trim().ToUpperInvariant()
+                })
+                .Where(p => !string.IsNullOrWhiteSpace(p.Grupo))
+                .Distinct()
+                .GroupBy(p => p.UsuarioId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var tercerosPorUsuario = (await _context.PrediccionesTerceros
+                    .AsNoTracking()
+                    .Select(p => new { p.UsuarioId, p.PollaId, p.Grupo })
+                    .ToListAsync())
+                .Select(p => new
+                {
+                    p.UsuarioId,
+                    p.PollaId,
+                    Grupo = (p.Grupo ?? "").Trim().ToUpperInvariant()
+                })
+                .Where(p => !string.IsNullOrWhiteSpace(p.Grupo))
+                .Distinct()
+                .GroupBy(p => p.UsuarioId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var podiosPorUsuario = await _context.PrediccionesPodio
+                .AsNoTracking()
+                .GroupBy(p => p.UsuarioId)
+                .Select(g => new { UsuarioId = g.Key, Total = g.Count() })
+                .ToDictionaryAsync(g => g.UsuarioId, g => g.Total);
+
+            var partidosRequeridos = await _context.Partidos
+                .AsNoTracking()
+                .CountAsync(p => p.Estado != "Postergado");
+            var gruposRequeridos = await _context.Equipos
+                .AsNoTracking()
+                .Where(e => e.Grupo != null && e.Grupo != "")
+                .Select(e => e.Grupo!)
+                .Distinct()
+                .CountAsync();
+            var tercerosRequeridos = gruposRequeridos > 0 ? 8 : 0;
+            var hayGrupos = await _context.Partidos
+                .AsNoTracking()
+                .AnyAsync(p => p.Fase == "Grupos");
+            var podioRequerido = hayGrupos && !await _context.Partidos
+                .AsNoTracking()
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var registrosRequeridosPorPolla =
+                partidosRequeridos +
+                gruposRequeridos +
+                tercerosRequeridos +
+                (podioRequerido ? 1 : 0);
+
+            var usuarios = usuariosBase
+                .Select(u =>
+                {
+                    var pollasUsuario = miembrosPorUsuario.GetValueOrDefault(u.Id);
+                    var registrosEsperados = pollasUsuario * registrosRequeridosPorPolla;
+                    var registrosGuardados =
+                        marcadoresPorUsuario.GetValueOrDefault(u.Id) +
+                        gruposPorUsuario.GetValueOrDefault(u.Id) +
+                        tercerosPorUsuario.GetValueOrDefault(u.Id) +
+                        podiosPorUsuario.GetValueOrDefault(u.Id);
+                    var registrosFaltantes = Math.Max(0, registrosEsperados - registrosGuardados);
+                    var estadoRegistros = registrosGuardados == 0
+                        ? "Limpio"
+                        : registrosEsperados > 0 && registrosFaltantes == 0
+                            ? "Lleno"
+                            : "Algunos";
+
+                    return new
+                    {
+                        u.Id,
+                        u.Nombre,
+                        u.Email,
+                        u.Activo,
+                        u.MaximoMiembrosPorPolla,
+                        u.CuposIlimitados,
+                        u.Pollas,
+                        u.PollasCreadas,
+                        u.Historial,
+                        u.PuedeEliminar,
+                        RegistrosGuardados = registrosGuardados,
+                        RegistrosEsperados = registrosEsperados,
+                        RegistrosFaltantes = registrosFaltantes,
+                        EstadoRegistros = estadoRegistros
+                    };
+                })
+                .ToList();
 
             return Ok(usuarios);
         }
