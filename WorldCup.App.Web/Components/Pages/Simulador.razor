@@ -1,8 +1,13 @@
 ﻿@page "/simulador"
 @page "/simulador/{PollaId:int}"
 @using WorldCup.App.Shared.DTOs
+@using WorldCup.App.Shared.Services
+@using WorldCup.App.Web.Services
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject SesionService Sesion
+@inject ClasificacionDraftService ClasificacionDraft
 @rendermode InteractiveServer
 
 <h2 class="mb-4">🌎 Simulador Mundial</h2>
@@ -67,6 +72,102 @@ else
 
         @if (modoSimulador == "marcadores")
         {
+            <div class="sim-third-preview card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <div class="sim-third-preview-head">
+                        <div>
+                            <span class="sim-third-kicker">Clasificación calculada</span>
+                            <h3>8 mejores terceros por marcadores</h3>
+                            <p>
+                                Calcula los terceros con los resultados que escribiste en todos los grupos y llévalos como borrador a Clasificación Grupos.
+                            </p>
+                        </div>
+
+                        <button class="btn btn-warning fw-bold"
+                                @onclick="MostrarMejoresTercerosPorMarcadores">
+                            Ver mejores terceros
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(mensajeMejoresTercerosMarcadores))
+                    {
+                        <div class="alert @(mejoresTercerosMarcadoresConError ? "alert-warning" : "alert-success") mb-3">
+                            @mensajeMejoresTercerosMarcadores
+                        </div>
+                    }
+
+                    @if (mejoresTercerosMarcadores.Any())
+                    {
+                        <div class="sim-third-summary">
+                            @foreach (var tercero in mejoresTercerosMarcadores)
+                            {
+                                <span>Grupo @tercero.Grupo</span>
+                            }
+                        </div>
+
+                        <div class="table-responsive sim-third-desktop-table">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Equipo</th>
+                                        <th>Grupo</th>
+                                        <th>Pts</th>
+                                        <th>GF</th>
+                                        <th>GC</th>
+                                        <th>DG</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var i = 0; i < mejoresTercerosMarcadores.Count; i++)
+                                    {
+                                        var tercero = mejoresTercerosMarcadores[i];
+                                        <tr>
+                                            <td>@(i + 1)</td>
+                                            <td class="fw-bold">@tercero.Nombre</td>
+                                            <td>Grupo @tercero.Grupo</td>
+                                            <td><strong>@tercero.Puntos</strong></td>
+                                            <td>@tercero.GolesFavor</td>
+                                            <td>@tercero.GolesContra</td>
+                                            <td>@tercero.Diferencia</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="sim-third-mobile-list">
+                            @for (var i = 0; i < mejoresTercerosMarcadores.Count; i++)
+                            {
+                                var tercero = mejoresTercerosMarcadores[i];
+                                <div class="sim-third-mobile-card">
+                                    <div>
+                                        <strong>@(i + 1). @tercero.Nombre</strong>
+                                        <span>Grupo @tercero.Grupo</span>
+                                    </div>
+                                    <div>
+                                        <b>@tercero.Puntos pts</b>
+                                        <small>DG @tercero.Diferencia · GF @tercero.GolesFavor</small>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="sim-third-actions">
+                            <button class="btn btn-outline-secondary"
+                                    @onclick="CopiarGruposMejoresTercerosMarcadores">
+                                Copiar grupos
+                            </button>
+
+                            <button class="btn btn-success"
+                                    @onclick="LlevarMejoresTercerosAClasificacion">
+                                Llevar a Clasificación Grupos
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
             @for (int i = 0; i < grupos.Count; i += 2)
             {
                 <div class="row mb-3">
@@ -102,7 +203,8 @@ else
                                                     <input type="number"
                                                            min="0"
                                                            class="form-control form-control-sm text-center"
-                                                           @bind="partido.GolesLocal" />
+                                                           @bind="partido.GolesLocal"
+                                                           @bind:after="LimpiarVistaMejoresTercerosMarcadores" />
                                                 </div>
 
                                                 <div class="col-1 fw-bold">
@@ -113,7 +215,8 @@ else
                                                     <input type="number"
                                                            min="0"
                                                            class="form-control form-control-sm text-center"
-                                                           @bind="partido.GolesVisitante" />
+                                                           @bind="partido.GolesVisitante"
+                                                           @bind:after="LimpiarVistaMejoresTercerosMarcadores" />
                                                 </div>
 
                                                 <div class="col-3 fw-bold">
@@ -1173,6 +1276,84 @@ else
         font-weight: 800;
     }
 
+    .sim-third-preview {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 52%, #fff7df 100%);
+    }
+
+    .sim-third-preview-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .sim-third-preview-head h3 {
+        margin: .15rem 0 .25rem;
+        font-size: 1.25rem;
+        font-weight: 850;
+    }
+
+    .sim-third-preview-head p {
+        max-width: 680px;
+        margin: 0;
+        color: #475569;
+        line-height: 1.35;
+    }
+
+    .sim-third-kicker {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: .25rem .6rem;
+        background: #e8f5ee;
+        color: #12613d;
+        font-size: .78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .sim-third-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        margin: .25rem 0 .9rem;
+    }
+
+    .sim-third-summary span {
+        border: 1px solid #f0d36b;
+        border-radius: 999px;
+        padding: .32rem .65rem;
+        background: #fff8db;
+        color: #6f5000;
+        font-weight: 800;
+        font-size: .82rem;
+    }
+
+    .sim-third-desktop-table {
+        border: 1px solid #e4e9ef;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+    }
+
+    .sim-third-desktop-table thead th {
+        background: #111827;
+        color: #ffffff;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .sim-third-mobile-list {
+        display: none;
+    }
+
+    .sim-third-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .65rem;
+        margin-top: .9rem;
+    }
+
     @@media (max-width: 640px) {
         h2.mb-4,
         h3.mb-4 {
@@ -1361,6 +1542,76 @@ else
             overflow-wrap: anywhere;
         }
 
+        .sim-third-preview-head {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .sim-third-preview-head h3 {
+            font-size: 1.08rem;
+        }
+
+        .sim-third-preview-head p {
+            font-size: .9rem;
+        }
+
+        .sim-third-preview-head .btn {
+            width: 100%;
+        }
+
+        .sim-third-summary {
+            justify-content: center;
+        }
+
+        .sim-third-desktop-table {
+            display: none;
+        }
+
+        .sim-third-mobile-list {
+            display: grid;
+            gap: .55rem;
+        }
+
+        .sim-third-mobile-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: .75rem;
+            align-items: center;
+            border: 1px solid #e4e9ef;
+            border-left: 5px solid #f4bd18;
+            border-radius: 8px;
+            padding: .65rem .7rem;
+            background: #ffffff;
+        }
+
+        .sim-third-mobile-card strong,
+        .sim-third-mobile-card span,
+        .sim-third-mobile-card small {
+            display: block;
+            line-height: 1.2;
+        }
+
+        .sim-third-mobile-card strong {
+            overflow-wrap: anywhere;
+        }
+
+        .sim-third-mobile-card span,
+        .sim-third-mobile-card small {
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .sim-third-mobile-card > div:last-child {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .sim-third-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .5rem;
+        }
+
         .container-fluid table {
             table-layout: fixed;
             font-size: .86rem;
@@ -1447,6 +1698,11 @@ else
     private string modoSimulador = "marcadores";
     private string? mensajeSimulador;
     private bool simuladorConError;
+    private List<EquipoGrupoDto> mejoresTercerosMarcadores = new();
+    private Dictionary<string, List<EquipoGrupoDto>> tablasMarcadoresCalculadas = new(StringComparer.OrdinalIgnoreCase);
+    private string? mensajeMejoresTercerosMarcadores;
+    private bool mejoresTercerosMarcadoresConError;
+    private bool mostrarMejoresTercerosMarcadores;
     private Dictionary<string, List<SimuladorEquipoPosicion>> posicionesPorGrupo = new();
     private HashSet<string> gruposTerceroSimulador = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> tablasMarcadoresVisibles = new(StringComparer.OrdinalIgnoreCase);
@@ -1586,6 +1842,7 @@ else
             return;
         }
 
+        await Sesion.RestaurarSesionAsync();
         await RestaurarBorradorSimulador();
         StateHasChanged();
     }
@@ -1622,7 +1879,9 @@ else
                     {
                         Id = p.Id,
                         Grupo = p.Grupo,
+                        LocalId = p.LocalId,
                         Local = p.Local,
+                        VisitanteId = p.VisitanteId,
                         Visitante = p.Visitante,
                         GolesLocal = p.GolesLocal,
                         GolesVisitante = p.GolesVisitante
@@ -1641,6 +1900,9 @@ else
                     StringComparer.OrdinalIgnoreCase),
                 GruposTerceroSimulador = gruposTerceroSimulador.ToList(),
                 TablasMarcadoresVisibles = tablasMarcadoresVisibles.ToList(),
+                MejoresTercerosMarcadores = mejoresTercerosMarcadores,
+                TablasMarcadoresCalculadas = tablasMarcadoresCalculadas,
+                MostrarMejoresTercerosMarcadores = mostrarMejoresTercerosMarcadores,
                 Clasificados = clasificados,
                 MejoresTerceros = mejoresTerceros,
                 TablasPorGrupo = tablasPorGrupo,
@@ -1742,6 +2004,10 @@ else
             clasificados = borrador.Clasificados ?? new();
             mejoresTerceros = borrador.MejoresTerceros ?? new();
             tablasPorGrupo = borrador.TablasPorGrupo ?? new(StringComparer.OrdinalIgnoreCase);
+            mejoresTercerosMarcadores = borrador.MejoresTercerosMarcadores ?? new();
+            tablasMarcadoresCalculadas = borrador.TablasMarcadoresCalculadas ?? new(StringComparer.OrdinalIgnoreCase);
+            mostrarMejoresTercerosMarcadores = borrador.MostrarMejoresTercerosMarcadores &&
+                mejoresTercerosMarcadores.Any();
             dieciseisavos = borrador.Dieciseisavos ?? new();
             octavos = borrador.Octavos ?? new();
             cuartos = borrador.Cuartos ?? new();
@@ -1806,6 +2072,168 @@ else
         mensajeSimulador = $"Tabla del Grupo {grupoNormalizado} actualizada con los marcadores del simulador.";
     }
 
+    private void MostrarMejoresTercerosPorMarcadores()
+    {
+        var calculo = CalcularClasificacionPorMarcadores();
+
+        if (!calculo.EstaCompleto)
+        {
+            mejoresTercerosMarcadores.Clear();
+            tablasMarcadoresCalculadas.Clear();
+            mostrarMejoresTercerosMarcadores = false;
+            mejoresTercerosMarcadoresConError = true;
+            mensajeMejoresTercerosMarcadores = calculo.GruposIncompletos.Any()
+                ? $"Faltan marcadores completos en: {string.Join(", ", calculo.GruposIncompletos.Select(g => $"Grupo {g}"))}."
+                : "No hay marcadores suficientes para calcular los mejores terceros.";
+            return;
+        }
+
+        tablasMarcadoresCalculadas = calculo.Tablas;
+        mejoresTercerosMarcadores = calculo.MejoresTerceros;
+        mostrarMejoresTercerosMarcadores = true;
+        mejoresTercerosMarcadoresConError = false;
+        mensajeMejoresTercerosMarcadores = "Mejores terceros calculados con los marcadores del simulador.";
+    }
+
+    private async Task CopiarGruposMejoresTercerosMarcadores()
+    {
+        if (!mejoresTercerosMarcadores.Any())
+        {
+            return;
+        }
+
+        var texto = string.Join(", ", mejoresTercerosMarcadores.Select(t => $"Grupo {t.Grupo}"));
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", texto);
+            mejoresTercerosMarcadoresConError = false;
+            mensajeMejoresTercerosMarcadores = $"Grupos copiados: {texto}.";
+        }
+        catch
+        {
+            mejoresTercerosMarcadoresConError = true;
+            mensajeMejoresTercerosMarcadores = $"No se pudo copiar automáticamente. Grupos: {texto}.";
+        }
+    }
+
+    private void LlevarMejoresTercerosAClasificacion()
+    {
+        var pollaId = Sesion.PollaActivaId ?? PollaId;
+
+        if (!pollaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            mejoresTercerosMarcadoresConError = true;
+            mensajeMejoresTercerosMarcadores = "Para llevar esta clasificación debes ingresar a una polla con tu usuario.";
+            return;
+        }
+
+        var calculo = CalcularClasificacionPorMarcadores();
+
+        if (!calculo.EstaCompleto)
+        {
+            mejoresTercerosMarcadoresConError = true;
+            mensajeMejoresTercerosMarcadores = calculo.GruposIncompletos.Any()
+                ? $"Antes de llevarlo faltan marcadores en: {string.Join(", ", calculo.GruposIncompletos.Select(g => $"Grupo {g}"))}."
+                : "No hay marcadores suficientes para llevar esta clasificación.";
+            return;
+        }
+
+        if (calculo.Tablas.SelectMany(g => g.Value).Any(e => e.EquipoId <= 0))
+        {
+            mejoresTercerosMarcadoresConError = true;
+            mensajeMejoresTercerosMarcadores = "No se pudo identificar uno de los equipos. Actualiza la página e intenta de nuevo.";
+            return;
+        }
+
+        ClasificacionDraft.Set(new ClasificacionDraftDto
+        {
+            PollaId = pollaId.Value,
+            UsuarioId = Sesion.UsuarioId.Value,
+            Grupos = calculo.Tablas
+                .OrderBy(g => g.Key)
+                .Select(g => new GrupoClasificacionDraftDto
+                {
+                    Grupo = g.Key,
+                    Equipos = g.Value
+                        .Select((equipo, index) => new EquipoClasificacionDraftDto
+                        {
+                            EquipoId = equipo.EquipoId,
+                            Equipo = equipo.Nombre,
+                            Posicion = index + 1
+                        })
+                        .ToList()
+                })
+                .ToList(),
+            MejoresTerceros = calculo.MejoresTerceros
+                .Select(t => t.Grupo)
+                .ToList()
+        });
+
+        Navigation.NavigateTo("/clasificacion-grupos");
+    }
+
+    private CalculoMarcadoresClasificacion CalcularClasificacionPorMarcadores()
+    {
+        var resultado = new CalculoMarcadoresClasificacion();
+
+        if (partidos == null || !partidos.Any())
+        {
+            return resultado;
+        }
+
+        var grupos = partidos
+            .GroupBy(p => NormalizarGrupo(p.Grupo))
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        foreach (var grupo in grupos)
+        {
+            var partidosGrupo = grupo.ToList();
+
+            if (!GrupoConMarcadoresCompletos(partidosGrupo))
+            {
+                resultado.GruposIncompletos.Add(grupo.Key);
+                continue;
+            }
+
+            resultado.Tablas[grupo.Key] = CalcularTablaMarcadoresGrupo(partidosGrupo, grupo.Key);
+        }
+
+        if (resultado.GruposIncompletos.Any() || !resultado.Tablas.Any())
+        {
+            resultado.Tablas.Clear();
+            return resultado;
+        }
+
+        resultado.MejoresTerceros = resultado.Tablas
+            .Select(g => g.Value.Skip(2).FirstOrDefault())
+            .Where(e => e != null)
+            .Cast<EquipoGrupoDto>()
+            .OrderByDescending(e => e.Puntos)
+            .ThenByDescending(e => e.Diferencia)
+            .ThenByDescending(e => e.GolesFavor)
+            .ThenBy(e => e.Nombre)
+            .Take(8)
+            .ToList();
+
+        return resultado;
+    }
+
+    private void LimpiarVistaMejoresTercerosMarcadores()
+    {
+        if (!mostrarMejoresTercerosMarcadores && !mejoresTercerosMarcadores.Any())
+        {
+            return;
+        }
+
+        mostrarMejoresTercerosMarcadores = false;
+        mejoresTercerosMarcadores.Clear();
+        tablasMarcadoresCalculadas.Clear();
+        mensajeMejoresTercerosMarcadores = null;
+        mejoresTercerosMarcadoresConError = false;
+    }
+
     private List<EquipoGrupoDto> CalcularTablaMarcadoresGrupo(
         IEnumerable<SimuladorPartidoDto> partidosGrupo,
         string grupo)
@@ -1819,6 +2247,7 @@ else
             {
                 equipos.Add(partido.Local, new EquipoGrupoDto
                     {
+                        EquipoId = partido.LocalId,
                         Nombre = partido.Local,
                         Grupo = grupoNormalizado
                     });
@@ -1828,6 +2257,7 @@ else
             {
                 equipos.Add(partido.Visitante, new EquipoGrupoDto
                     {
+                        EquipoId = partido.VisitanteId,
                         Nombre = partido.Visitante,
                         Grupo = grupoNormalizado
                     });
@@ -1907,6 +2337,7 @@ else
                 {
                     equipos.Add(partido.Local, new EquipoGrupoDto
                         {
+                            EquipoId = partido.LocalId,
                             Nombre = partido.Local,
                             Grupo = NormalizarGrupo(grupo.Key)
                         });
@@ -1916,6 +2347,7 @@ else
                 {
                     equipos.Add(partido.Visitante, new EquipoGrupoDto
                         {
+                            EquipoId = partido.VisitanteId,
                             Nombre = partido.Visitante,
                             Grupo = NormalizarGrupo(grupo.Key)
                         });
@@ -2183,8 +2615,13 @@ else
     {
         clasificados.Clear();
         mejoresTerceros.Clear();
+        mejoresTercerosMarcadores.Clear();
         tablasPorGrupo.Clear();
+        tablasMarcadoresCalculadas.Clear();
         tablasMarcadoresVisibles.Clear();
+        mostrarMejoresTercerosMarcadores = false;
+        mensajeMejoresTercerosMarcadores = null;
+        mejoresTercerosMarcadoresConError = false;
         dieciseisavos.Clear();
         octavos.Clear();
         cuartos.Clear();
@@ -2418,6 +2855,14 @@ else
         return partido.GanadorPenales ?? "";
     }
 
+    private class CalculoMarcadoresClasificacion
+    {
+        public List<string> GruposIncompletos { get; set; } = new();
+        public Dictionary<string, List<EquipoGrupoDto>> Tablas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<EquipoGrupoDto> MejoresTerceros { get; set; } = new();
+        public bool EstaCompleto => !GruposIncompletos.Any() && Tablas.Any() && MejoresTerceros.Count == 8;
+    }
+
     private class SimuladorEquipoPosicion
     {
         public string Grupo { get; set; } = "";
@@ -2434,6 +2879,9 @@ else
         public Dictionary<string, List<SimuladorEquipoPosicionGuardado>> PosicionesPorGrupo { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> GruposTerceroSimulador { get; set; } = new();
         public List<string> TablasMarcadoresVisibles { get; set; } = new();
+        public List<EquipoGrupoDto> MejoresTercerosMarcadores { get; set; } = new();
+        public Dictionary<string, List<EquipoGrupoDto>> TablasMarcadoresCalculadas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public bool MostrarMejoresTercerosMarcadores { get; set; }
         public List<EquipoGrupoDto> Clasificados { get; set; } = new();
         public List<EquipoGrupoDto> MejoresTerceros { get; set; } = new();
         public Dictionary<string, List<EquipoGrupoDto>> TablasPorGrupo { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -2449,7 +2897,9 @@ else
     {
         public int Id { get; set; }
         public string Grupo { get; set; } = "";
+        public int LocalId { get; set; }
         public string Local { get; set; } = "";
+        public int VisitanteId { get; set; }
         public string Visitante { get; set; } = "";
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }

@@ -2875,7 +2875,9 @@ namespace WorldCup.Api.Controllers
                     // ✅ AQUÍ ESTÁ EL ARREGLO REAL
                     Grupo = "Grupo " + p.Local.Grupo,
 
+                    LocalId = p.LocalId,
                     Local = p.Local.Nombre,
+                    VisitanteId = p.VisitanteId,
                     Visitante = p.Visitante.Nombre,
 
                     GolesLocal = p.GolesLocal,

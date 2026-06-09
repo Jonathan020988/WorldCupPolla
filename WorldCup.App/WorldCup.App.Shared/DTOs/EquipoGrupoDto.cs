@@ -2,6 +2,8 @@
 {
     public class EquipoGrupoDto
     {
+        public int EquipoId { get; set; }
+
         public string Nombre { get; set; } = string.Empty;
 
         public string Grupo { get; set; } = string.Empty;
