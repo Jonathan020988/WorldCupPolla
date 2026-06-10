@@ -28,6 +28,7 @@ public class ClasificacionDraftDto
 {
     public int PollaId { get; set; }
     public int UsuarioId { get; set; }
+    public string Origen { get; set; } = "Predicciones";
     public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
     public List<GrupoClasificacionDraftDto> Grupos { get; set; } = new();
     public List<string> MejoresTerceros { get; set; } = new();

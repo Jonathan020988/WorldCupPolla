@@ -70,11 +70,38 @@ else
         </div>
     }
 
+    @if (borradorPendienteClasificacion != null && !borradorAplicado)
+    {
+        <div class="draft-classification-alert pending">
+            <div>
+                <span class="draft-kicker">Borrador desde @OrigenBorrador(borradorPendienteClasificacion)</span>
+                <strong>Hay datos calculados listos para cargar en esta clasificación.</strong>
+                <p>
+                    Puedes traer primeros, segundos y mejores terceros. No se guarda automáticamente:
+                    después de cargarlo debes revisar y guardar los grupos.
+                </p>
+            </div>
+            <div class="draft-actions">
+                <span class="draft-pill">
+                    @borradorPendienteClasificacion.Grupos.Count grupo(s) · @borradorPendienteClasificacion.MejoresTerceros.Count tercero(s)
+                </span>
+                <button class="btn btn-sm btn-success"
+                        @onclick="AplicarBorradorPendiente">
+                    Cargar datos
+                </button>
+                <button class="btn btn-sm btn-outline-secondary"
+                        @onclick="DescartarBorradorPendiente">
+                    No cargar
+                </button>
+            </div>
+        </div>
+    }
+
     @if (borradorAplicado)
     {
         <div class="draft-classification-alert">
             <div>
-                <span class="draft-kicker">Borrador desde predicciones</span>
+                <span class="draft-kicker">Borrador desde @borradorOrigenAplicado</span>
                 <strong>Trajimos la tabla calculada, pero todavia no esta guardada.</strong>
                 <p>Revisa las posiciones, ajusta lo que quieras y guarda cada grupo. Luego confirma los mejores terceros.</p>
             </div>
@@ -458,6 +485,26 @@ else
         font-size: .9rem;
     }
 
+    .draft-classification-alert.pending {
+        border-color: #c7d8ff;
+        border-left-color: #0d6efd;
+        background: linear-gradient(135deg, #f3f7ff 0%, #ffffff 100%);
+        color: #10233f;
+    }
+
+    .draft-classification-alert.pending .draft-kicker {
+        color: #0d6efd;
+    }
+
+    .draft-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .5rem;
+        min-width: 240px;
+    }
+
     .draft-kicker {
         display: block;
         color: #198754;
@@ -637,6 +684,20 @@ else
         .draft-classification-alert {
             align-items: stretch;
             flex-direction: column;
+        }
+
+        .draft-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            justify-content: stretch;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .draft-actions .btn,
+        .draft-actions .draft-pill {
+            width: 100%;
+            text-align: center;
         }
     }
 
@@ -853,6 +914,8 @@ else
     private bool clasificacionConError;
     private bool PuedeEditarClasificacion => !clasificacionCerrada || clasificacionReabierta;
     private bool borradorAplicado;
+    private ClasificacionDraftDto? borradorPendienteClasificacion;
+    private string borradorOrigenAplicado = "Predicciones";
     private HashSet<string> gruposDesdeBorrador = new(StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -947,14 +1010,15 @@ else
         await CargarTerceros();
         await CargarEstadoClasificacion();
         await CargarReaperturaClasificacion();
-        AplicarBorradorDesdePredicciones();
+        PrepararBorradorClasificacion();
         CalcularClasificados();
         IniciarContador();
     }
 
-    private void AplicarBorradorDesdePredicciones()
+    private void PrepararBorradorClasificacion()
     {
         borradorAplicado = false;
+        borradorPendienteClasificacion = null;
         gruposDesdeBorrador.Clear();
 
         if (!Sesion.PollaActivaId.HasValue ||
@@ -964,21 +1028,42 @@ else
             return;
         }
 
-        var borrador = ClasificacionDraft.Take(
+        borradorPendienteClasificacion = ClasificacionDraft.Take(
             Sesion.PollaActivaId.Value,
             Sesion.UsuarioId.Value);
 
-        if (borrador == null)
+        if (borradorPendienteClasificacion == null)
         {
             return;
         }
 
         if (!PuedeEditarClasificacion)
         {
-            mensajeClasificacion = "La clasificacion esta cerrada; no se pudo aplicar el borrador de predicciones.";
+            var origen = OrigenBorrador(borradorPendienteClasificacion);
+            borradorPendienteClasificacion = null;
+            mensajeClasificacion = $"La clasificacion esta cerrada; no se pudo cargar el borrador desde {origen}.";
             clasificacionConError = true;
             return;
         }
+    }
+
+    private void AplicarBorradorPendiente()
+    {
+        if (borradorPendienteClasificacion == null || grupos == null)
+        {
+            return;
+        }
+
+        if (!PuedeEditarClasificacion)
+        {
+            mensajeClasificacion = "La clasificacion de grupos esta cerrada y ya no se puede editar.";
+            clasificacionConError = true;
+            return;
+        }
+
+        var borrador = borradorPendienteClasificacion;
+        borradorOrigenAplicado = OrigenBorrador(borrador);
+        gruposDesdeBorrador.Clear();
 
         foreach (var grupoBorrador in borrador.Grupos)
         {
@@ -1014,12 +1099,28 @@ else
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         borradorAplicado = gruposDesdeBorrador.Any();
+        borradorPendienteClasificacion = null;
+        CalcularClasificados();
 
         if (borradorAplicado)
         {
-            mensajeClasificacion = "Borrador aplicado desde predicciones. Revisa, ajusta y guarda cada grupo; despues guarda los mejores terceros.";
+            mensajeClasificacion = $"Datos cargados desde {borradorOrigenAplicado}. Revisa, ajusta y guarda cada grupo; despues guarda los mejores terceros.";
             clasificacionConError = false;
         }
+    }
+
+    private void DescartarBorradorPendiente()
+    {
+        borradorPendienteClasificacion = null;
+        mensajeClasificacion = "Borrador descartado. Puedes seguir llenando la clasificacion manualmente.";
+        clasificacionConError = false;
+    }
+
+    private static string OrigenBorrador(ClasificacionDraftDto borrador)
+    {
+        return string.IsNullOrWhiteSpace(borrador.Origen)
+            ? "Predicciones"
+            : borrador.Origen;
     }
 
     private async Task CargarClasificacionGuardada()
