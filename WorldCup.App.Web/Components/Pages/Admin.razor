@@ -1103,6 +1103,7 @@ else
                                                             <th>Estado</th>
                                                             <th>Pronostico</th>
                                                             <th>Extras</th>
+                                                            <th>Accion</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1117,6 +1118,21 @@ else
                                                                 </td>
                                                                 <td>@(string.IsNullOrWhiteSpace(registro.Pronostico) ? "-" : registro.Pronostico)</td>
                                                                 <td>@ExtrasRegistro(registro)</td>
+                                                                <td>
+                                                                    @if (registro.Estado == "Falta")
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="btn btn-sm btn-outline-primary"
+                                                                                disabled="@ProcesandoAlerta"
+                                                                                @onclick="() => EnviarAlertaPartidoPendiente(polla, registro)">
+                                                                            @(AlertaEnProceso(polla.PollaId, AlertaPartidoTipo(registro.PartidoId)) ? "Enviando..." : "Alertar partido")
+                                                                        </button>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="text-muted">-</span>
+                                                                    }
+                                                                </td>
                                                             </tr>
                                                         }
                                                     </tbody>
@@ -2863,7 +2879,19 @@ else
         cargandoHistorial = false;
     }
 
-    private async Task EnviarAlertaPendientes(PollaHistorialAdminDto polla, string tipoAlerta)
+    private static string AlertaPartidoTipo(int partidoId) => $"MarcadoresPartido:{partidoId}";
+
+    private Task EnviarAlertaPartidoPendiente(
+        PollaHistorialAdminDto polla,
+        RegistroMarcadorAdminDto registro)
+    {
+        return EnviarAlertaPendientes(polla, "Marcadores", registro.PartidoId);
+    }
+
+    private async Task EnviarAlertaPendientes(
+        PollaHistorialAdminDto polla,
+        string tipoAlerta,
+        int? partidoId = null)
     {
         if (historialUsuario == null || !Sesion.UsuarioId.HasValue)
         {
@@ -2872,7 +2900,10 @@ else
 
         alertaHistorialMensaje = null;
         alertaHistorialError = false;
-        procesandoAlertaKey = AlertaKey(polla.PollaId, tipoAlerta);
+        var tipoProcesando = partidoId.HasValue
+            ? AlertaPartidoTipo(partidoId.Value)
+            : tipoAlerta;
+        procesandoAlertaKey = AlertaKey(polla.PollaId, tipoProcesando);
 
         try
         {
@@ -2882,7 +2913,8 @@ else
                 {
                     AdminUsuarioId = Sesion.UsuarioId.Value,
                     PollaId = polla.PollaId,
-                    TipoAlerta = tipoAlerta
+                    TipoAlerta = tipoAlerta,
+                    PartidoId = partidoId
                 });
 
             alertaHistorialMensaje = await LeerMensajeRespuesta(response);
@@ -3191,6 +3223,7 @@ else
         public int AdminUsuarioId { get; set; }
         public int PollaId { get; set; }
         public string TipoAlerta { get; set; } = "Todo";
+        public int? PartidoId { get; set; }
     }
 
     private class AdminEnviarAlertaMasivaPendientesRequest

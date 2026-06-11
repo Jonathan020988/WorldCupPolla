@@ -1421,7 +1421,10 @@ else
             }
 
             CalcularClasificados();
-            mensajeClasificacion = $"Grupo {grupoNombre} guardado correctamente.";
+            var tercerosGuardados = await GuardarTercerosAutomaticamenteSiEstanListos();
+            mensajeClasificacion = tercerosGuardados
+                ? $"Grupo {grupoNombre} guardado correctamente. Mejores terceros guardados automaticamente."
+                : $"Grupo {grupoNombre} guardado correctamente.";
             clasificacionConError = false;
         }
         catch (Exception ex)
@@ -1431,6 +1434,20 @@ else
             clasificacionConError = true;
             StateHasChanged();
         }
+    }
+
+    private async Task<bool> GuardarTercerosAutomaticamenteSiEstanListos()
+    {
+        if (!PuedeEditarClasificacion ||
+            gruposTercero.Count != 8 ||
+            TercerosSeleccionadosSinGuardar.Any())
+        {
+            return false;
+        }
+
+        await GuardarTerceros();
+        CalcularClasificados();
+        return true;
     }
 
     private void CalcularClasificados()

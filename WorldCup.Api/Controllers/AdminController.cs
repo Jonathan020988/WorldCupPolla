@@ -680,11 +680,18 @@ namespace WorldCup.Api.Controllers
             if (!pertenece)
                 return BadRequest("El usuario no pertenece a esta polla.");
 
-            var tipoAlerta = NormalizarTipoAlertaPendientes(dto.TipoAlerta);
+            var tipoAlerta = dto.PartidoId.HasValue
+                ? "Partido"
+                : NormalizarTipoAlertaPendientes(dto.TipoAlerta);
             if (tipoAlerta == null)
                 return BadRequest("El tipo de alerta no es valido.");
 
-            var alertaPendientes = await ConstruirAlertaPendientesAsync(usuarioId, dto.PollaId, tipoAlerta);
+            if (dto.PartidoId.HasValue && !await _context.Partidos.AnyAsync(p => p.Id == dto.PartidoId.Value))
+                return BadRequest("El partido seleccionado no existe.");
+
+            var alertaPendientes = dto.PartidoId.HasValue
+                ? await ConstruirAlertaPartidoPendienteAsync(usuarioId, dto.PollaId, dto.PartidoId.Value)
+                : await ConstruirAlertaPendientesAsync(usuarioId, dto.PollaId, tipoAlerta);
             if (alertaPendientes == null)
             {
                 return BadRequest(
