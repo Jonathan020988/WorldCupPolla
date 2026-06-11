@@ -5,6 +5,8 @@ namespace WorldCup.Api.Models
         public int Id { get; set; }
         public int PollaId { get; set; }
         public int UsuarioId { get; set; }
+        public int? PartidoId { get; set; }
+        public Partido? Partido { get; set; }
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; } = true;

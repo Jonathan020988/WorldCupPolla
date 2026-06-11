@@ -88,6 +88,10 @@
                             <span class="winner-place">@posicionGanador</span>
                             <strong>@ganador.Usuario</strong>
                             <small>@ganador.Puntos puntos</small>
+                            @if (ganador.Premio.HasValue && ganador.Premio.Value > 0)
+                            {
+                                <span class="winner-prize">Premio @FormatoPremio(ganador.Premio)</span>
+                            }
                         </div>
                     }
                 </div>
@@ -123,6 +127,10 @@
                     <span class="position-medal">@posicion</span>
                     <span class="podium-name">@r.Usuario</span>
                     <strong>@r.Puntos</strong>
+                    @if (r.Premio.HasValue && r.Premio.Value > 0)
+                    {
+                        <small class="podium-prize">Premio @FormatoPremio(r.Premio)</small>
+                    }
                 </button>
             }
         </div>
@@ -157,6 +165,10 @@
                                         <span>
                                             <strong>@r.Usuario</strong>
                                             <small>@ResumenUsuario(r.Usuario)</small>
+                                            @if (r.Premio.HasValue && r.Premio.Value > 0)
+                                            {
+                                                <small class="table-prize">Premio @FormatoPremio(r.Premio)</small>
+                                            }
                                         </span>
                                     </div>
                                 </td>
@@ -579,6 +591,18 @@
         font-weight: 800;
     }
 
+    .winner-prize,
+    .podium-prize,
+    .table-prize {
+        color: #0f7a4f !important;
+        font-size: .8rem;
+        font-weight: 900;
+    }
+
+    .winner-prize {
+        margin-top: .25rem;
+    }
+
     .winner-place {
         display: grid;
         place-items: center;
@@ -648,6 +672,14 @@
 
     .podium-name {
         font-weight: 800;
+    }
+
+    .podium-prize {
+        grid-column: 2 / -1;
+    }
+
+    .table-prize {
+        margin-top: .15rem;
     }
 
     .podium-2 .position-medal {
@@ -1499,6 +1531,13 @@
         return ranking.Any()
             ? (int)Math.Round(ranking.Average(r => r.Puntos))
             : 0;
+    }
+
+    private static string FormatoPremio(decimal? premio)
+    {
+        return premio.HasValue && premio.Value > 0
+            ? $"${premio.Value:N0}"
+            : "";
     }
 
     private bool MundialFinalizado()

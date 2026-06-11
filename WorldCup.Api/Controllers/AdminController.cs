@@ -272,7 +272,6 @@ namespace WorldCup.Api.Controllers
                     Historial = predicciones + solicitudes + solicitudesCupos + invitaciones + reaperturas,
                     PuedeEliminar =
                         !u.Activo &&
-                        pollas == 0 &&
                         pollasCreadas == 0 &&
                         predicciones == 0 &&
                         solicitudes == 0 &&
@@ -1050,17 +1049,23 @@ namespace WorldCup.Api.Controllers
                 return Forbid();
 
             var reaperturas = await _context.AdminReaperturasPrediccion
+                .Include(r => r.Partido)
                 .Where(r =>
                     r.PollaId == pollaId &&
                     r.UsuarioId == usuarioId &&
                     r.Activa)
                 .OrderBy(r => r.Fase)
                 .ThenBy(r => r.Tipo)
+                .ThenBy(r => r.PartidoId)
                 .Select(r => new
                 {
                     r.Id,
                     r.PollaId,
                     r.UsuarioId,
+                    r.PartidoId,
+                    Partido = r.Partido == null
+                        ? ""
+                        : $"{r.Partido.Local.Nombre} vs {r.Partido.Visitante.Nombre}",
                     r.Fase,
                     r.Tipo,
                     r.Activa,
@@ -1082,15 +1087,35 @@ namespace WorldCup.Api.Controllers
             var tipo = NormalizarTipoReapertura(dto.Tipo);
 
             if (fase == null || tipo == null)
-                return BadRequest("Fase o tipo de reapertura inválido.");
+                return BadRequest("Fase o tipo de reapertura invalido.");
 
             if (tipo == "Podio")
             {
                 fase = "Podio";
             }
 
+            if (tipo == "Marcadores" && !dto.PartidoId.HasValue && dto.Activa)
+                return BadRequest("Selecciona el partido exacto que deseas habilitar.");
+
+            Partido? partidoReapertura = null;
+            if (dto.PartidoId.HasValue)
+            {
+                if (tipo != "Marcadores")
+                    return BadRequest("La reapertura por partido solo aplica para marcadores.");
+
+                partidoReapertura = await _context.Partidos
+                    .Include(p => p.Local)
+                    .Include(p => p.Visitante)
+                    .FirstOrDefaultAsync(p => p.Id == dto.PartidoId.Value);
+
+                if (partidoReapertura == null)
+                    return BadRequest("Partido invalido.");
+
+                fase = partidoReapertura.Fase;
+            }
+
             if (tipo == "Clasificacion" && fase != "Grupos")
-                return BadRequest("La clasificación solo aplica para la fase de grupos.");
+                return BadRequest("La clasificacion solo aplica para la fase de grupos.");
 
             if (tipo == "Marcadores" && fase == "Podio")
                 return BadRequest("El podio se habilita con el tipo Podio.");
@@ -1101,10 +1126,22 @@ namespace WorldCup.Api.Controllers
             if (!usuarioExiste || !pollaExiste)
                 return BadRequest("Usuario o polla inválidos.");
 
+            var pertenecePolla =
+                await _context.Pollas.AnyAsync(p =>
+                    p.Id == dto.PollaId &&
+                    p.CreadorId == dto.UsuarioId) ||
+                await _context.PollaMiembros.AnyAsync(pm =>
+                    pm.PollaId == dto.PollaId &&
+                    pm.UsuarioId == dto.UsuarioId);
+
+            if (!pertenecePolla)
+                return BadRequest("El usuario no pertenece a la polla seleccionada.");
+
             var existente = await _context.AdminReaperturasPrediccion
                 .FirstOrDefaultAsync(r =>
                     r.PollaId == dto.PollaId &&
                     r.UsuarioId == dto.UsuarioId &&
+                    r.PartidoId == dto.PartidoId &&
                     r.Fase == fase &&
                     r.Tipo == tipo);
 
@@ -1114,6 +1151,7 @@ namespace WorldCup.Api.Controllers
                 {
                     PollaId = dto.PollaId,
                     UsuarioId = dto.UsuarioId,
+                    PartidoId = dto.PartidoId,
                     Fase = fase,
                     Tipo = tipo,
                     Activa = dto.Activa,
@@ -1136,8 +1174,8 @@ namespace WorldCup.Api.Controllers
             return Ok(new
             {
                 mensaje = dto.Activa
-                    ? $"Reapertura habilitada para {tipo} ({fase})."
-                    : $"Reapertura cerrada para {tipo} ({fase})."
+                    ? $"Reapertura habilitada para {DescripcionReapertura(tipo, fase, partidoReapertura)}."
+                    : $"Reapertura cerrada para {DescripcionReapertura(tipo, fase, partidoReapertura)}."
             });
         }
 
@@ -1189,10 +1227,15 @@ namespace WorldCup.Api.Controllers
                     ". Déjalo inactivo para conservar la integridad de las pollas y rankings.");
             }
 
-            _context.PasswordResetTokens.RemoveRange(
-                _context.PasswordResetTokens.Where(t => t.UsuarioId == usuarioId));
-            _context.EmailVerificationTokens.RemoveRange(
-                _context.EmailVerificationTokens.Where(t => t.UsuarioId == usuarioId));
+            await _context.PollaMiembros
+                .Where(pm => pm.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            await _context.PasswordResetTokens
+                .Where(t => t.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
+            await _context.EmailVerificationTokens
+                .Where(t => t.UsuarioId == usuarioId)
+                .ExecuteDeleteAsync();
 
             _context.Usuarios.Remove(usuario);
             await _context.SaveChangesAsync();
@@ -1415,9 +1458,12 @@ namespace WorldCup.Api.Controllers
                 .AnyAsync(r =>
                     r.PollaId == pollaId &&
                     r.UsuarioId == usuarioId &&
-                    r.Fase == partido.Fase &&
                     r.Tipo == "Marcadores" &&
-                    r.Activa);
+                    r.Activa &&
+                    (
+                        (r.PartidoId == null && r.Fase == partido.Fase) ||
+                        r.PartidoId == partidoId
+                    ));
 
             if (!reapertura && ahora >= ColombiaClock.ToColombia(partido.Fecha).AddHours(-1))
             {
@@ -1472,12 +1518,18 @@ namespace WorldCup.Api.Controllers
                 .Select(r => new
                 {
                     r.Fase,
-                    r.Tipo
+                    r.Tipo,
+                    r.PartidoId
                 })
                 .ToListAsync();
 
-            bool TieneReapertura(string fase, string tipo) =>
-                reaperturas.Any(r => r.Fase == fase && r.Tipo == tipo);
+            bool TieneReapertura(string fase, string tipo, int? partidoId = null) =>
+                reaperturas.Any(r =>
+                    r.Tipo == tipo &&
+                    (
+                        (r.PartidoId == null && r.Fase == fase) ||
+                        (partidoId.HasValue && r.PartidoId == partidoId.Value)
+                    ));
 
             var predicciones = await _context.Predicciones
                 .AsNoTracking()
@@ -1499,7 +1551,7 @@ namespace WorldCup.Api.Controllers
 
             var marcadoresFaltantes = partidos
                 .Where(p =>
-                    TieneReapertura(p.Fase, "Marcadores") ||
+                    TieneReapertura(p.Fase, "Marcadores", p.Id) ||
                     ahora < ColombiaClock.ToColombia(p.Fecha).AddHours(-1))
                 .Where(p =>
                     string.IsNullOrWhiteSpace(faseMarcadores) ||
@@ -1747,6 +1799,18 @@ namespace WorldCup.Api.Controllers
         private static string NombreFaseAlerta(string fase) =>
             fase == "TercerPuesto" ? "Tercer puesto" : fase;
 
+        private static string DescripcionReapertura(string tipo, string fase, Partido? partido)
+        {
+            if (partido != null)
+            {
+                return $"{tipo} - {partido.Local.Nombre} vs {partido.Visitante.Nombre}";
+            }
+
+            return tipo == "Podio"
+                ? "Podio final"
+                : $"{tipo} ({NombreFaseAlerta(fase)})";
+        }
+
         private async Task<string> GenerarCodigoCuposUnicoAsync()
         {
             string codigo;
@@ -1791,10 +1855,6 @@ namespace WorldCup.Api.Controllers
         private async Task<List<string>> ObtenerBloqueosEliminacionUsuario(int usuarioId)
         {
             var bloqueos = new List<string>();
-
-            var pollas = await _context.PollaMiembros.CountAsync(pm => pm.UsuarioId == usuarioId);
-            if (pollas > 0)
-                bloqueos.Add($"{pollas} polla(s)");
 
             var pollasCreadas = await _context.Pollas.CountAsync(p => p.CreadorId == usuarioId);
             if (pollasCreadas > 0)

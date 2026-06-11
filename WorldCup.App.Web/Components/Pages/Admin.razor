@@ -474,7 +474,7 @@ else
     </div>
 
     <div class="row g-4">
-        <div class="col-lg-6">
+        <div class="col-12">
             <div class="card usuarios-admin admin-anchor" id="admin-usuarios">
                 <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <span>Usuarios</span>
@@ -521,6 +521,27 @@ else
                         </button>
                     </div>
                 </div>
+                <div class="user-search-toolbar">
+                    <label for="admin-user-search">Buscar usuario</label>
+                    <div class="user-search-control">
+                        <input id="admin-user-search"
+                               class="form-control form-control-sm"
+                               placeholder="Escribe nombre o correo..."
+                               @bind="filtroBusquedaUsuarios"
+                               @bind:event="oninput" />
+                        @if (HayBusquedaUsuarios)
+                        {
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    @onclick="LimpiarBusquedaUsuarios">
+                                Limpiar
+                            </button>
+                        }
+                    </div>
+                    <small>
+                        Mostrando @UsuariosFiltrados.Count() de @UsuariosPorEstado.Count() usuario(s) del filtro actual.
+                    </small>
+                </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0 align-middle admin-mobile-table users-table">
                         <thead>
@@ -539,7 +560,7 @@ else
                             {
                                 <tr>
                                     <td colspan="7" class="text-center text-muted py-4">
-                                        No hay usuarios en este filtro.
+                                        @(HayBusquedaUsuarios ? "No hay usuarios que coincidan con la busqueda." : "No hay usuarios en este filtro.")
                                     </td>
                                 </tr>
                             }
@@ -589,7 +610,7 @@ else
                                             </button>
                                         }
                                     </td>
-                                    <td class="text-end">
+                                    <td class="text-end users-actions-cell">
                                         <button class="btn btn-sm @(usuario.Activo ? "btn-outline-warning" : "btn-outline-success")"
                                                 @onclick="() => CambiarEstadoUsuario(usuario.Id, usuario.Nombre, !usuario.Activo)">
                                             @(usuario.Activo ? "Inactivar" : "Activar")
@@ -720,22 +741,36 @@ else
             <div class="card-body p-0">
                 <div class="reopen-panel p-3 border-bottom">
                     <div class="row g-2 align-items-end">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Fase para habilitar</label>
-                            <select class="form-select form-select-sm" @bind="faseReapertura">
+                            <select class="form-select form-select-sm"
+                                    value="@faseReapertura"
+                                    @onchange="CambiarFaseReapertura">
                                 @foreach (var fase in fasesCalendario)
                                 {
                                     <option value="@fase">@NombreFase(fase)</option>
                                 }
                             </select>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-md-5">
+                            <label class="form-label">Partido a habilitar</label>
+                            <select class="form-select form-select-sm" @bind="partidoReaperturaId">
+                                <option value="">Selecciona un partido</option>
+                                @foreach (var partido in PartidosReaperturaDisponibles())
+                                {
+                                    <option value="@partido.Id">
+                                        @partido.Local vs @partido.Visitante - @partido.Fecha.ToString("dd/MM HH:mm")
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Reapertura controlada</label>
                             <div class="d-flex flex-wrap gap-2">
                                 <button class="btn btn-sm btn-outline-primary"
-                                        disabled="@(procesandoReapertura != null)"
+                                        disabled="@(procesandoReapertura != null || !PartidoReaperturaSeleccionado)"
                                         @onclick="HabilitarMarcadores">
-                                    Habilitar marcadores
+                                    Habilitar marcador
                                 </button>
 
                                 @if (faseReapertura == "Grupos")
@@ -766,7 +801,7 @@ else
                                     @EtiquetaReapertura(reapertura)
                                     <button type="button"
                                             disabled="@(procesandoReapertura != null)"
-                                            @onclick="() => CambiarReapertura(reapertura.Fase, reapertura.Tipo, false)">
+                                            @onclick="() => CambiarReapertura(reapertura.Fase, reapertura.Tipo, false, reapertura.PartidoId)">
                                         cerrar
                                     </button>
                                 </span>
@@ -1428,6 +1463,48 @@ else
         text-transform: uppercase;
     }
 
+    .usuarios-admin .card-body {
+        overflow-x: auto;
+    }
+
+    .users-table {
+        min-width: 980px;
+    }
+
+    .users-table th:nth-child(1),
+    .users-table td:nth-child(1) {
+        min-width: 220px;
+    }
+
+    .users-table th:nth-child(2),
+    .users-table td:nth-child(2) {
+        min-width: 260px;
+    }
+
+    .users-table th:nth-child(5),
+    .users-table td:nth-child(5) {
+        min-width: 140px;
+    }
+
+    .users-table th:nth-child(6),
+    .users-table td:nth-child(6) {
+        min-width: 120px;
+    }
+
+    .users-table th:nth-child(7),
+    .users-table td:nth-child(7) {
+        min-width: 230px;
+    }
+
+    .users-actions-cell {
+        white-space: nowrap;
+    }
+
+    .users-actions-cell .btn {
+        margin-top: .25rem;
+        margin-bottom: .25rem;
+    }
+
     .usuarios-filtro .btn {
         font-weight: 700;
     }
@@ -1452,6 +1529,35 @@ else
 
     .usuarios-filtro-avance .btn {
         font-weight: 800;
+    }
+
+    .user-search-toolbar {
+        display: grid;
+        gap: .45rem;
+        border-bottom: 1px solid #e5e7eb;
+        background: #ffffff;
+        padding: .85rem 1rem;
+    }
+
+    .user-search-toolbar label {
+        color: #111827;
+        font-size: .92rem;
+        font-weight: 900;
+    }
+
+    .user-search-control {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .user-search-control input {
+        min-height: 38px;
+    }
+
+    .user-search-toolbar small {
+        color: #64748b;
+        font-weight: 700;
     }
 
     .progress-status {
@@ -1977,6 +2083,15 @@ else
             margin: 0;
         }
 
+        .admin-page .users-table {
+            min-width: 0;
+        }
+
+        .admin-page .users-table th,
+        .admin-page .users-table td {
+            min-width: 0;
+        }
+
         .admin-page .admin-mobile-table thead {
             display: none;
         }
@@ -2164,6 +2279,19 @@ else
             width: 100%;
         }
 
+        .admin-page .user-search-toolbar {
+            padding: .85rem;
+        }
+
+        .admin-page .user-search-control {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .admin-page .user-search-control .btn {
+            width: 100%;
+        }
+
         .admin-page .usuarios-filtro .btn,
         .admin-page .usuarios-filtro-avance .btn {
             border-radius: 6px !important;
@@ -2262,8 +2390,10 @@ else
     private bool alertaHistorialError;
     private string faseCalendario = "";
     private string faseReapertura = "Grupos";
+    private string partidoReaperturaId = "";
     private string filtroUsuarios = "Activos";
     private string filtroAvanceUsuarios = "Todos";
+    private string filtroBusquedaUsuarios = "";
     private string correoPrueba = "";
     private AlertaMasivaForm alertaMasiva = new();
     private string alertaMasivaPartidoId = "";
@@ -2292,13 +2422,31 @@ else
         _ => usuarios.Where(u => u.Activo)
     };
 
-    private IEnumerable<UsuarioAdminDto> UsuariosFiltrados => filtroAvanceUsuarios switch
+    private IEnumerable<UsuarioAdminDto> UsuariosFiltrados
     {
-        "Limpio" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Limpio"),
-        "Algunos" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Algunos"),
-        "Lleno" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Lleno"),
-        _ => UsuariosPorEstado
-    };
+        get
+        {
+            var filtrados = filtroAvanceUsuarios switch
+            {
+                "Limpio" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Limpio"),
+                "Algunos" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Algunos"),
+                "Lleno" => UsuariosPorEstado.Where(u => u.EstadoRegistros == "Lleno"),
+                _ => UsuariosPorEstado
+            };
+
+            var busqueda = (filtroBusquedaUsuarios ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(busqueda))
+            {
+                return filtrados;
+            }
+
+            return filtrados.Where(u =>
+                (!string.IsNullOrWhiteSpace(u.Nombre) && u.Nombre.Contains(busqueda, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains(busqueda, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    private bool HayBusquedaUsuarios => !string.IsNullOrWhiteSpace(filtroBusquedaUsuarios);
 
     private int TotalUsuariosLimpios => UsuariosPorEstado.Count(u => u.EstadoRegistros == "Limpio");
     private int TotalUsuariosConAlgunosRegistros => UsuariosPorEstado.Count(u => u.EstadoRegistros == "Algunos");
@@ -2318,6 +2466,11 @@ else
     private void CambiarFiltroAvanceUsuarios(string filtro)
     {
         filtroAvanceUsuarios = filtro;
+    }
+
+    private void LimpiarBusquedaUsuarios()
+    {
+        filtroBusquedaUsuarios = "";
     }
 
     private string ClaseFiltroUsuarios(string filtro)
@@ -3075,8 +3228,6 @@ else
             return "Primero debes inactivar el usuario.";
 
         var motivos = new List<string>();
-        if (usuario.Pollas > 0)
-            motivos.Add($"{usuario.Pollas} polla(s)");
         if (usuario.PollasCreadas > 0)
             motivos.Add($"{usuario.PollasCreadas} polla(s) creada(s)");
         if (usuario.Historial > 0)
@@ -3129,9 +3280,33 @@ else
             $"api/Admin/reaperturas?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={usuarioPredicciones.UsuarioId}") ?? new();
     }
 
+    private IEnumerable<PartidoCalendarioAdminDto> PartidosReaperturaDisponibles()
+    {
+        return partidosCalendario
+            .Where(p => string.Equals(p.Fase, faseReapertura, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.Id);
+    }
+
+    private bool PartidoReaperturaSeleccionado =>
+        int.TryParse(partidoReaperturaId, out var partidoId) &&
+        partidosCalendario.Any(p => p.Id == partidoId);
+
+    private void CambiarFaseReapertura(ChangeEventArgs e)
+    {
+        faseReapertura = e.Value?.ToString() ?? "Grupos";
+        partidoReaperturaId = "";
+    }
+
     private Task HabilitarMarcadores()
     {
-        return CambiarReapertura(faseReapertura, "Marcadores", true);
+        if (!int.TryParse(partidoReaperturaId, out var partidoId))
+        {
+            mensaje = "Selecciona el partido exacto que quieres habilitar.";
+            return Task.CompletedTask;
+        }
+
+        return CambiarReapertura(faseReapertura, "Marcadores", true, partidoId);
     }
 
     private Task HabilitarClasificacion()
@@ -3144,12 +3319,12 @@ else
         return CambiarReapertura("Podio", "Podio", true);
     }
 
-    private async Task CambiarReapertura(string fase, string tipo, bool activa)
+    private async Task CambiarReapertura(string fase, string tipo, bool activa, int? partidoId = null)
     {
         if (pollaSeleccionada == null || usuarioPredicciones == null || !Sesion.UsuarioId.HasValue)
             return;
 
-        procesandoReapertura = $"{fase}|{tipo}";
+        procesandoReapertura = $"{fase}|{tipo}|{partidoId}";
 
         var response = await Http.PutAsJsonAsync(
             "api/Admin/reaperturas",
@@ -3158,6 +3333,7 @@ else
                 AdminUsuarioId = Sesion.UsuarioId.Value,
                 PollaId = pollaSeleccionada.Id,
                 UsuarioId = usuarioPredicciones.UsuarioId,
+                PartidoId = partidoId,
                 Fase = fase,
                 Tipo = tipo,
                 Activa = activa
@@ -3171,6 +3347,13 @@ else
 
     private string EtiquetaReapertura(ReaperturaAdminDto reapertura)
     {
+        if (reapertura.Tipo == "Marcadores" && reapertura.PartidoId.HasValue)
+        {
+            return string.IsNullOrWhiteSpace(reapertura.Partido)
+                ? $"Marcador partido {reapertura.PartidoId.Value}"
+                : $"Marcador - {reapertura.Partido}";
+        }
+
         return reapertura.Tipo == "Podio"
             ? "Podio final"
             : $"{NombreFase(reapertura.Fase)} - {reapertura.Tipo}";
@@ -3213,6 +3396,7 @@ else
         public int AdminUsuarioId { get; set; }
         public int PollaId { get; set; }
         public int UsuarioId { get; set; }
+        public int? PartidoId { get; set; }
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; }
@@ -3443,6 +3627,8 @@ else
         public int Id { get; set; }
         public int PollaId { get; set; }
         public int UsuarioId { get; set; }
+        public int? PartidoId { get; set; }
+        public string Partido { get; set; } = "";
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
         public bool Activa { get; set; }

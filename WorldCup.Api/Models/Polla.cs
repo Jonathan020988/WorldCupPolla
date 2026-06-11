@@ -23,6 +23,9 @@
         public bool PermitirEmpatesEnEliminatoria { get; set; } = false;
         public decimal? ValorInscripcion { get; set; }
         public string? MetodoPago { get; set; }
+        public decimal? PremioPrimerLugar { get; set; }
+        public decimal? PremioSegundoLugar { get; set; }
+        public decimal? PremioTercerLugar { get; set; }
 
         // Relación con los miembros de la polla
         public List<PollaMiembro> Miembros { get; set; } = new();

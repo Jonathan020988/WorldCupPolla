@@ -59,7 +59,8 @@ namespace WorldCup.Api.Controllers
                     dto.PollaId,
                     usuarioId,
                     partido.Fase,
-                    "Marcadores");
+                    "Marcadores",
+                    item.PartidoId);
 
                 // 2️⃣ BLOQUEO: 1 hora antes del inicio
                 if (!reaperturaMarcadores && PartidoCerrado(partido))
@@ -195,16 +196,22 @@ namespace WorldCup.Api.Controllers
             var usuario = acceso.UsuarioId;
 
             var reaperturas = await _context.AdminReaperturasPrediccion
+                .Include(r => r.Partido)
                 .Where(r =>
                     r.PollaId == pollaId &&
                     r.UsuarioId == usuario &&
                     r.Activa)
                 .OrderBy(r => r.Fase)
                 .ThenBy(r => r.Tipo)
+                .ThenBy(r => r.PartidoId)
                 .Select(r => new
                 {
                     r.Fase,
                     r.Tipo,
+                    r.PartidoId,
+                    Partido = r.Partido == null
+                        ? ""
+                        : $"{r.Partido.Local.Nombre} vs {r.Partido.Visitante.Nombre}",
                     r.Activa
                 })
                 .ToListAsync();
@@ -243,7 +250,8 @@ namespace WorldCup.Api.Controllers
                 pollaId,
                 usuario,
                 prediccion.Partido.Fase,
-                "Marcadores");
+                "Marcadores",
+                prediccion.PartidoId);
 
             if (!reaperturaMarcadores &&
                 PrediccionRealmenteBloqueada(prediccion.Partido))
@@ -379,14 +387,18 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             int usuarioId,
             string fase,
-            string tipo)
+            string tipo,
+            int? partidoId = null)
         {
             return await _context.AdminReaperturasPrediccion.AnyAsync(r =>
                 r.PollaId == pollaId &&
                 r.UsuarioId == usuarioId &&
-                r.Fase == fase &&
                 r.Tipo == tipo &&
-                r.Activa);
+                r.Activa &&
+                (
+                    (r.PartidoId == null && r.Fase == fase) ||
+                    (partidoId.HasValue && r.PartidoId == partidoId.Value)
+                ));
         }
 
         private void RecalcularPrediccionSiPartidoFinalizado(Prediccion prediccion, Partido partido)

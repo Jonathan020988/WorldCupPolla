@@ -15,6 +15,9 @@ namespace WorldCup.App.Shared.DTOs
         public bool PermitirEmpatesEnEliminatoria { get; set; }
         public decimal? ValorInscripcion { get; set; }
         public string? MetodoPago { get; set; }
+        public decimal? PremioPrimerLugar { get; set; }
+        public decimal? PremioSegundoLugar { get; set; }
+        public decimal? PremioTercerLugar { get; set; }
 
         // 🔐 PIN de 4 dígitos
         public string PinIngreso { get; set; } = null!;

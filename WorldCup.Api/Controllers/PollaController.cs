@@ -59,6 +59,9 @@ namespace WorldCup.Api.Controllers
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
                     MetodoPago = p.MetodoPago,
+                    PremioPrimerLugar = p.PremioPrimerLugar,
+                    PremioSegundoLugar = p.PremioSegundoLugar,
+                    PremioTercerLugar = p.PremioTercerLugar,
                     CuposIlimitados = p.Creador.CuposIlimitados
                 })
                 .ToListAsync();
@@ -98,6 +101,9 @@ namespace WorldCup.Api.Controllers
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
+                PremioPrimerLugar = polla.PremioPrimerLugar,
+                PremioSegundoLugar = polla.PremioSegundoLugar,
+                PremioTercerLugar = polla.PremioTercerLugar,
                 CuposIlimitados = polla.Creador?.CuposIlimitados == true,
                 PinIngreso = polla.PinIngreso // 👈 CLAVE
             });
@@ -125,6 +131,9 @@ namespace WorldCup.Api.Controllers
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
+                PremioPrimerLugar = polla.PremioPrimerLugar,
+                PremioSegundoLugar = polla.PremioSegundoLugar,
+                PremioTercerLugar = polla.PremioTercerLugar,
                 CuposIlimitados = polla.Creador?.CuposIlimitados == true
             });
         }
@@ -162,6 +171,9 @@ namespace WorldCup.Api.Controllers
                 PermitirEmpatesEnEliminatoria = dto.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = dto.ValorInscripcion,
                 MetodoPago = dto.MetodoPago,
+                PremioPrimerLugar = NormalizarPremio(dto.PremioPrimerLugar),
+                PremioSegundoLugar = NormalizarPremio(dto.PremioSegundoLugar),
+                PremioTercerLugar = NormalizarPremio(dto.PremioTercerLugar),
                 FechaCreacion = DateTime.UtcNow,
                 PinIngreso = dto.PinIngreso
             };
@@ -279,8 +291,54 @@ namespace WorldCup.Api.Controllers
                 PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                 ValorInscripcion = polla.ValorInscripcion,
                 MetodoPago = polla.MetodoPago,
+                PremioPrimerLugar = polla.PremioPrimerLugar,
+                PremioSegundoLugar = polla.PremioSegundoLugar,
+                PremioTercerLugar = polla.PremioTercerLugar,
                 CuposIlimitados = polla.Creador?.CuposIlimitados == true,
                 PinIngreso = polla.PinIngreso
+            });
+        }
+
+        [HttpPut("{pollaId:int}/premios")]
+        public async Task<IActionResult> ActualizarPremiosPolla(
+            int pollaId,
+            [FromBody] ActualizarPremiosPollaDTO dto)
+        {
+            var polla = await _context.Pollas
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe");
+
+            if (polla.CreadorId != dto.SolicitanteId)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el creador puede configurar los premios");
+            }
+
+            var primero = NormalizarPremio(dto.PremioPrimerLugar);
+            var segundo = NormalizarPremio(dto.PremioSegundoLugar);
+            var tercero = NormalizarPremio(dto.PremioTercerLugar);
+
+            if (segundo.HasValue && !primero.HasValue)
+                return BadRequest("Para premiar el segundo lugar debes configurar primero el premio del primer lugar.");
+
+            if (tercero.HasValue && (!primero.HasValue || !segundo.HasValue))
+                return BadRequest("Para premiar el tercer lugar debes configurar también el primero y el segundo.");
+
+            polla.PremioPrimerLugar = primero;
+            polla.PremioSegundoLugar = segundo;
+            polla.PremioTercerLugar = tercero;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Premios de la polla actualizados.",
+                polla.PremioPrimerLugar,
+                polla.PremioSegundoLugar,
+                polla.PremioTercerLugar
             });
         }
 
@@ -483,16 +541,22 @@ namespace WorldCup.Api.Controllers
             if (acceso != null)
                 return acceso;
 
-            var creadorId = await _context.Pollas
+            var pollaPremios = await _context.Pollas
                 .Where(p => p.Id == pollaId)
-                .Select(p => (int?)p.CreadorId)
+                .Select(p => new
+                {
+                    p.CreadorId,
+                    p.PremioPrimerLugar,
+                    p.PremioSegundoLugar,
+                    p.PremioTercerLugar
+                })
                 .FirstOrDefaultAsync();
 
-            if (!creadorId.HasValue)
+            if (pollaPremios == null)
                 return NotFound("La polla no existe");
 
             var puedeVerObservaciones = solicitanteId.HasValue &&
-                (solicitanteId.Value == creadorId.Value ||
+                (solicitanteId.Value == pollaPremios.CreadorId ||
                  await _adminAuthorization.EsAdminAsync(solicitanteId.Value));
 
             var miembros = await _context.PollaMiembros
@@ -551,6 +615,17 @@ namespace WorldCup.Api.Controllers
                 .ThenBy(r => r.Ranking.Usuario)
                 .Select(r => r.Ranking)
                 .ToList();
+
+            for (var i = 0; i < ranking.Count; i++)
+            {
+                ranking[i].Premio = i switch
+                {
+                    0 => pollaPremios.PremioPrimerLugar,
+                    1 => pollaPremios.PremioSegundoLugar,
+                    2 => pollaPremios.PremioTercerLugar,
+                    _ => null
+                };
+            }
 
             return Ok(ranking);
         }
@@ -1144,6 +1219,9 @@ namespace WorldCup.Api.Controllers
                     PermitirEmpatesEnEliminatoria = p.PermitirEmpatesEnEliminatoria,
                     ValorInscripcion = p.ValorInscripcion,
                     MetodoPago = p.MetodoPago,
+                    PremioPrimerLugar = p.PremioPrimerLugar,
+                    PremioSegundoLugar = p.PremioSegundoLugar,
+                    PremioTercerLugar = p.PremioTercerLugar,
                     CuposIlimitados = p.Creador.CuposIlimitados
                 })
                 .ToListAsync();
@@ -2519,6 +2597,13 @@ namespace WorldCup.Api.Controllers
         private static string FormatoValorPlan(decimal valor)
         {
             return valor > 0 ? FormatoMoneda(valor) : "Cotización con administrador";
+        }
+
+        private static decimal? NormalizarPremio(decimal? valor)
+        {
+            return valor.HasValue && valor.Value > 0
+                ? valor.Value
+                : null;
         }
 
         private static string NormalizarEmail(string? email)

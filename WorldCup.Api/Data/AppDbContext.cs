@@ -136,7 +136,19 @@ namespace WorldCup.Api.Data
 
             modelBuilder.Entity<AdminReaperturaPrediccion>()
                 .HasIndex(r => new { r.PollaId, r.UsuarioId, r.Fase, r.Tipo })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("\"PartidoId\" IS NULL");
+
+            modelBuilder.Entity<AdminReaperturaPrediccion>()
+                .HasOne(r => r.Partido)
+                .WithMany()
+                .HasForeignKey(r => r.PartidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AdminReaperturaPrediccion>()
+                .HasIndex(r => new { r.PollaId, r.UsuarioId, r.Fase, r.Tipo, r.PartidoId })
+                .IsUnique()
+                .HasFilter("\"PartidoId\" IS NOT NULL");
 
             modelBuilder.Entity<SolicitudAmpliacionCupos>()
                 .HasOne(s => s.Usuario)

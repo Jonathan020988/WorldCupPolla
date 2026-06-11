@@ -14,6 +14,7 @@ namespace WorldCup.App.Shared.DTOs
         public string Usuario { get; set; } = "";
         public string ObservacionAdmin { get; set; } = "";
         public int Puntos { get; set; }
+        public decimal? Premio { get; set; }
     }
 
 }

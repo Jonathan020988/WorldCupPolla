@@ -357,6 +357,122 @@ else
 
     @if (EsCreador)
     {
+        <div class="card mt-3 prizes-section">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Premios de la polla</h5>
+                        <small class="text-muted">
+                            Define si premiaras uno, dos o tres lugares y publica los valores en el ranking.
+                        </small>
+                    </div>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            disabled="@(TotalBolsaEstimada <= 0)"
+                            @onclick="CalcularPremiosSugeridos">
+                        Calcular sugerencia
+                    </button>
+                </div>
+
+                <div class="prize-kpis mt-3">
+                    <div>
+                        <span>Participantes</span>
+                        <strong>@participantes.Count</strong>
+                    </div>
+                    <div>
+                        <span>Valor por persona</span>
+                        <strong>@FormatoPrecio(polla.ValorInscripcion)</strong>
+                    </div>
+                    <div>
+                        <span>Bolsa estimada</span>
+                        <strong>@FormatoPrecio(TotalBolsaEstimada)</strong>
+                    </div>
+                    <div>
+                        <span>Premios asignados</span>
+                        <strong>@FormatoPrecio(TotalPremiosAsignados)</strong>
+                    </div>
+                </div>
+
+                <div class="prize-place-selector mt-3" role="group" aria-label="Cantidad de puestos premiados">
+                    @for (var cantidad = 1; cantidad <= 3; cantidad++)
+                    {
+                        var puestos = cantidad;
+                        <button type="button"
+                                class="@(puestosPremiados == puestos ? "active" : "")"
+                                @onclick="() => SeleccionarCantidadPremios(puestos)">
+                            @puestos puesto@(puestos == 1 ? "" : "s")
+                        </button>
+                    }
+                </div>
+
+                <div class="prize-input-grid mt-3">
+                    <label>
+                        <span>1.er lugar</span>
+                        <input type="number"
+                               class="form-control"
+                               min="0"
+                               step="1000"
+                               @bind="premioPrimerLugarEdit" />
+                    </label>
+
+                    @if (puestosPremiados >= 2)
+                    {
+                        <label>
+                            <span>2.º lugar</span>
+                            <input type="number"
+                                   class="form-control"
+                                   min="0"
+                                   step="1000"
+                                   @bind="premioSegundoLugarEdit" />
+                        </label>
+                    }
+
+                    @if (puestosPremiados >= 3)
+                    {
+                        <label>
+                            <span>3.er lugar</span>
+                            <input type="number"
+                                   class="form-control"
+                                   min="0"
+                                   step="1000"
+                                   @bind="premioTercerLugarEdit" />
+                        </label>
+                    }
+                </div>
+
+                <div class="prize-balance @(PremiosExcedenBolsa ? "over" : "") mt-3">
+                    <span>@(PremiosExcedenBolsa ? "Exceso sobre la bolsa" : "Disponible sin asignar")</span>
+                    <strong>@FormatoPrecio(Math.Abs(SaldoBolsaPremios))</strong>
+                </div>
+
+                @if (PremiosExcedenBolsa)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        Los premios superan la bolsa estimada. Puedes corregirlos antes de guardar.
+                    </div>
+                }
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="button"
+                            class="btn btn-success"
+                            disabled="@guardandoPremios"
+                            @onclick="GuardarPremios">
+                        @(guardandoPremios ? "Guardando..." : "Guardar premios")
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(mensajePremios))
+                {
+                    <div class="alert @(errorPremios ? "alert-danger" : "alert-success") mt-3 mb-0">
+                        @mensajePremios
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (EsCreador)
+    {
         <div class="card mt-3 manual-formats-section">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -779,6 +895,11 @@ else
                                     <strong>#@PosicionRanking(rankingResumen)</strong>
                                     <span>Puntos</span>
                                     <strong>@rankingResumen.Puntos</strong>
+                                    @if (rankingResumen.Premio.HasValue && rankingResumen.Premio.Value > 0)
+                                    {
+                                        <span>Premio</span>
+                                        <strong>@FormatoPrecio(rankingResumen.Premio)</strong>
+                                    }
                                 </div>
 
                                 <div class="ranking-observation-editor mt-2">
@@ -848,7 +969,13 @@ else
                                             </td>
 
                                             <td class="fw-bold ranking-user-col ranking-user-cell" data-label="Usuario">
-                                                @r.Usuario
+                                                <span>@r.Usuario</span>
+                                                @if (r.Premio.HasValue && r.Premio.Value > 0)
+                                                {
+                                                    <small class="ranking-prize-label">
+                                                        Premio @FormatoPrecio(r.Premio)
+                                                    </small>
+                                                }
                                             </td>
 
                                             @if (EsCreador)
@@ -1300,6 +1427,10 @@ else
         order: 5;
     }
 
+    .prizes-section {
+        order: 6;
+    }
+
     .manual-formats-section {
         order: 6;
     }
@@ -1336,6 +1467,10 @@ else
         order: 23;
     }
 
+    .inscripciones-cerradas .prizes-section {
+        order: 23;
+    }
+
     .inscripciones-cerradas .payment-list-section {
         order: 4;
     }
@@ -1364,6 +1499,89 @@ else
 
     .polla-sections > .alert {
         order: 100;
+    }
+
+    .prize-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .65rem;
+    }
+
+    .prize-kpis > div {
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+        background: #f8fbfa;
+        padding: .8rem;
+    }
+
+    .prize-kpis span,
+    .prize-input-grid label > span,
+    .prize-balance span {
+        display: block;
+        color: #667085;
+        font-size: .75rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .prize-kpis strong,
+    .prize-balance strong {
+        display: block;
+        color: #123d2f;
+        font-size: 1.05rem;
+        margin-top: .15rem;
+    }
+
+    .prize-place-selector {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .45rem;
+    }
+
+    .prize-place-selector button {
+        min-height: 40px;
+        border: 1px solid #b8c8c0;
+        border-radius: 6px;
+        background: #fff;
+        color: #344054;
+        font-weight: 800;
+    }
+
+    .prize-place-selector button.active {
+        border-color: #198754;
+        background: #eaf7f0;
+        color: #0f5132;
+    }
+
+    .prize-input-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .prize-input-grid label {
+        display: grid;
+        gap: .4rem;
+    }
+
+    .prize-balance {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        border: 1px solid #badbcc;
+        border-radius: 8px;
+        background: #eaf7f0;
+        padding: .75rem .9rem;
+    }
+
+    .prize-balance.over {
+        border-color: #f0ad4e;
+        background: #fff3cd;
+    }
+
+    .prize-balance.over strong {
+        color: #842029;
     }
 
     .quick-user-grid {
@@ -1518,6 +1736,18 @@ else
     .ranking-user-col {
         overflow-wrap: normal;
         word-break: normal;
+    }
+
+    .ranking-user-cell > span,
+    .ranking-prize-label {
+        display: block;
+    }
+
+    .ranking-prize-label {
+        color: #0f7a4f;
+        font-size: .76rem;
+        font-weight: 850;
+        margin-top: .15rem;
     }
 
     .ranking-detail-cell {
@@ -2056,6 +2286,18 @@ else
             padding: .9rem;
         }
 
+        .prize-kpis {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .prize-input-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .prize-place-selector button {
+            padding: .45rem .2rem;
+        }
+
         .codigo-cupos .input-group {
             display: grid;
             gap: .55rem;
@@ -2490,6 +2732,13 @@ else
     private decimal? valorInscripcionEdit;
     private string descripcionEdit = "";
     private string metodoPagoEdit = "";
+    private int puestosPremiados = 1;
+    private decimal? premioPrimerLugarEdit;
+    private decimal? premioSegundoLugarEdit;
+    private decimal? premioTercerLugarEdit;
+    private bool guardandoPremios;
+    private string? mensajePremios;
+    private bool errorPremios;
     private CuposUsuarioDto? cuposUsuario;
     private string celularAmpliacion = "";
     private int cantidadAmpliacion = 20;
@@ -2527,6 +2776,22 @@ else
         polla?.CuposIlimitados == true
             ? "ilimitado"
             : (polla?.MaximoMiembros ?? 5).ToString();
+
+    private decimal TotalBolsaEstimada =>
+        controlPagos?.TotalEsperado ??
+        ((polla?.ValorInscripcion ?? 0) * participantes.Count);
+
+    private decimal TotalPremiosAsignados =>
+        (premioPrimerLugarEdit ?? 0) +
+        (puestosPremiados >= 2 ? premioSegundoLugarEdit ?? 0 : 0) +
+        (puestosPremiados >= 3 ? premioTercerLugarEdit ?? 0 : 0);
+
+    private decimal SaldoBolsaPremios =>
+        TotalBolsaEstimada - TotalPremiosAsignados;
+
+    private bool PremiosExcedenBolsa =>
+        TotalBolsaEstimada > 0 &&
+        TotalPremiosAsignados > TotalBolsaEstimada;
 
     private int RankingColspan => EsCreador ? 5 : 4;
 
@@ -3120,6 +3385,14 @@ else
         valorInscripcionEdit = polla?.ValorInscripcion;
         descripcionEdit = polla?.Descripcion ?? "";
         metodoPagoEdit = polla?.MetodoPago ?? "";
+        premioPrimerLugarEdit = polla?.PremioPrimerLugar;
+        premioSegundoLugarEdit = polla?.PremioSegundoLugar;
+        premioTercerLugarEdit = polla?.PremioTercerLugar;
+        puestosPremiados = premioTercerLugarEdit.HasValue
+            ? 3
+            : premioSegundoLugarEdit.HasValue
+                ? 2
+                : 1;
     }
 
     private static string MensajeAccesoSeguro(string mensaje)
@@ -3268,7 +3541,10 @@ else
                     PermitirEmpatesEnEliminatoria = polla.PermitirEmpatesEnEliminatoria,
                     PinIngreso = polla.PinIngreso ?? "0000",
                     ValorInscripcion = valorInscripcionEdit,
-                    MetodoPago = metodoPagoEdit
+                    MetodoPago = metodoPagoEdit,
+                    PremioPrimerLugar = polla.PremioPrimerLugar,
+                    PremioSegundoLugar = polla.PremioSegundoLugar,
+                    PremioTercerLugar = polla.PremioTercerLugar
                 });
 
             polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
@@ -3289,6 +3565,121 @@ else
             mensaje = ex.Message;
             esError = true;
         }
+    }
+
+    private void SeleccionarCantidadPremios(int cantidad)
+    {
+        puestosPremiados = Math.Clamp(cantidad, 1, 3);
+
+        if (puestosPremiados < 3)
+        {
+            premioTercerLugarEdit = null;
+        }
+
+        if (puestosPremiados < 2)
+        {
+            premioSegundoLugarEdit = null;
+        }
+
+        mensajePremios = null;
+        errorPremios = false;
+    }
+
+    private void CalcularPremiosSugeridos()
+    {
+        var bolsa = TotalBolsaEstimada;
+        if (bolsa <= 0)
+        {
+            mensajePremios = "Define un valor de participacion para calcular la bolsa estimada.";
+            errorPremios = true;
+            return;
+        }
+
+        if (puestosPremiados == 1)
+        {
+            premioPrimerLugarEdit = bolsa;
+            premioSegundoLugarEdit = null;
+            premioTercerLugarEdit = null;
+        }
+        else if (puestosPremiados == 2)
+        {
+            premioPrimerLugarEdit = RedondearPremio(bolsa * .70m);
+            premioSegundoLugarEdit = bolsa - premioPrimerLugarEdit;
+            premioTercerLugarEdit = null;
+        }
+        else
+        {
+            premioPrimerLugarEdit = RedondearPremio(bolsa * .60m);
+            premioSegundoLugarEdit = RedondearPremio(bolsa * .25m);
+            premioTercerLugarEdit = bolsa - premioPrimerLugarEdit - premioSegundoLugarEdit;
+        }
+
+        mensajePremios = "Calculamos una distribucion sugerida. Puedes modificar cualquier valor antes de guardar.";
+        errorPremios = false;
+    }
+
+    private async Task GuardarPremios()
+    {
+        if (polla == null || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        var primero = premioPrimerLugarEdit.GetValueOrDefault();
+        var segundo = puestosPremiados >= 2
+            ? premioSegundoLugarEdit.GetValueOrDefault()
+            : 0;
+        var tercero = puestosPremiados >= 3
+            ? premioTercerLugarEdit.GetValueOrDefault()
+            : 0;
+
+        if (primero <= 0 ||
+            (puestosPremiados >= 2 && segundo <= 0) ||
+            (puestosPremiados >= 3 && tercero <= 0))
+        {
+            mensajePremios = "Completa con un valor mayor que cero cada puesto que deseas premiar.";
+            errorPremios = true;
+            return;
+        }
+
+        if (PremiosExcedenBolsa)
+        {
+            mensajePremios = "Los premios no pueden superar la bolsa estimada.";
+            errorPremios = true;
+            return;
+        }
+
+        try
+        {
+            guardandoPremios = true;
+            await PollasService.ActualizarPremiosPollaAsync(
+                PollaId,
+                Sesion.UsuarioId.Value,
+                primero,
+                puestosPremiados >= 2 ? segundo : null,
+                puestosPremiados >= 3 ? tercero : null);
+
+            polla = await PollasService.GetPollaAsync(PollaId, Sesion.UsuarioId.Value);
+            PrepararDatosPolla();
+            await CargarRanking();
+
+            mensajePremios = "Premios guardados y publicados en el ranking.";
+            errorPremios = false;
+        }
+        catch (Exception ex)
+        {
+            mensajePremios = ex.Message;
+            errorPremios = true;
+        }
+        finally
+        {
+            guardandoPremios = false;
+        }
+    }
+
+    private static decimal RedondearPremio(decimal valor)
+    {
+        return Math.Floor(valor / 1000m) * 1000m;
     }
 
     private static string FormatoPrecio(decimal? valor)

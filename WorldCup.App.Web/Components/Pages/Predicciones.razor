@@ -1573,7 +1573,7 @@ else
 
     private bool EstaBloqueado(PartidoDto partido)
     {
-        if (ReaperturaActiva(partido.Fase, "Marcadores"))
+        if (ReaperturaActiva(partido.Fase, "Marcadores", partido.Id))
         {
             return false;
         }
@@ -1597,16 +1597,26 @@ else
             $"api/Predicciones/reaperturas?pollaId={Sesion.PollaActivaId.Value}&usuarioId={Sesion.UsuarioId.Value}") ?? new();
     }
 
-    private bool ReaperturaActiva(string fase, string tipo)
+    private bool ReaperturaActiva(string fase, string tipo, int? partidoId = null)
     {
         return reaperturasActivas.Any(r =>
             r.Activa &&
-            string.Equals(r.Fase, fase, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(r.Tipo, tipo, StringComparison.OrdinalIgnoreCase));
+            string.Equals(r.Tipo, tipo, StringComparison.OrdinalIgnoreCase) &&
+            (
+                (!r.PartidoId.HasValue && string.Equals(r.Fase, fase, StringComparison.OrdinalIgnoreCase)) ||
+                (partidoId.HasValue && r.PartidoId == partidoId.Value)
+            ));
     }
 
     private string EtiquetaReapertura(ReaperturaUsuarioDto reapertura)
     {
+        if (reapertura.Tipo == "Marcadores" && reapertura.PartidoId.HasValue)
+        {
+            return string.IsNullOrWhiteSpace(reapertura.Partido)
+                ? $"partido {reapertura.PartidoId.Value}"
+                : reapertura.Partido;
+        }
+
         return reapertura.Tipo == "Podio"
             ? "podio final"
             : $"{reapertura.Fase} ({reapertura.Tipo.ToLowerInvariant()})";
@@ -2293,6 +2303,8 @@ else
     {
         public string Fase { get; set; } = "";
         public string Tipo { get; set; } = "";
+        public int? PartidoId { get; set; }
+        public string Partido { get; set; } = "";
         public bool Activa { get; set; }
     }
 
