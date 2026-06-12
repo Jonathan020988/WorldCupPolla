@@ -191,8 +191,9 @@
             <span class="section-kicker">Fases eliminatorias</span>
             <h2>Dieciseisavos hasta final</h2>
             <p>
-                En las rondas finales los puntos de marcador se duplican y aparece el bonus
-                por acertar quien avanza.
+                En las rondas finales los puntos de marcador aumentan: se duplican los valores
+                de la fase de grupos, excepto el resultado correcto, que vale 10 puntos.
+                Ademas se mantienen bonos pequeños por la definicion y el equipo que avanza.
             </p>
         </div>
 
@@ -201,7 +202,7 @@
                 <h3>Marcador en KO</h3>
                 <ul>
                     <li>Exacto: 20 puntos.</li>
-                    <li>Ganador o empate: 8 puntos.</li>
+                    <li>Ganador o empate: 10 puntos.</li>
                     <li>Goles: 4 puntos.</li>
                     <li>Diferencia: 2 puntos.</li>
                 </ul>
@@ -210,7 +211,7 @@
             <article class="rule-card">
                 <h3>Equipo que avanza</h3>
                 <p>
-                    Si aciertas el equipo que pasa a la siguiente ronda, ganas 10 puntos extra.
+                    Si aciertas el equipo que pasa a la siguiente ronda, ganas 3 puntos extra.
                     Aplica en dieciseisavos, octavos, cuartos, semifinales, tercer puesto y final.
                 </p>
             </article>
@@ -219,18 +220,86 @@
                 <h3>Tiempo extra y penales</h3>
                 <p>
                     Si el partido real termina empatado y aciertas que hubo tiempo extra,
-                    sumas 5 puntos. Si tambien aciertas definicion por penales, sumas otros 5.
+                    sumas 1 punto. Si tambien aciertas definicion por penales, sumas otro punto.
                 </p>
             </article>
         </div>
 
         <div class="examples-panel">
-            <h3>Como se leen esos ejemplos en eliminatorias</h3>
+            <h3>Ejemplos claros en fases eliminatorias</h3>
             <p>
-                Usa la misma logica de los ejemplos de grupos, pero duplicada: exacto vale 20,
-                ganador o empate 8, goles 4 y diferencia 2. Ademas, si eliges bien el equipo
-                que avanza, sumas 10 puntos extra.
+                El marcador exacto reemplaza los otros puntos de marcador. Cuando no es exacto,
+                sí se pueden combinar resultado con goles o diferencia, además de los bonos.
             </p>
+            <div class="score-table-wrap">
+                <table class="score-table examples-table">
+                    <thead>
+                        <tr>
+                            <th>Caso</th>
+                            <th>Marcador real</th>
+                            <th>Pronostico</th>
+                            <th>Puntos</th>
+                            <th>Explicacion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Exacto completo</td>
+                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
+                            <td>1-1; extras, penales y Brasil clasifica</td>
+                            <td><span class="points points-green">25</span></td>
+                            <td>20 exacto + 1 tiempo extra + 1 penales + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Empate no exacto completo</td>
+                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
+                            <td>2-2; extras, penales y Brasil clasifica</td>
+                            <td><span class="points points-blue">17</span></td>
+                            <td>10 empate + 2 diferencia + 1 tiempo extra + 1 penales + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Resultado + gol + clasificado</td>
+                            <td>Brasil 2-1 Argentina; Brasil clasifica</td>
+                            <td>Brasil 3-1 Argentina; Brasil clasifica</td>
+                            <td><span class="points points-indigo">17</span></td>
+                            <td>10 ganador + 4 por el gol de Argentina + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Resultado + diferencia + clasificado</td>
+                            <td>Brasil 2-0 Argentina; Brasil clasifica</td>
+                            <td>Brasil 4-2 Argentina; Brasil clasifica</td>
+                            <td><span class="points points-soft">15</span></td>
+                            <td>10 ganador + 2 diferencia de dos goles + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Gol + clasificado</td>
+                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
+                            <td>Brasil 2-1 Argentina; Brasil clasifica sin extras</td>
+                            <td><span class="points points-soft">7</span></td>
+                            <td>4 por el gol de Argentina + 3 clasificado. Falla empate y definicion.</td>
+                        </tr>
+                        <tr>
+                            <td>Empate + diferencia</td>
+                            <td>Brasil 1-1 Argentina; Brasil clasifica</td>
+                            <td>Brasil 3-3 Argentina; Argentina clasifica</td>
+                            <td><span class="points points-soft">12</span></td>
+                            <td>10 por empate + 2 por diferencia 0. Falla el clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>No suma</td>
+                            <td>Brasil 1-1 Argentina; Brasil clasifica</td>
+                            <td>Brasil 0-2 Argentina; Argentina clasifica</td>
+                            <td><span class="points points-red">0</span></td>
+                            <td>No acierta marcador, resultado, goles, diferencia ni clasificado.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="note-band">
+            En eliminatorias el marcador exacto no acumula tambien puntos de resultado,
+            goles o diferencia. El maximo posible por partido es 25 puntos.
         </div>
     </div>
 

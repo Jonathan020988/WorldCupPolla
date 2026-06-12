@@ -1663,12 +1663,11 @@ namespace WorldCup.Api.Controllers
                 partido.TiempoExtra = dto.TiempoExtra;
             }
             partido.ClasificadoId = clasificadoId;
-                         
-
-            // calcula punto despues de grupos
-            CalcularPuntosEliminatoria(partido);
             partido.Finalizado = true;
             partido.Estado = "Finalizado";
+
+            // Calcula los puntos cuando el resultado oficial ya está completo.
+            CalcularPuntosEliminatoria(partido);
             await _context.SaveChangesAsync(); // ✅ AHORA SÍ SE GUARDA TODO
 
 
@@ -2421,63 +2420,22 @@ namespace WorldCup.Api.Controllers
                 .Where(p => p.PartidoId == partido.Id)
                 .ToList();
 
-            int ganadorReal = ObtenerGanadorId(partido);
-
             foreach (var pred in predicciones)
             {
                 if (!pred.GolesLocal.HasValue || !pred.GolesVisitante.HasValue)
                     continue;
 
-                int puntosMarcador = 0;
+                var puntosMarcador = PuntajesEliminatoria.CalcularMarcador(
+                    partido.GolesLocal!.Value,
+                    partido.GolesVisitante!.Value,
+                    pred.GolesLocal.Value,
+                    pred.GolesVisitante.Value);
 
-                bool exacto =
-                    pred.GolesLocal == partido.GolesLocal &&
-                    pred.GolesVisitante == partido.GolesVisitante;
+                var bonosEliminatoria =
+                    PuntajesEliminatoria.Calcular(pred, partido);
 
-                if (exacto)
-                {
-                    puntosMarcador = 20;
-                }
-                else
-                {
-                    bool resultadoCorrecto =
-                        (pred.GolesLocal > pred.GolesVisitante && partido.GolesLocal > partido.GolesVisitante) ||
-                        (pred.GolesLocal < pred.GolesVisitante && partido.GolesLocal < partido.GolesVisitante) ||
-                        (pred.GolesLocal == pred.GolesVisitante && partido.GolesLocal == partido.GolesVisitante);
-
-                    if (resultadoCorrecto)
-                        puntosMarcador += 8;
-
-                    bool golExacto =
-                        pred.GolesLocal == partido.GolesLocal ||
-                        pred.GolesVisitante == partido.GolesVisitante;
-
-                    if (golExacto)
-                        puntosMarcador += 4;
-                    else if (
-                        (pred.GolesLocal - pred.GolesVisitante) ==
-                        (partido.GolesLocal - partido.GolesVisitante))
-                        puntosMarcador += 2;
-                }
-
-                int puntosClasificacion = 0;
-
-                // 👉 Clasificado SIEMPRE vale +10
-                if (pred.PrediceClasificadoId == ganadorReal)
-                    puntosClasificacion += 10;
-
-                if (pred.PrediceTiempoExtra && partido.TiempoExtra)
-                    puntosClasificacion += 5;
-
-                if (pred.PredicePenales &&
-                    partido.PenalesLocal.HasValue &&
-                    partido.PenalesVisitante.HasValue)
-                {
-                    puntosClasificacion += 5;
-                }
-
-                pred.PuntosMarcador = puntosMarcador;
-                pred.PuntosClasificacion = puntosClasificacion;
+                pred.PuntosMarcador = puntosMarcador.Total;
+                pred.PuntosClasificacion = bonosEliminatoria.Total;
                 pred.PuntosTotales =
                     pred.PuntosMarcador +
                     pred.PuntosClasificacion +

@@ -53,13 +53,14 @@ Máximo sin exacto = 6 puntos.
 
 Nunca existe un caso de 7 puntos (confirmado y demostrado).
 
-4️⃣ FASES ELIMINATORIAS (OCTAVOS → FINAL)
+4️⃣ FASES ELIMINATORIAS (DIECISEISAVOS → FINAL)
 
-Se aplican las mismas reglas, pero TODOS los puntos se duplican:
+Los puntos de la fase de grupos se duplican, excepto el resultado correcto,
+que en eliminatorias vale 10 puntos:
 
 Regla	Puntos
 Exacto	20
-Correcto	8
+Correcto	10
 Goles	4
 Diferencia	2
 5️⃣ Empates en fases eliminatorias
@@ -72,23 +73,56 @@ Penales (y quién gana)
 
 Puntos adicionales:
 
-Acierta que hay tiempo extra → +5
+Acierta que hay tiempo extra → +1
 
-Acierta que hay penales → +5
+Acierta que hay penales → +1
 
-Acierta quién avanza → +10 (siempre)
+Acierta quién avanza → +3
 
 Ejemplo:
 
-Empate → tiempo extra → gana Brasil
+Brasil 1-1 Argentina → tiempo extra → penales → clasifica Brasil
 
-Si ocurrió así:
+Predicción exacta 1-1 y acierta todo:
 
-+5 (extras)
+20 (exacto)
++1 (tiempo extra)
++1 (penales)
++3 (clasifica)
+= 25 puntos
 
-+10 (clasifica)
+Predicción 2-2 y acierta tiempo extra, penales y clasificado:
 
-puntos del marcador si aplica
+10 (empate)
++2 (diferencia 0)
++1 (tiempo extra)
++1 (penales)
++3 (clasifica)
+= 17 puntos
+
+Predicción 2-1 y acierta un gol y el clasificado:
+
+4 (gol exacto de un equipo)
++3 (clasifica)
+= 7 puntos
+
+Otro ejemplo:
+
+Brasil 2-1 Argentina y Brasil clasifica.
+El usuario pronostica Brasil 3-1 Argentina y Brasil clasifica:
+
+10 (ganador correcto)
++4 (gol exacto de Argentina)
++3 (clasifica)
+= 17 puntos
+
+Brasil 2-0 Argentina y Brasil clasifica.
+El usuario pronostica Brasil 4-2 Argentina y Brasil clasifica:
+
+10 (ganador correcto)
++2 (diferencia correcta de dos goles)
++3 (clasifica)
+= 15 puntos
 
 6️⃣ Clasificación FASE DE GRUPOS
 

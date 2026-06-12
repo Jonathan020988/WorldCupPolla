@@ -920,7 +920,8 @@ namespace WorldCup.Api.Controllers
             {
                 if (prediccion.PrediceTiempoExtra)
                 {
-                    partes.Add("+5: acertó tiempo extra");
+                    partes.Add(
+                        $"+{PuntajesEliminatoria.TiempoExtra}: acertó tiempo extra");
                 }
             }
 
@@ -928,7 +929,8 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal.HasValue &&
                 partido.PenalesVisitante.HasValue)
             {
-                partes.Add("+5: acertó definición por penales");
+                partes.Add(
+                    $"+{PuntajesEliminatoria.Penales}: acertó definición por penales");
             }
 
             return string.Join("; ", partes);
@@ -1028,20 +1030,31 @@ namespace WorldCup.Api.Controllers
                 return new PuntosMarcadorDetalle();
             }
 
-            var esGrupo = prediccion.Partido.Fase == "Grupos";
-            var exacto = esGrupo ? 10 : 20;
-            var ganador = esGrupo ? 4 : 8;
-            var goles = esGrupo ? 2 : 4;
-            var diferencia = esGrupo ? 1 : 2;
-
             var realLocal = prediccion.Partido.GolesLocal.Value;
             var realVisitante = prediccion.Partido.GolesVisitante.Value;
             var predLocal = prediccion.GolesLocal.Value;
             var predVisitante = prediccion.GolesVisitante.Value;
 
+            if (prediccion.Partido.Fase != "Grupos")
+            {
+                var puntosKo = PuntajesEliminatoria.CalcularMarcador(
+                    realLocal,
+                    realVisitante,
+                    predLocal,
+                    predVisitante);
+
+                return new PuntosMarcadorDetalle
+                {
+                    Exacto = puntosKo.Exacto,
+                    Ganador = puntosKo.Resultado,
+                    Goles = puntosKo.Goles,
+                    Diferencia = puntosKo.Diferencia
+                };
+            }
+
             if (realLocal == predLocal && realVisitante == predVisitante)
             {
-                return new PuntosMarcadorDetalle { Exacto = exacto };
+                return new PuntosMarcadorDetalle { Exacto = 10 };
             }
 
             var detalle = new PuntosMarcadorDetalle();
@@ -1050,16 +1063,16 @@ namespace WorldCup.Api.Controllers
 
             if (resultadoReal == resultadoPred)
             {
-                detalle.Ganador = ganador;
+                detalle.Ganador = 4;
             }
 
             if (realLocal == predLocal || realVisitante == predVisitante)
             {
-                detalle.Goles = goles;
+                detalle.Goles = 2;
             }
             else if ((realLocal - realVisitante) == (predLocal - predVisitante))
             {
-                detalle.Diferencia = diferencia;
+                detalle.Diferencia = 1;
             }
 
             return detalle;
@@ -1077,27 +1090,12 @@ namespace WorldCup.Api.Controllers
                 return new PuntosKoDetalle();
             }
 
-            var detalle = new PuntosKoDetalle();
-            var ganador = ObtenerGanadorId(partido);
-
-            if (ganador.HasValue && prediccion.PrediceClasificadoId == ganador.Value)
+            var bonos = PuntajesEliminatoria.Calcular(prediccion, partido);
+            return new PuntosKoDetalle
             {
-                detalle.Clasificacion = 10;
-            }
-
-            if (prediccion.PrediceTiempoExtra && partido.TiempoExtra)
-            {
-                detalle.Extras += 5;
-            }
-
-            if (prediccion.PredicePenales &&
-                partido.PenalesLocal.HasValue &&
-                partido.PenalesVisitante.HasValue)
-            {
-                detalle.Extras += 5;
-            }
-
-            return detalle;
+                Clasificacion = bonos.Clasificado,
+                Extras = bonos.Extras
+            };
         }
 
         private static int? ObtenerGanadorId(Partido partido)

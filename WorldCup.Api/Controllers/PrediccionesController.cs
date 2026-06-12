@@ -438,49 +438,16 @@ namespace WorldCup.Api.Controllers
             Prediccion prediccion,
             Partido partido)
         {
-            int puntosMarcador = 0;
+            var puntosMarcador = PuntajesEliminatoria.CalcularMarcador(
+                partido.GolesLocal!.Value,
+                partido.GolesVisitante!.Value,
+                prediccion.GolesLocal!.Value,
+                prediccion.GolesVisitante!.Value);
 
-            if (prediccion.GolesLocal == partido.GolesLocal &&
-                prediccion.GolesVisitante == partido.GolesVisitante)
-            {
-                puntosMarcador = 20;
-            }
-            else
-            {
-                var resultadoReal = Math.Sign(partido.GolesLocal!.Value - partido.GolesVisitante!.Value);
-                var resultadoPred = Math.Sign(prediccion.GolesLocal!.Value - prediccion.GolesVisitante!.Value);
+            var bonosEliminatoria =
+                PuntajesEliminatoria.Calcular(prediccion, partido);
 
-                if (resultadoReal == resultadoPred)
-                    puntosMarcador += 8;
-
-                if (prediccion.GolesLocal == partido.GolesLocal ||
-                    prediccion.GolesVisitante == partido.GolesVisitante)
-                    puntosMarcador += 4;
-                else if ((prediccion.GolesLocal - prediccion.GolesVisitante) ==
-                         (partido.GolesLocal - partido.GolesVisitante))
-                    puntosMarcador += 2;
-            }
-
-            int puntosClasificacion = 0;
-            var ganadorReal = ObtenerGanadorId(partido);
-
-            if (ganadorReal.HasValue &&
-                prediccion.PrediceClasificadoId == ganadorReal.Value)
-            {
-                puntosClasificacion += 10;
-            }
-
-            if (prediccion.PrediceTiempoExtra && partido.TiempoExtra)
-                puntosClasificacion += 5;
-
-            if (prediccion.PredicePenales &&
-                partido.PenalesLocal.HasValue &&
-                partido.PenalesVisitante.HasValue)
-            {
-                puntosClasificacion += 5;
-            }
-
-            return (puntosMarcador, puntosClasificacion);
+            return (puntosMarcador.Total, bonosEliminatoria.Total);
         }
 
         private static int? ObtenerGanadorId(Partido partido)

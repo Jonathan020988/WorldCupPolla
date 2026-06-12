@@ -1472,6 +1472,14 @@ namespace WorldCup.Api.Controllers
                     prediccion.Partido.GolesVisitante.Value,
                     dto.GolesLocal.Value,
                     dto.GolesVisitante.Value);
+
+                if (prediccion.Partido.Fase != "Grupos")
+                {
+                    prediccion.PuntosClasificacion =
+                        PuntajesEliminatoria
+                            .Calcular(prediccion, prediccion.Partido)
+                            .Total;
+                }
             }
             else
             {
@@ -2073,9 +2081,20 @@ namespace WorldCup.Api.Controllers
             int glPred,
             int gvPred)
         {
+            if (fase != "Grupos")
+            {
+                return PuntajesEliminatoria
+                    .CalcularMarcador(
+                        glReal,
+                        gvReal,
+                        glPred,
+                        gvPred)
+                    .Total;
+            }
+
             bool exacto = glReal == glPred && gvReal == gvPred;
             if (exacto)
-                return fase == "Grupos" ? 10 : 20;
+                return 10;
 
             int puntos = 0;
             bool resultadoCorrecto =
@@ -2084,13 +2103,13 @@ namespace WorldCup.Api.Controllers
                 (glReal == gvReal && glPred == gvPred);
 
             if (resultadoCorrecto)
-                puntos += fase == "Grupos" ? 4 : 8;
+                puntos += 4;
 
             bool golExacto = glReal == glPred || gvReal == gvPred;
             if (golExacto)
-                puntos += fase == "Grupos" ? 2 : 4;
+                puntos += 2;
             else if ((glReal - gvReal) == (glPred - gvPred))
-                puntos += fase == "Grupos" ? 1 : 2;
+                puntos += 1;
 
             return puntos;
         }
