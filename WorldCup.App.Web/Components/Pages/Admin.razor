@@ -66,6 +66,7 @@ else
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-cupos")'>Solicitudes cupos</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-fases")'>Fases torneo</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-calendario")'>Calendario</button>
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-tendencias")'>Tendencias</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-usuarios")'>Usuarios</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-pollas")'>Predicciones</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-pollas")'>Pollas</button>
@@ -468,6 +469,215 @@ else
                             }
                         </tbody>
                     </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card mb-4 admin-anchor trends-admin" id="admin-tendencias">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Tendencias de pronósticos</span>
+            <small class="text-muted">Porcentajes generales o por una polla específica</small>
+        </div>
+        <div class="card-body">
+            <div class="trends-filter-grid">
+                <div>
+                    <label class="form-label">Alcance</label>
+                    <select class="form-select"
+                            value="@alcanceTendencias"
+                            @onchange="CambiarAlcanceTendencias">
+                        <option value="General">Todos los usuarios</option>
+                        <option value="Polla">Una polla específica</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Polla</label>
+                    <select class="form-select"
+                            disabled="@(alcanceTendencias != "Polla")"
+                            @bind="pollaTendenciasId">
+                        <option value="">Selecciona una polla</option>
+                        @foreach (var polla in pollas)
+                        {
+                            <option value="@polla.Id">@polla.Nombre</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Fase</label>
+                    <select class="form-select"
+                            value="@faseTendencias"
+                            @onchange="CambiarFaseTendencias">
+                        @foreach (var fase in FasesTendencias)
+                        {
+                            <option value="@fase">@NombreFase(fase)</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Partido</label>
+                    <select class="form-select" @bind="partidoTendenciasId">
+                        <option value="">Selecciona un partido</option>
+                        @foreach (var partido in PartidosTendencias)
+                        {
+                            <option value="@partido.Id">
+                                @partido.Fecha.ToString("dd/MM HH:mm") - @partido.Local vs @partido.Visitante
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <button type="button"
+                        class="btn btn-success trends-generate"
+                        disabled="@cargandoTendencias"
+                        @onclick="AnalizarTendencias">
+                    @(cargandoTendencias ? "Calculando..." : "Generar análisis")
+                </button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(mensajeTendencias))
+            {
+                <div class="alert @(errorTendencias ? "alert-danger" : "alert-info") mt-3 mb-0">
+                    @mensajeTendencias
+                </div>
+            }
+
+            @if (tendencias != null)
+            {
+                <div class="trends-result">
+                    <div class="trends-match-head">
+                        <div>
+                            <span>@NombreFase(tendencias.Partido.Fase)</span>
+                            <h4>@tendencias.Partido.Local vs @tendencias.Partido.Visitante</h4>
+                            <small>@tendencias.Partido.Fecha.ToString("dddd dd 'de' MMMM, HH:mm")</small>
+                        </div>
+                        <strong>
+                            @(tendencias.Alcance == "Polla"
+                                ? tendencias.PollaNombre
+                                : "Consolidado general")
+                        </strong>
+                    </div>
+
+                    <div class="trends-metrics">
+                        <article>
+                            <span>Usuarios analizados</span>
+                            <strong>@tendencias.UsuariosConPronostico</strong>
+                            <small>de @tendencias.UsuariosObjetivo habilitados</small>
+                        </article>
+                        <article>
+                            <span>Cobertura</span>
+                            <strong>@FormatoPorcentaje(tendencias.CoberturaPorcentaje)</strong>
+                            <small>ya guardaron marcador</small>
+                        </article>
+                        <article>
+                            <span>Marcador favorito</span>
+                            <strong>@tendencias.MarcadorMasElegido</strong>
+                            <small>el más seleccionado</small>
+                        </article>
+                        <article>
+                            <span>Promedio estimado</span>
+                            <strong>@FormatoPromedio(tendencias.PromedioGolesLocal) - @FormatoPromedio(tendencias.PromedioGolesVisitante)</strong>
+                            <small>@FormatoPromedio(tendencias.PromedioTotalGoles) goles por pronóstico</small>
+                        </article>
+                    </div>
+
+                    @if (!tendencias.Distribucion.Any())
+                    {
+                        <div class="trends-empty">
+                            Todavía ningún usuario ha guardado un marcador para este partido.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="trends-visual-grid">
+                            <article class="trend-chart-card">
+                                <div class="trend-section-title">
+                                    <div>
+                                        <span>Distribución</span>
+                                        <h5>Marcadores pronosticados</h5>
+                                    </div>
+                                    <small>@tendencias.UsuariosConPronostico usuario(s)</small>
+                                </div>
+
+                                <div class="trend-chart-layout">
+                                    <div class="trend-donut"
+                                         style="@EstiloGraficaPastel()"
+                                         role="img"
+                                         aria-label="Gráfica circular de porcentajes por marcador">
+                                        <div>
+                                            <strong>@tendencias.UsuariosConPronostico</strong>
+                                            <span>pronósticos</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="trend-legend">
+                                        @foreach (var segmento in SegmentosGraficaPastel())
+                                        {
+                                            <button type="button"
+                                                    class="trend-legend-item"
+                                                    @onclick="() => SeleccionarMarcadorTendencia(segmento.Marcador)">
+                                                <span class="trend-color" style="background:@segmento.Color"></span>
+                                                <strong>@segmento.Marcador</strong>
+                                                <span>@segmento.Cantidad</span>
+                                                <small>@FormatoPorcentaje(segmento.Porcentaje)</small>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="trend-detail-card">
+                                <div class="trend-section-title">
+                                    <div>
+                                        <span>Detalle</span>
+                                        <h5>Consulta un marcador</h5>
+                                    </div>
+                                </div>
+
+                                <label class="form-label">Marcador para revisar</label>
+                                <select class="form-select" @bind="marcadorTendenciaSeleccionado">
+                                    @foreach (var item in tendencias.Distribucion)
+                                    {
+                                        <option value="@item.Marcador">@item.Marcador</option>
+                                    }
+                                </select>
+
+                                @if (MarcadorTendenciaActual != null)
+                                {
+                                    <div class="trend-selected-score">
+                                        <span>@tendencias.Partido.Local</span>
+                                        <strong>@MarcadorTendenciaActual.GolesLocal - @MarcadorTendenciaActual.GolesVisitante</strong>
+                                        <span>@tendencias.Partido.Visitante</span>
+                                    </div>
+                                    <div class="trend-selected-stats">
+                                        <div>
+                                            <strong>@MarcadorTendenciaActual.Cantidad</strong>
+                                            <span>usuario(s)</span>
+                                        </div>
+                                        <div>
+                                            <strong>@FormatoPorcentaje(MarcadorTendenciaActual.Porcentaje)</strong>
+                                            <span>del total</span>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="trend-score-list">
+                                    @foreach (var item in tendencias.Distribucion)
+                                    {
+                                        <button type="button"
+                                                class="@(item.Marcador == marcadorTendenciaSeleccionado ? "selected" : "")"
+                                                @onclick="() => SeleccionarMarcadorTendencia(item.Marcador)">
+                                            <strong>@item.Marcador</strong>
+                                            <span>@item.Cantidad usuario(s)</span>
+                                            <small>@FormatoPorcentaje(item.Porcentaje)</small>
+                                        </button>
+                                    }
+                                </div>
+                            </article>
+                        </div>
+                    }
                 </div>
             }
         </div>
@@ -1956,6 +2166,354 @@ else
         color: #475569;
     }
 
+    .trends-admin {
+        overflow: hidden;
+    }
+
+    .trends-filter-grid {
+        display: grid;
+        grid-template-columns: .8fr 1fr .8fr 1.5fr;
+        gap: .8rem;
+        align-items: end;
+    }
+
+    .trends-filter-grid .form-label {
+        color: #52606d;
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .trends-generate {
+        grid-column: 1 / -1;
+        justify-self: end;
+        min-height: 38px;
+        min-width: 190px;
+        padding-inline: 1.1rem;
+        white-space: nowrap;
+    }
+
+    .trends-result {
+        margin-top: 1rem;
+        border: 1px solid #d8e5de;
+        border-radius: 8px;
+        background: #fbfdfc;
+        overflow: hidden;
+    }
+
+    .trends-match-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 1.1rem;
+        background: #0b4937;
+        color: #fff;
+        border-bottom: 4px solid #d7a21a;
+    }
+
+    .trends-match-head span,
+    .trend-section-title span {
+        display: block;
+        color: #f6c944;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .trends-match-head h4 {
+        margin: .1rem 0;
+        font-size: 1.2rem;
+        font-weight: 900;
+    }
+
+    .trends-match-head small {
+        color: #d5e6df;
+        font-weight: 700;
+    }
+
+    .trends-match-head > strong {
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 6px;
+        padding: .45rem .7rem;
+        text-align: center;
+    }
+
+    .trends-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+        padding: 1rem;
+    }
+
+    .trends-metrics article {
+        min-width: 0;
+        border: 1px solid #dce8e2;
+        border-top: 3px solid #14805e;
+        border-radius: 7px;
+        background: #fff;
+        padding: .8rem;
+    }
+
+    .trends-metrics span,
+    .trends-metrics small {
+        display: block;
+        color: #667085;
+        font-size: .74rem;
+        font-weight: 800;
+    }
+
+    .trends-metrics span {
+        text-transform: uppercase;
+    }
+
+    .trends-metrics strong {
+        display: block;
+        margin: .15rem 0;
+        color: #102a23;
+        font-size: 1.35rem;
+        font-weight: 950;
+        overflow-wrap: anywhere;
+    }
+
+    .trends-visual-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
+        gap: 1rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .trend-chart-card,
+    .trend-detail-card {
+        min-width: 0;
+        border: 1px solid #dce8e2;
+        border-radius: 8px;
+        background: #fff;
+        padding: 1rem;
+    }
+
+    .trend-section-title {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: 1rem;
+    }
+
+    .trend-section-title h5 {
+        margin: .1rem 0 0;
+        color: #102a23;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .trend-section-title small {
+        color: #667085;
+        font-weight: 800;
+    }
+
+    .trend-chart-layout {
+        display: grid;
+        grid-template-columns: minmax(220px, .8fr) minmax(240px, 1.2fr);
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .trend-donut {
+        position: relative;
+        width: min(100%, 280px);
+        aspect-ratio: 1;
+        margin: auto;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 1px rgba(15, 81, 50, .08);
+    }
+
+    .trend-donut::after {
+        position: absolute;
+        inset: 24%;
+        content: "";
+        border: 1px solid #dce8e2;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(16, 42, 35, .1);
+    }
+
+    .trend-donut > div {
+        position: absolute;
+        inset: 31%;
+        z-index: 1;
+        display: grid;
+        place-content: center;
+        text-align: center;
+    }
+
+    .trend-donut strong,
+    .trend-donut span {
+        display: block;
+    }
+
+    .trend-donut strong {
+        color: #0b4937;
+        font-size: 1.8rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .trend-donut span {
+        color: #667085;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .trend-legend {
+        display: grid;
+        gap: .4rem;
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: .25rem;
+    }
+
+    .trend-legend-item {
+        display: grid;
+        grid-template-columns: 12px minmax(42px, auto) 1fr auto;
+        align-items: center;
+        gap: .55rem;
+        width: 100%;
+        border: 1px solid #e4ebe7;
+        border-radius: 6px;
+        background: #fbfdfc;
+        color: #24352e;
+        padding: .48rem .55rem;
+        text-align: left;
+    }
+
+    .trend-legend-item:hover {
+        border-color: #9bc7b6;
+        background: #f0f8f4;
+    }
+
+    .trend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .trend-legend-item span:not(.trend-color),
+    .trend-legend-item small {
+        color: #667085;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .trend-legend-item small {
+        text-align: right;
+    }
+
+    .trend-selected-score {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: .65rem;
+        margin-top: .85rem;
+        border: 1px solid #cfe3da;
+        border-radius: 8px;
+        background: #eef8f3;
+        padding: .85rem;
+        text-align: center;
+    }
+
+    .trend-selected-score span {
+        color: #344b41;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+    .trend-selected-score strong {
+        color: #0b4937;
+        font-size: 1.45rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .trend-selected-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .65rem;
+        margin-top: .65rem;
+    }
+
+    .trend-selected-stats div {
+        border: 1px solid #e4ebe7;
+        border-radius: 7px;
+        padding: .65rem;
+        text-align: center;
+    }
+
+    .trend-selected-stats strong,
+    .trend-selected-stats span {
+        display: block;
+    }
+
+    .trend-selected-stats strong {
+        color: #102a23;
+        font-size: 1.15rem;
+        font-weight: 950;
+    }
+
+    .trend-selected-stats span {
+        color: #667085;
+        font-size: .74rem;
+        font-weight: 800;
+    }
+
+    .trend-score-list {
+        display: grid;
+        gap: .4rem;
+        max-height: 230px;
+        margin-top: .8rem;
+        overflow-y: auto;
+    }
+
+    .trend-score-list button {
+        display: grid;
+        grid-template-columns: 55px 1fr auto;
+        gap: .55rem;
+        width: 100%;
+        border: 1px solid #e4ebe7;
+        border-radius: 6px;
+        background: #fff;
+        color: #344b41;
+        padding: .45rem .55rem;
+        text-align: left;
+    }
+
+    .trend-score-list button.selected {
+        border-color: #14805e;
+        background: #eef8f3;
+    }
+
+    .trend-score-list span,
+    .trend-score-list small {
+        color: #667085;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .trend-score-list small {
+        text-align: right;
+    }
+
+    .trends-empty {
+        margin: 0 1rem 1rem;
+        border: 1px dashed #a9cdbf;
+        border-radius: 7px;
+        background: #f3faf7;
+        color: #456257;
+        padding: 1rem;
+        text-align: center;
+        font-weight: 800;
+    }
+
     @@media (max-width: 991.98px) {
         .admin-title {
             margin-top: 3.65rem;
@@ -2037,6 +2595,32 @@ else
 
         .mass-alert-footer .btn {
             width: 100%;
+        }
+
+        .trends-filter-grid,
+        .trends-metrics,
+        .trends-visual-grid,
+        .trend-chart-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .trends-match-head {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .trends-match-head > strong {
+            text-align: left;
+        }
+
+        .trends-generate {
+            grid-column: auto;
+            justify-self: stretch;
+            width: 100%;
+        }
+
+        .trend-donut {
+            width: min(78vw, 260px);
         }
 
         .admin-stat-card h3 {
@@ -2400,6 +2984,21 @@ else
     private string? alertaMasivaMensaje;
     private bool alertaMasivaError;
     private bool enviandoAlertaMasiva;
+    private string alcanceTendencias = "General";
+    private string pollaTendenciasId = "";
+    private string faseTendencias = "Grupos";
+    private string partidoTendenciasId = "";
+    private string marcadorTendenciaSeleccionado = "";
+    private TendenciasPronosticosAdminDto? tendencias;
+    private string? mensajeTendencias;
+    private bool errorTendencias;
+    private bool cargandoTendencias;
+
+    private readonly string[] coloresTendencias =
+    {
+        "#0b7a53", "#d7a21a", "#2563eb", "#d92d20",
+        "#7a5af8", "#0086c9", "#c11574", "#667085"
+    };
 
     private readonly List<string> fasesCalendario = new()
     {
@@ -2457,6 +3056,22 @@ else
         .Where(p => string.IsNullOrWhiteSpace(alertaMasiva.FaseMarcadores) || p.Fase == alertaMasiva.FaseMarcadores)
         .OrderBy(p => p.Fecha)
         .ThenBy(p => p.Id);
+
+    private IEnumerable<string> FasesTendencias => fasesCalendario
+        .Where(f => partidosCalendario.Any(p => p.Fase == f))
+        .Concat(partidosCalendario
+            .Select(p => p.Fase)
+            .Where(f => !fasesCalendario.Contains(f)))
+        .Distinct();
+
+    private IEnumerable<PartidoCalendarioAdminDto> PartidosTendencias => partidosCalendario
+        .Where(p => string.IsNullOrWhiteSpace(faseTendencias) || p.Fase == faseTendencias)
+        .OrderBy(p => p.Fecha)
+        .ThenBy(p => p.Id);
+
+    private TendenciaMarcadorAdminDto? MarcadorTendenciaActual =>
+        tendencias?.Distribucion.FirstOrDefault(d =>
+            d.Marcador == marcadorTendenciaSeleccionado);
 
     private void CambiarFiltroUsuarios(string filtro)
     {
@@ -2538,6 +3153,8 @@ else
             $"api/Admin/pollas?adminUsuarioId={adminId}") ?? new();
         solicitudesCupos = await Http.GetFromJsonAsync<List<SolicitudCuposAdminDto>>(
             $"api/Admin/cupos/solicitudes?adminUsuarioId={adminId}") ?? new();
+
+        InicializarFiltrosTendencias();
     }
 
     private async Task CargarCalendario()
@@ -2562,6 +3179,188 @@ else
             .ThenBy(p => p.Id)
             .ToList();
     }
+
+    private void InicializarFiltrosTendencias()
+    {
+        if (!PartidosTendencias.Any())
+        {
+            faseTendencias = FasesTendencias.FirstOrDefault() ?? "";
+        }
+
+        if (!int.TryParse(partidoTendenciasId, out var partidoId) ||
+            !PartidosTendencias.Any(p => p.Id == partidoId))
+        {
+            partidoTendenciasId = PartidosTendencias
+                .FirstOrDefault()?.Id.ToString() ?? "";
+        }
+    }
+
+    private void CambiarAlcanceTendencias(ChangeEventArgs e)
+    {
+        alcanceTendencias = e.Value?.ToString() ?? "General";
+        if (alcanceTendencias != "Polla")
+        {
+            pollaTendenciasId = "";
+        }
+
+        LimpiarResultadoTendencias();
+    }
+
+    private void CambiarFaseTendencias(ChangeEventArgs e)
+    {
+        faseTendencias = e.Value?.ToString() ?? "";
+        partidoTendenciasId = PartidosTendencias
+            .FirstOrDefault()?.Id.ToString() ?? "";
+        LimpiarResultadoTendencias();
+    }
+
+    private void LimpiarResultadoTendencias()
+    {
+        tendencias = null;
+        mensajeTendencias = null;
+        errorTendencias = false;
+        marcadorTendenciaSeleccionado = "";
+    }
+
+    private async Task AnalizarTendencias()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        if (!int.TryParse(partidoTendenciasId, out var partidoId))
+        {
+            mensajeTendencias = "Selecciona el partido que quieres analizar.";
+            errorTendencias = true;
+            return;
+        }
+
+        int? pollaId = null;
+        if (alcanceTendencias == "Polla")
+        {
+            if (!int.TryParse(pollaTendenciasId, out var pollaSeleccionadaId))
+            {
+                mensajeTendencias = "Selecciona una polla para calcular sus tendencias.";
+                errorTendencias = true;
+                return;
+            }
+
+            pollaId = pollaSeleccionadaId;
+        }
+
+        cargandoTendencias = true;
+        mensajeTendencias = null;
+        errorTendencias = false;
+
+        try
+        {
+            var url =
+                $"api/Admin/tendencias-pronosticos?adminUsuarioId={Sesion.UsuarioId.Value}&partidoId={partidoId}";
+            if (pollaId.HasValue)
+            {
+                url += $"&pollaId={pollaId.Value}";
+            }
+
+            var response = await Http.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                tendencias = null;
+                mensajeTendencias = await response.Content.ReadAsStringAsync();
+                errorTendencias = true;
+                return;
+            }
+
+            tendencias = await response.Content
+                .ReadFromJsonAsync<TendenciasPronosticosAdminDto>();
+            marcadorTendenciaSeleccionado =
+                tendencias?.Distribucion.FirstOrDefault()?.Marcador ?? "";
+        }
+        catch (Exception ex)
+        {
+            tendencias = null;
+            mensajeTendencias = $"No se pudo generar el análisis: {ex.Message}";
+            errorTendencias = true;
+        }
+        finally
+        {
+            cargandoTendencias = false;
+        }
+    }
+
+    private void SeleccionarMarcadorTendencia(string marcador)
+    {
+        if (marcador != "Otros")
+        {
+            marcadorTendenciaSeleccionado = marcador;
+        }
+    }
+
+    private List<TendenciaSegmentoVisualDto> SegmentosGraficaPastel()
+    {
+        if (tendencias == null || !tendencias.Distribucion.Any())
+        {
+            return new();
+        }
+
+        const int maximoVisibles = 7;
+        var segmentos = tendencias.Distribucion
+            .Take(maximoVisibles)
+            .Select((d, indice) => new TendenciaSegmentoVisualDto
+            {
+                Marcador = d.Marcador,
+                Cantidad = d.Cantidad,
+                Porcentaje = d.Porcentaje,
+                Color = coloresTendencias[indice % coloresTendencias.Length]
+            })
+            .ToList();
+
+        var restantes = tendencias.Distribucion.Skip(maximoVisibles).ToList();
+        if (restantes.Any())
+        {
+            segmentos.Add(new TendenciaSegmentoVisualDto
+            {
+                Marcador = "Otros",
+                Cantidad = restantes.Sum(d => d.Cantidad),
+                Porcentaje = Math.Round(restantes.Sum(d => d.Porcentaje), 1),
+                Color = coloresTendencias[^1]
+            });
+        }
+
+        return segmentos;
+    }
+
+    private string EstiloGraficaPastel()
+    {
+        var segmentos = SegmentosGraficaPastel();
+        if (!segmentos.Any())
+        {
+            return "background:#e7efeb";
+        }
+
+        var total = segmentos.Sum(s => s.Cantidad);
+        var inicio = 0d;
+        var partes = new List<string>();
+
+        foreach (var segmento in segmentos)
+        {
+            var fin = inicio + segmento.Cantidad * 100d / Math.Max(1, total);
+            partes.Add(
+                $"{segmento.Color} {FormatoCss(inicio)}% {FormatoCss(fin)}%");
+            inicio = fin;
+        }
+
+        return $"background:conic-gradient({string.Join(", ", partes)})";
+    }
+
+    private static string FormatoCss(double valor) =>
+        valor.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string FormatoPorcentaje(double valor) =>
+        $"{valor:0.#}%";
+
+    private static string FormatoPromedio(double valor) =>
+        valor.ToString("0.##");
 
     private async Task GuardarFechaPartido(PartidoCalendarioAdminDto partido)
     {
@@ -3468,6 +4267,49 @@ else
         public string Local { get; set; } = "";
         public string Visitante { get; set; } = "";
         public string Estado { get; set; } = "Pendiente";
+    }
+
+    private class TendenciasPronosticosAdminDto
+    {
+        public PartidoTendenciaAdminDto Partido { get; set; } = new();
+        public string Alcance { get; set; } = "";
+        public int? PollaId { get; set; }
+        public string? PollaNombre { get; set; }
+        public int UsuariosConPronostico { get; set; }
+        public int UsuariosObjetivo { get; set; }
+        public double CoberturaPorcentaje { get; set; }
+        public int PollasIncluidas { get; set; }
+        public double PromedioGolesLocal { get; set; }
+        public double PromedioGolesVisitante { get; set; }
+        public double PromedioTotalGoles { get; set; }
+        public string MarcadorMasElegido { get; set; } = "";
+        public List<TendenciaMarcadorAdminDto> Distribucion { get; set; } = new();
+    }
+
+    private class PartidoTendenciaAdminDto
+    {
+        public int Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Fase { get; set; } = "";
+        public string Local { get; set; } = "";
+        public string Visitante { get; set; } = "";
+    }
+
+    private class TendenciaMarcadorAdminDto
+    {
+        public string Marcador { get; set; } = "";
+        public int GolesLocal { get; set; }
+        public int GolesVisitante { get; set; }
+        public int Cantidad { get; set; }
+        public double Porcentaje { get; set; }
+    }
+
+    private class TendenciaSegmentoVisualDto
+    {
+        public string Marcador { get; set; } = "";
+        public int Cantidad { get; set; }
+        public double Porcentaje { get; set; }
+        public string Color { get; set; } = "";
     }
 
     private class FaseAdminDto

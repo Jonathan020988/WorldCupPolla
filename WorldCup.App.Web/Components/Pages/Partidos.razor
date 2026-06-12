@@ -1,5 +1,6 @@
 ﻿@page "/partidos"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @using WorldCup.App.Shared.Models
 @using System.Globalization
 @inject WorldCup.App.Shared.Services.PartidosService PartidosService
@@ -72,6 +73,139 @@
     .score {
         font-size: 1.25rem;
         font-weight: bold;
+        white-space: nowrap;
+    }
+
+    .live-arena {
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.32);
+        border-radius: 14px;
+        background: #082f23;
+        color: #fff;
+        box-shadow: 0 14px 30px rgba(0,0,0,.2);
+    }
+
+    .live-arena-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .75rem 1rem;
+        background: #071f19;
+        border-bottom: 1px solid rgba(255,255,255,.14);
+    }
+
+    .live-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        color: #ffda6a;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .live-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ff3b4f;
+        box-shadow: 0 0 0 5px rgba(255,59,79,.16);
+        animation: livePulse 1.35s ease-in-out infinite;
+    }
+
+    .live-arena-list {
+        display: grid;
+        gap: 1px;
+        background: rgba(255,255,255,.12);
+    }
+
+    .live-scoreboard {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+        align-items: center;
+        gap: 1rem;
+        min-height: 92px;
+        padding: 1rem 1.2rem;
+        background: #0b4937;
+    }
+
+    .live-team {
+        min-width: 0;
+        font-size: 1.05rem;
+        font-weight: 850;
+    }
+
+    .live-team.local {
+        text-align: right;
+    }
+
+    .live-team.visitante {
+        text-align: left;
+    }
+
+    .live-score {
+        display: inline-flex;
+        align-items: center;
+        gap: .65rem;
+        padding: .45rem .85rem;
+        border: 1px solid rgba(255,255,255,.24);
+        border-radius: 8px;
+        background: #fff;
+        color: #10241d;
+        font-size: 1.65rem;
+        font-weight: 950;
+        font-variant-numeric: tabular-nums;
+        box-shadow: 0 7px 18px rgba(0,0,0,.2);
+    }
+
+    .goal-callout {
+        position: absolute;
+        inset: auto 50% 5px auto;
+        z-index: 2;
+        transform: translateX(50%);
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .25rem .75rem;
+        border-radius: 999px;
+        background: #ffcc28;
+        color: #1d241f;
+        font-size: .82rem;
+        font-weight: 950;
+        box-shadow: 0 6px 18px rgba(0,0,0,.24);
+        animation: goalEntrance .55s cubic-bezier(.22,.85,.33,1.35);
+    }
+
+    .match-card.goal-highlight {
+        border-left-color: #ffcc28;
+        animation: goalCard 1.1s ease-out;
+    }
+
+    .live-card-label {
+        display: block;
+        margin-top: .2rem;
+        color: #b42318;
+        font-size: .68rem;
+        font-weight: 950;
+        letter-spacing: .05em;
+    }
+
+    @@keyframes livePulse {
+        0%, 100% { transform: scale(.85); opacity: .65; }
+        50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @@keyframes goalEntrance {
+        0% { opacity: 0; transform: translateX(50%) scale(.55) translateY(14px); }
+        100% { opacity: 1; transform: translateX(50%) scale(1) translateY(0); }
+    }
+
+    @@keyframes goalCard {
+        0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+        35% { box-shadow: 0 0 0 5px rgba(255,204,40,.3), 0 12px 25px rgba(0,0,0,.2); }
     }
 
     .admin-result {
@@ -195,6 +329,37 @@
     }
 
     @@media (max-width: 576px) {
+        .page-bg {
+            padding: 1rem .55rem;
+        }
+
+        .live-arena-head {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: .25rem;
+        }
+
+        .live-scoreboard {
+            gap: .5rem;
+            min-height: 104px;
+            padding: .85rem .65rem 1.5rem;
+        }
+
+        .live-team {
+            overflow-wrap: anywhere;
+            font-size: .88rem;
+        }
+
+        .live-score {
+            gap: .4rem;
+            padding: .38rem .58rem;
+            font-size: 1.35rem;
+        }
+
+        .score {
+            font-size: 1rem;
+        }
+
         .admin-result {
             grid-template-columns: 1fr 1fr;
         }
@@ -312,6 +477,41 @@
             </div>
         }
 
+        @if (PartidosEnJuego().Any())
+        {
+            <section class="live-arena" aria-live="polite">
+                <div class="live-arena-head">
+                    <span class="live-kicker">
+                        <span class="live-dot"></span>
+                        Partidos en vivo
+                    </span>
+                    <small>El puntaje se calcula únicamente al finalizar el partido.</small>
+                </div>
+
+                <div class="live-arena-list">
+                    @foreach (var partidoEnJuego in PartidosEnJuego())
+                    {
+                        <div class="live-scoreboard">
+                            <span class="live-team local">@partidoEnJuego.Local</span>
+                            <span class="live-score">
+                                <span>@(partidoEnJuego.GolesLocal ?? 0)</span>
+                                <span>-</span>
+                                <span>@(partidoEnJuego.GolesVisitante ?? 0)</span>
+                            </span>
+                            <span class="live-team visitante">@partidoEnJuego.Visitante</span>
+
+                            @if (golEnVivo?.PartidoId == partidoEnJuego.Id)
+                            {
+                                <span class="goal-callout">
+                                    ⚽ ¡GOL! @golEnVivo.Equipo
+                                </span>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
         <!-- PARTIDOS -->
         @if (!partidosFiltrados.Any())
         {
@@ -355,16 +555,20 @@
                 {
                     @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
                     {
-                        <div class="match-card">
+                        <div class="match-card @(golEnVivo?.PartidoId == p.Id ? "goal-highlight" : "")">
                             <span class="badge bg-success mb-2">@p.Fase</span>
 
                             <div class="row align-items-center text-center">
                                 <div class="col-5 fw-bold text-end">@p.Local</div>
 
                                 <div class="col-2 score">
-                                    @if (p.Finalizado)
+                                    @if (p.Finalizado || (p.Estado == "EnJuego" && TieneMarcadorCompleto(p)))
                                     {
                                         @($"{p.GolesLocal} - {p.GolesVisitante}")
+                                        @if (p.Estado == "EnJuego")
+                                        {
+                                            <span class="live-card-label">EN VIVO</span>
+                                        }
                                         @if (p.Fase != "Grupos" && p.TiempoExtra)
                                         {
                                             <div class="small text-muted">
@@ -419,6 +623,7 @@
                                 <div class="admin-result mt-3">
                                     <select class="form-select form-select-sm"
                                             disabled="@(!resultadoEditable)"
+                                            @onfocus="() => EditarResultadoAdmin(p)"
                                             @bind="p.Estado">
                                         <option value="Pendiente">Pendiente</option>
                                         <option value="EnJuego">En juego</option>
@@ -431,6 +636,7 @@
                                            min="0"
                                            placeholder="Local"
                                            disabled="@(!resultadoEditable)"
+                                           @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.GolesLocal" />
 
                                     <input type="number"
@@ -438,6 +644,7 @@
                                            min="0"
                                            placeholder="Visitante"
                                            disabled="@(!resultadoEditable)"
+                                           @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.GolesVisitante" />
 
                                     <label class="extra-time-check">
@@ -526,6 +733,11 @@
     private HashSet<int> resultadosEnEdicion = new();
     private HashSet<int> resultadosPersistidos = new();
     private HashSet<string> fasesMinimizadas = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<int, (int? Local, int? Visitante)> marcadoresServidor = new();
+    private CancellationTokenSource? actualizacionEnVivoCts;
+    private Task? actualizacionEnVivoTask;
+    private GolEnVivo? golEnVivo;
+    private long secuenciaGol;
 
     private string? faseSeleccionada;
     private string? paisFiltro;
@@ -560,6 +772,14 @@
         }
 
         await Sesion.RestaurarSesionAsync();
+
+        if (actualizacionEnVivoTask == null)
+        {
+            actualizacionEnVivoCts = new CancellationTokenSource();
+            actualizacionEnVivoTask = ActualizarPartidosEnVivoAsync(
+                actualizacionEnVivoCts.Token);
+        }
+
         StateHasChanged();
     }
 
@@ -807,18 +1027,145 @@
 
     private bool ResultadoEditable(PartidoDto partido)
     {
-        return !TieneResultadoReal(partido) ||
+        return partido.Estado == "EnJuego" ||
+               !TieneResultadoReal(partido) ||
                resultadosEnEdicion.Contains(partido.Id);
     }
 
-    private async Task CargarPartidosAsync()
+    private async Task CargarPartidosAsync(bool detectarGoles = false)
     {
-        partidos = await PartidosService.GetPartidosAsync();
+        var nuevosPartidos = await PartidosService.GetPartidosAsync();
+
+        if (detectarGoles)
+        {
+            DetectarGol(nuevosPartidos);
+        }
+
+        foreach (var partidoNuevo in nuevosPartidos)
+        {
+            if (!resultadosEnEdicion.Contains(partidoNuevo.Id))
+            {
+                continue;
+            }
+
+            var partidoLocal = partidos.FirstOrDefault(p => p.Id == partidoNuevo.Id);
+            if (partidoLocal == null)
+            {
+                continue;
+            }
+
+            partidoNuevo.Estado = partidoLocal.Estado;
+            partidoNuevo.GolesLocal = partidoLocal.GolesLocal;
+            partidoNuevo.GolesVisitante = partidoLocal.GolesVisitante;
+            partidoNuevo.TiempoExtra = partidoLocal.TiempoExtra;
+            partidoNuevo.ClasificadoId = partidoLocal.ClasificadoId;
+            partidoNuevo.PenalesLocal = partidoLocal.PenalesLocal;
+            partidoNuevo.PenalesVisitante = partidoLocal.PenalesVisitante;
+        }
+
+        marcadoresServidor = nuevosPartidos.ToDictionary(
+            p => p.Id,
+            p => (p.GolesLocal, p.GolesVisitante));
+        partidos = nuevosPartidos;
         resultadosPersistidos = partidos
             .Where(TieneResultadoRealPersistido)
             .Select(p => p.Id)
             .ToHashSet();
         AplicarFiltros();
+    }
+
+    private IEnumerable<PartidoDto> PartidosEnJuego()
+    {
+        return partidos
+            .Where(p => p.Estado == "EnJuego")
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.Id);
+    }
+
+    private void DetectarGol(IEnumerable<PartidoDto> nuevosPartidos)
+    {
+        foreach (var partido in nuevosPartidos.Where(p => p.Estado == "EnJuego"))
+        {
+            if (!marcadoresServidor.TryGetValue(
+                    partido.Id,
+                    out var marcadorAnterior))
+            {
+                continue;
+            }
+
+            var aumentoLocal =
+                partido.GolesLocal.HasValue &&
+                partido.GolesLocal.Value > (marcadorAnterior.Local ?? 0);
+            var aumentoVisitante =
+                partido.GolesVisitante.HasValue &&
+                partido.GolesVisitante.Value > (marcadorAnterior.Visitante ?? 0);
+
+            if (!aumentoLocal && !aumentoVisitante)
+            {
+                continue;
+            }
+
+            var equipo = aumentoLocal && aumentoVisitante
+                ? $"{partido.Local} / {partido.Visitante}"
+                : aumentoLocal
+                    ? partido.Local
+                    : partido.Visitante;
+
+            MostrarGol(partido.Id, equipo);
+        }
+    }
+
+    private void MostrarGol(int partidoId, string equipo)
+    {
+        var secuencia = Interlocked.Increment(ref secuenciaGol);
+        golEnVivo = new GolEnVivo
+        {
+            PartidoId = partidoId,
+            Equipo = equipo,
+            Secuencia = secuencia
+        };
+
+        _ = OcultarGolAsync(secuencia);
+    }
+
+    private async Task OcultarGolAsync(long secuencia)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(6));
+
+        await InvokeAsync(() =>
+        {
+            if (golEnVivo?.Secuencia != secuencia)
+            {
+                return;
+            }
+
+            golEnVivo = null;
+            StateHasChanged();
+        });
+    }
+
+    private async Task ActualizarPartidosEnVivoAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(7));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await CargarPartidosAsync(detectarGoles: true);
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            // La siguiente navegación o recarga normal recupera el sondeo.
+        }
     }
 
     private static bool TieneResultadoRealPersistido(PartidoDto partido)
@@ -881,8 +1228,8 @@
             return;
         }
 
-        await CargarPartidosAsync();
         resultadosEnEdicion.Remove(partido.Id);
+        await CargarPartidosAsync(detectarGoles: true);
     }
 
     private async Task EliminarMarcadorAdmin(PartidoDto partido)
@@ -1057,6 +1404,31 @@
         public int? ClasificadoId { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
+    }
+
+    private sealed class GolEnVivo
+    {
+        public int PartidoId { get; set; }
+        public string Equipo { get; set; } = "";
+        public long Secuencia { get; set; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        actualizacionEnVivoCts?.Cancel();
+
+        if (actualizacionEnVivoTask != null)
+        {
+            try
+            {
+                await actualizacionEnVivoTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        actualizacionEnVivoCts?.Dispose();
     }
 
 }

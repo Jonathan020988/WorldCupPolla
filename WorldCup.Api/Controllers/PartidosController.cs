@@ -219,6 +219,7 @@ namespace WorldCup.Api.Controllers
                 return NotFound("Partido no encontrado");
             }
 
+            var eraFinalizado = partido.Finalizado;
             var esEliminatoria = partido.Fase != "Grupos";
             var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
             var tieneMarcadorCompleto = dto.GolesLocal.HasValue && dto.GolesVisitante.HasValue;
@@ -331,12 +332,14 @@ namespace WorldCup.Api.Controllers
 
             await RecalcularPuntosPartidoAsync(partido);
 
-            if (partido.Fase == "Grupos")
+            if (partido.Fase == "Grupos" &&
+                (partido.Finalizado || eraFinalizado))
             {
                 await CalcularPuntosClasificacionGrupo(partido.Local.Grupo!);
             }
 
-            if (partido.Fase == "Final" || partido.Fase == "TercerPuesto")
+            if ((partido.Finalizado || eraFinalizado) &&
+                (partido.Fase == "Final" || partido.Fase == "TercerPuesto"))
             {
                 await CalcularPuntosPodio();
             }
@@ -2364,7 +2367,10 @@ namespace WorldCup.Api.Controllers
                     pred.PuntosTotales =
                         pred.PuntosClasificacion +
                         pred.PuntosPodio;
-                    pred.Bloqueada = false;
+                    pred.Bloqueada =
+                        partido.Estado == "EnJuego" ||
+                        ColombiaClock.Now() >=
+                        ColombiaClock.ToColombia(partido.Fecha).AddHours(-1);
                 }
 
                 return;

@@ -588,6 +588,145 @@ else
 
     @if (EsCreador)
     {
+        <div class="card mt-3 reminders-section">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h5 class="mb-1">Recordatorios de marcadores</h5>
+                        <small class="text-muted">
+                            Elige un partido para ver quiénes aún no lo han llenado y enviarles una alerta.
+                        </small>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-secondary"
+                            disabled="@cargandoRecordatorios"
+                            @onclick="CargarPartidosRecordatorio">
+                        Actualizar
+                    </button>
+                </div>
+
+                @if (cargandoRecordatorios)
+                {
+                    <div class="alert alert-info mt-3 mb-0">
+                        Revisando marcadores pendientes...
+                    </div>
+                }
+                else if (!partidosRecordatorio.Any())
+                {
+                    <div class="alert alert-light border mt-3 mb-0">
+                        No hay partidos abiertos para enviar recordatorios.
+                    </div>
+                }
+                else
+                {
+                    <div class="reminder-match-picker mt-3">
+                        <label>
+                            <span>Buscar partido</span>
+                            <input class="form-control"
+                                   placeholder="Equipo o fase..."
+                                   @bind="recordatorioPartidoFiltro"
+                                   @bind:event="oninput" />
+                        </label>
+
+                        <label>
+                            <span>Partido</span>
+                            <select class="form-select"
+                                    value="@partidoRecordatorioId"
+                                    @onchange="SeleccionarPartidoRecordatorio">
+                                <option value="">Selecciona un partido</option>
+                                @foreach (var partido in PartidosRecordatorioFiltrados())
+                                {
+                                    <option value="@partido.PartidoId">
+                                        @partido.Local vs @partido.Visitante · @partido.TotalPendientes pendiente(s)
+                                    </option>
+                                }
+                            </select>
+                        </label>
+                    </div>
+
+                    @if (partidoRecordatorioId.HasValue)
+                    {
+                        var partidoSeleccionado = PartidoRecordatorioSeleccionado();
+
+                        @if (partidoSeleccionado != null)
+                        {
+                            <div class="reminder-match-summary mt-3">
+                                <div>
+                                    <span>@partidoSeleccionado.Fase</span>
+                                    <strong>@partidoSeleccionado.Local vs @partidoSeleccionado.Visitante</strong>
+                                    <small>
+                                        @partidoSeleccionado.Fecha.ToString("dd/MM/yyyy · HH:mm")
+                                    </small>
+                                </div>
+
+                                <button class="btn btn-warning"
+                                        disabled="@(enviandoRecordatorioMasivo || !usuariosRecordatorio.Any())"
+                                        @onclick="EnviarRecordatorioATodos">
+                                    @(enviandoRecordatorioMasivo
+                                        ? "Enviando..."
+                                        : $"Avisar a los {usuariosRecordatorio.Count} pendientes")
+                                </button>
+                            </div>
+                        }
+
+                        @if (cargandoUsuariosRecordatorio)
+                        {
+                            <div class="alert alert-info mt-3 mb-0">
+                                Cargando participantes pendientes...
+                            </div>
+                        }
+                        else if (!usuariosRecordatorio.Any())
+                        {
+                            <div class="alert alert-success mt-3 mb-0">
+                                Todos los participantes ya completaron este marcador.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="reminder-user-list mt-3">
+                                @foreach (var usuario in usuariosRecordatorio)
+                                {
+                                    <div class="reminder-user-row">
+                                        <div>
+                                            <strong>@usuario.Usuario</strong>
+                                            <small>Participante con marcador pendiente</small>
+                                        </div>
+
+                                        <div class="reminder-user-actions">
+                                            @if (usuario.AlertaPendiente)
+                                            {
+                                                <span class="reminder-sent">Alerta pendiente</span>
+                                            }
+
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    disabled="@recordatoriosEnProceso.Contains(usuario.UsuarioId)"
+                                                    @onclick="() => EnviarRecordatorioUsuario(usuario)">
+                                                @(recordatoriosEnProceso.Contains(usuario.UsuarioId)
+                                                    ? "Enviando..."
+                                                    : usuario.AlertaPendiente
+                                                        ? "Reenviar"
+                                                        : "Enviar alerta")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                }
+
+                @if (!string.IsNullOrWhiteSpace(mensajeRecordatorio))
+                {
+                    <div class="alert @(errorRecordatorio ? "alert-danger" : "alert-success") mt-3 mb-0">
+                        @mensajeRecordatorio
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (EsCreador)
+    {
         <div class="card mt-3 payment-control-card payment-section">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -1411,40 +1550,45 @@ else
         order: 1;
     }
 
-    .capacity-section {
+    .reminders-section {
         order: 2;
+        border-left: 4px solid #d7a21a;
     }
 
-    .invite-section {
+    .capacity-section {
         order: 3;
     }
 
-    .pin-section {
+    .invite-section {
         order: 4;
     }
 
-    .rules-section {
+    .pin-section {
         order: 5;
     }
 
+    .rules-section {
+        order: 6;
+    }
+
     .prizes-section {
-        order: 6;
-    }
-
-    .manual-formats-section {
-        order: 6;
-    }
-
-    .payment-section {
         order: 7;
     }
 
-    .payment-list-section {
+    .manual-formats-section {
+        order: 7;
+    }
+
+    .payment-section {
         order: 8;
     }
 
-    .ranking-section {
+    .payment-list-section {
         order: 9;
+    }
+
+    .ranking-section {
+        order: 10;
     }
 
     .inscripciones-cerradas .payment-section {
@@ -1499,6 +1643,115 @@ else
 
     .polla-sections > .alert {
         order: 100;
+    }
+
+    .reminder-match-picker {
+        display: grid;
+        grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr);
+        gap: .75rem;
+    }
+
+    .reminder-match-picker label {
+        display: grid;
+        gap: .35rem;
+    }
+
+    .reminder-match-picker label > span {
+        color: #667085;
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .reminder-match-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border: 1px solid #e7d49a;
+        border-radius: 8px;
+        background: #fffaf0;
+        padding: .85rem;
+    }
+
+    .reminder-match-summary span,
+    .reminder-match-summary small {
+        display: block;
+        color: #667085;
+        font-size: .78rem;
+        font-weight: 750;
+    }
+
+    .reminder-match-summary strong {
+        display: block;
+        margin: .1rem 0;
+        color: #173b2f;
+    }
+
+    .reminder-user-list {
+        display: grid;
+        max-height: 360px;
+        overflow-y: auto;
+        border: 1px solid #dce8e1;
+        border-radius: 8px;
+    }
+
+    .reminder-user-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .8rem;
+        padding: .72rem .8rem;
+        background: #fff;
+        border-bottom: 1px solid #edf1ef;
+    }
+
+    .reminder-user-row:last-child {
+        border-bottom: 0;
+    }
+
+    .reminder-user-row strong,
+    .reminder-user-row small {
+        display: block;
+    }
+
+    .reminder-user-row small {
+        color: #667085;
+    }
+
+    .reminder-user-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+
+    .reminder-sent {
+        color: #0f6848;
+        font-size: .76rem;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 768px) {
+        .reminder-match-picker {
+            grid-template-columns: 1fr;
+        }
+
+        .reminder-match-summary,
+        .reminder-user-row {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .reminder-match-summary .btn,
+        .reminder-user-actions .btn {
+            width: 100%;
+        }
+
+        .reminder-user-actions {
+            align-items: stretch;
+            flex-direction: column;
+        }
     }
 
     .prize-kpis {
@@ -2756,6 +3009,16 @@ else
     private string? mensajeFormatoManual;
     private bool errorFormatoManual;
     private string usuarioFormatoFiltro = "";
+    private List<PollaRecordatorioPartidoDto> partidosRecordatorio = new();
+    private List<PollaRecordatorioUsuarioDto> usuariosRecordatorio = new();
+    private HashSet<int> recordatoriosEnProceso = new();
+    private int? partidoRecordatorioId;
+    private string recordatorioPartidoFiltro = "";
+    private bool cargandoRecordatorios;
+    private bool cargandoUsuariosRecordatorio;
+    private bool enviandoRecordatorioMasivo;
+    private string? mensajeRecordatorio;
+    private bool errorRecordatorio;
 
     private bool FormatoManualProcesando =>
         descargandoFormatoManual || descargandoFormatoUsuario;
@@ -3136,6 +3399,7 @@ else
                 cuposUsuario = await PollasService.GetCuposUsuarioAsync(usuarioId);
                 cantidadAmpliacion = Math.Max(20, (polla.MaximoMiembros ?? 5) + 1);
                 await CargarControlPagos();
+                await CargarPartidosRecordatorio();
             }
         }
         catch (Exception ex)
@@ -3910,6 +4174,177 @@ else
     private void CancelarEliminar()
     {
         mostrarConfirmacion = false;
+    }
+
+    private IEnumerable<PollaRecordatorioPartidoDto> PartidosRecordatorioFiltrados()
+    {
+        var texto = NormalizarBusqueda(recordatorioPartidoFiltro);
+        var query = partidosRecordatorio.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(texto))
+        {
+            query = query.Where(p =>
+                NormalizarBusqueda($"{p.Local} {p.Visitante} {p.Fase}")
+                    .Contains(texto, StringComparison.Ordinal));
+        }
+
+        return query
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.PartidoId);
+    }
+
+    private PollaRecordatorioPartidoDto? PartidoRecordatorioSeleccionado()
+    {
+        return partidoRecordatorioId.HasValue
+            ? partidosRecordatorio.FirstOrDefault(
+                p => p.PartidoId == partidoRecordatorioId.Value)
+            : null;
+    }
+
+    private async Task CargarPartidosRecordatorio()
+    {
+        if (!EsCreador || !Sesion.UsuarioId.HasValue)
+        {
+            partidosRecordatorio.Clear();
+            usuariosRecordatorio.Clear();
+            partidoRecordatorioId = null;
+            return;
+        }
+
+        try
+        {
+            cargandoRecordatorios = true;
+            partidosRecordatorio =
+                await PollasService.GetPartidosParaRecordatorioAsync(
+                    PollaId,
+                    Sesion.UsuarioId.Value);
+
+            if (partidoRecordatorioId.HasValue &&
+                partidosRecordatorio.All(
+                    p => p.PartidoId != partidoRecordatorioId.Value))
+            {
+                partidoRecordatorioId = null;
+                usuariosRecordatorio.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensajeRecordatorio = ex.Message;
+            errorRecordatorio = true;
+        }
+        finally
+        {
+            cargandoRecordatorios = false;
+        }
+    }
+
+    private async Task SeleccionarPartidoRecordatorio(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var partidoId))
+        {
+            partidoRecordatorioId = partidoId;
+            await CargarUsuariosRecordatorio();
+            return;
+        }
+
+        partidoRecordatorioId = null;
+        usuariosRecordatorio.Clear();
+    }
+
+    private async Task CargarUsuariosRecordatorio()
+    {
+        if (!partidoRecordatorioId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            usuariosRecordatorio.Clear();
+            return;
+        }
+
+        try
+        {
+            cargandoUsuariosRecordatorio = true;
+            usuariosRecordatorio =
+                await PollasService.GetUsuariosPendientesPartidoAsync(
+                    PollaId,
+                    partidoRecordatorioId.Value,
+                    Sesion.UsuarioId.Value);
+        }
+        catch (Exception ex)
+        {
+            usuariosRecordatorio.Clear();
+            mensajeRecordatorio = ex.Message;
+            errorRecordatorio = true;
+        }
+        finally
+        {
+            cargandoUsuariosRecordatorio = false;
+        }
+    }
+
+    private async Task EnviarRecordatorioUsuario(
+        PollaRecordatorioUsuarioDto usuario)
+    {
+        if (!partidoRecordatorioId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            recordatoriosEnProceso.Add(usuario.UsuarioId);
+            var resultado = await PollasService.EnviarRecordatorioPartidoAsync(
+                PollaId,
+                partidoRecordatorioId.Value,
+                usuario.UsuarioId,
+                Sesion.UsuarioId.Value);
+
+            usuario.AlertaPendiente = true;
+            mensajeRecordatorio = resultado.Mensaje;
+            errorRecordatorio = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeRecordatorio = ex.Message;
+            errorRecordatorio = true;
+        }
+        finally
+        {
+            recordatoriosEnProceso.Remove(usuario.UsuarioId);
+        }
+    }
+
+    private async Task EnviarRecordatorioATodos()
+    {
+        if (!partidoRecordatorioId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            enviandoRecordatorioMasivo = true;
+            var resultado =
+                await PollasService.EnviarRecordatorioPartidoATodosAsync(
+                    PollaId,
+                    partidoRecordatorioId.Value,
+                    Sesion.UsuarioId.Value);
+
+            foreach (var usuario in usuariosRecordatorio)
+            {
+                usuario.AlertaPendiente = true;
+            }
+
+            mensajeRecordatorio = resultado.Mensaje;
+            errorRecordatorio = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeRecordatorio = ex.Message;
+            errorRecordatorio = true;
+        }
+        finally
+        {
+            enviandoRecordatorioMasivo = false;
+        }
     }
 
     private async Task CargarParticipantes()

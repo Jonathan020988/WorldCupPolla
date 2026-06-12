@@ -661,13 +661,30 @@ namespace WorldCup.Api.Controllers
             int? solicitanteId = null,
             bool puedeVerTodo = true)
         {
+            var miembros = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    Usuario = pm.Usuario.Nombre
+                })
+                .Distinct()
+                .ToListAsync();
+            var miembrosIds = miembros
+                .Select(m => m.UsuarioId)
+                .ToList();
+
             var predicciones = await _context.Predicciones
                 .Include(p => p.Usuario)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Local)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Visitante)
-                .Where(p => p.PollaId == pollaId && p.Usuario.Activo)
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.Usuario.Activo &&
+                    miembrosIds.Contains(p.UsuarioId))
                 .ToListAsync();
 
             var prediccionesGrupo = await _context.PrediccionesGrupo
@@ -702,7 +719,7 @@ namespace WorldCup.Api.Controllers
                 .Include(p => p.Visitante)
                 .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
 
-            return predicciones
+            var detalle = predicciones
                 .Select(p => CrearDetalleRanking(
                     p,
                     gruposPorUsuario,
@@ -713,6 +730,47 @@ namespace WorldCup.Api.Controllers
                     solicitanteId,
                     puedeVerTodo))
                 .ToList();
+
+            var partidosFinalizados = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Finalizado)
+                .ToListAsync();
+            var prediccionesExistentes = predicciones
+                .Select(p => (p.UsuarioId, p.PartidoId))
+                .ToHashSet();
+
+            foreach (var miembro in miembros)
+            {
+                foreach (var partido in partidosFinalizados)
+                {
+                    if (prediccionesExistentes.Contains(
+                        (miembro.UsuarioId, partido.Id)))
+                    {
+                        continue;
+                    }
+
+                    detalle.Add(new DetalleRankingDto
+                    {
+                        UsuarioId = miembro.UsuarioId,
+                        Usuario = miembro.Usuario,
+                        Fase = partido.Fase,
+                        Grupo = partido.Local.Grupo?.ToUpperInvariant() ?? "",
+                        Fecha = partido.Fecha,
+                        Local = partido.Local.Nombre,
+                        Visitante = partido.Visitante.Nombre,
+                        PronosticoLocal = null,
+                        PronosticoVisitante = null,
+                        PronosticoVisible = true,
+                        ResultadoLocal = partido.GolesLocal,
+                        ResultadoVisitante = partido.GolesVisitante,
+                        Total = 0
+                    });
+                }
+            }
+
+            return detalle;
         }
 
         private static DetalleRankingDto CrearDetalleRanking(
@@ -1231,6 +1289,252 @@ namespace WorldCup.Api.Controllers
 
       
 
+
+        // ================= RECORDATORIOS DE MARCADORES =================
+        [HttpGet("{pollaId:int}/recordatorios/partidos")]
+        public async Task<IActionResult> GetPartidosParaRecordatorio(
+            int pollaId,
+            [FromQuery] int solicitanteId)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var miembrosIds = await _context.PollaMiembros
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.Usuario.Activo &&
+                    pm.UsuarioId != solicitanteId)
+                .Select(pm => pm.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var ahora = ColombiaClock.Now();
+            var partidos = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => !p.Finalizado && p.Estado != "Postergado")
+                .OrderBy(p => p.Fecha)
+                .ThenBy(p => p.Id)
+                .ToListAsync();
+
+            partidos = partidos
+                .Where(p =>
+                    ahora < ColombiaClock.ToColombia(p.Fecha).AddHours(-1))
+                .ToList();
+
+            var partidosIds = partidos.Select(p => p.Id).ToList();
+            var prediccionesCompletas = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    miembrosIds.Contains(p.UsuarioId) &&
+                    partidosIds.Contains(p.PartidoId) &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue)
+                .Select(p => new { p.PartidoId, p.UsuarioId })
+                .Distinct()
+                .ToListAsync();
+
+            var completosPorPartido = prediccionesCompletas
+                .GroupBy(p => p.PartidoId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            return Ok(partidos.Select(p => new PollaRecordatorioPartidoDto
+                {
+                    PartidoId = p.Id,
+                    Fase = p.Fase,
+                    Local = p.Local.Nombre,
+                    Visitante = p.Visitante.Nombre,
+                    Fecha = ColombiaClock.ToColombia(p.Fecha),
+                    TotalPendientes = Math.Max(
+                        0,
+                        miembrosIds.Count -
+                        completosPorPartido.GetValueOrDefault(p.Id))
+                })
+                .ToList());
+        }
+
+        [HttpGet("{pollaId:int}/recordatorios/partidos/{partidoId:int}/usuarios")]
+        public async Task<IActionResult> GetUsuariosPendientesPartido(
+            int pollaId,
+            int partidoId,
+            [FromQuery] int solicitanteId)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null)
+                return NotFound("Partido no encontrado");
+
+            if (partido.Finalizado ||
+                partido.Estado == "Postergado" ||
+                ColombiaClock.Now() >=
+                ColombiaClock.ToColombia(partido.Fecha).AddHours(-1))
+            {
+                return BadRequest("Este partido ya no está abierto para enviar recordatorios.");
+            }
+
+            var usuarios = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.Usuario.Activo &&
+                    pm.UsuarioId != solicitanteId)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .Distinct()
+                .OrderBy(u => u.Nombre)
+                .ToListAsync();
+
+            var completos = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.PartidoId == partidoId &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue)
+                .Select(p => p.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var alertados = await _context.AlertasUsuario
+                .AsNoTracking()
+                .Where(a =>
+                    a.PollaId == pollaId &&
+                    a.TipoDestino == $"MarcadoresPartido:{partidoId}" &&
+                    a.Estado == "Pendiente")
+                .Select(a => a.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            return Ok(usuarios
+                .Where(u => !completos.Contains(u.UsuarioId))
+                .Select(u => new PollaRecordatorioUsuarioDto
+                {
+                    UsuarioId = u.UsuarioId,
+                    Usuario = u.Nombre,
+                    AlertaPendiente = alertados.Contains(u.UsuarioId)
+                })
+                .ToList());
+        }
+
+        [HttpPost("{pollaId:int}/recordatorios/partidos/{partidoId:int}/usuarios/{usuarioId:int}")]
+        public async Task<IActionResult> EnviarRecordatorioPartido(
+            int pollaId,
+            int partidoId,
+            int usuarioId,
+            [FromBody] EnviarRecordatorioPollaDto dto)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, dto.SolicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var validacion = await ValidarDestinatarioRecordatorioAsync(
+                pollaId,
+                partidoId,
+                usuarioId,
+                dto.SolicitanteId);
+            if (validacion.Error != null)
+                return validacion.Error;
+
+            await CrearOActualizarRecordatorioAsync(
+                validacion.Polla!,
+                validacion.Partido!,
+                usuarioId,
+                dto.SolicitanteId);
+            await _context.SaveChangesAsync();
+
+            return Ok(new ResultadoRecordatorioPollaDto
+            {
+                Mensaje = $"Recordatorio enviado a {validacion.UsuarioNombre}.",
+                TotalEnviados = 1
+            });
+        }
+
+        [HttpPost("{pollaId:int}/recordatorios/partidos/{partidoId:int}/enviar-todos")]
+        public async Task<IActionResult> EnviarRecordatorioPartidoATodos(
+            int pollaId,
+            int partidoId,
+            [FromBody] EnviarRecordatorioPollaDto dto)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, dto.SolicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (polla == null || partido == null)
+                return NotFound("No encontramos la polla o el partido.");
+
+            if (partido.Finalizado ||
+                partido.Estado == "Postergado" ||
+                ColombiaClock.Now() >=
+                ColombiaClock.ToColombia(partido.Fecha).AddHours(-1))
+            {
+                return BadRequest("Este partido ya no está abierto para enviar recordatorios.");
+            }
+
+            var usuariosIds = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.Usuario.Activo &&
+                    pm.UsuarioId != dto.SolicitanteId)
+                .Select(pm => pm.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var completos = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.PartidoId == partidoId &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue)
+                .Select(p => p.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var pendientes = usuariosIds
+                .Where(id => !completos.Contains(id))
+                .ToList();
+
+            foreach (var usuarioId in pendientes)
+            {
+                await CrearOActualizarRecordatorioAsync(
+                    polla,
+                    partido,
+                    usuarioId,
+                    dto.SolicitanteId);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new ResultadoRecordatorioPollaDto
+            {
+                Mensaje = pendientes.Count == 0
+                    ? "Todos los participantes ya tienen este marcador."
+                    : $"Se enviaron {pendientes.Count} recordatorios.",
+                TotalEnviados = pendientes.Count
+            });
+        }
 
         // ================= PARTICIPANTES =================
         [HttpGet("{pollaId}/participantes")]
@@ -2425,6 +2729,135 @@ namespace WorldCup.Api.Controllers
                 : StatusCode(
                     StatusCodes.Status403Forbidden,
                     "Solo el creador puede administrar esta polla.");
+        }
+
+        private async Task<ValidacionRecordatorio> ValidarDestinatarioRecordatorioAsync(
+            int pollaId,
+            int partidoId,
+            int usuarioId,
+            int creadorId)
+        {
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (polla == null || partido == null)
+            {
+                return new ValidacionRecordatorio
+                {
+                    Error = NotFound("No encontramos la polla o el partido.")
+                };
+            }
+
+            if (partido.Finalizado ||
+                partido.Estado == "Postergado" ||
+                ColombiaClock.Now() >=
+                ColombiaClock.ToColombia(partido.Fecha).AddHours(-1))
+            {
+                return new ValidacionRecordatorio
+                {
+                    Error = BadRequest("Este partido ya no está abierto para enviar recordatorios.")
+                };
+            }
+
+            var usuario = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo &&
+                    pm.UsuarioId != creadorId)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (usuario == null)
+            {
+                return new ValidacionRecordatorio
+                {
+                    Error = NotFound("El usuario no pertenece a esta polla.")
+                };
+            }
+
+            var completo = await _context.Predicciones
+                .AsNoTracking()
+                .AnyAsync(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId &&
+                    p.PartidoId == partidoId &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue);
+
+            if (completo)
+            {
+                return new ValidacionRecordatorio
+                {
+                    Error = BadRequest("El usuario ya completó este marcador.")
+                };
+            }
+
+            return new ValidacionRecordatorio
+            {
+                Polla = polla,
+                Partido = partido,
+                UsuarioNombre = usuario.Nombre
+            };
+        }
+
+        private async Task CrearOActualizarRecordatorioAsync(
+            Polla polla,
+            Partido partido,
+            int usuarioId,
+            int creadorId)
+        {
+            var tipoDestino = $"MarcadoresPartido:{partido.Id}";
+            var alerta = await _context.AlertasUsuario
+                .FirstOrDefaultAsync(a =>
+                    a.UsuarioId == usuarioId &&
+                    a.PollaId == polla.Id &&
+                    a.TipoDestino == tipoDestino &&
+                    a.Estado == "Pendiente");
+
+            if (alerta == null)
+            {
+                alerta = new AlertaUsuario
+                {
+                    UsuarioId = usuarioId,
+                    PollaId = polla.Id,
+                    TipoDestino = tipoDestino
+                };
+                _context.AlertasUsuario.Add(alerta);
+            }
+
+            var fecha = ColombiaClock.ToColombia(partido.Fecha);
+            alerta.AdminUsuarioId = creadorId;
+            alerta.Titulo = "Tienes un marcador pendiente";
+            alerta.Mensaje =
+                $"El administrador de {polla.Nombre} te recuerda completar " +
+                $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}. " +
+                $"El partido comienza el {fecha:dd/MM/yyyy} a las {fecha:HH:mm}.";
+            alerta.Link = "/predicciones";
+            alerta.EtiquetaAccion = "Ir a predicciones";
+            alerta.Estado = "Pendiente";
+            alerta.FechaCreacion = DateTime.UtcNow;
+            alerta.FechaVista = null;
+            alerta.FechaCierre = null;
+        }
+
+        private sealed class ValidacionRecordatorio
+        {
+            public IActionResult? Error { get; set; }
+            public Polla? Polla { get; set; }
+            public Partido? Partido { get; set; }
+            public string UsuarioNombre { get; set; } = "";
         }
 
         private static string NormalizarTipoFormatoManual(string? tipo)

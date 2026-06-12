@@ -101,6 +101,62 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
+        public async Task<List<PollaRecordatorioPartidoDto>> GetPartidosParaRecordatorioAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            return await LeerRespuestaAsync<List<PollaRecordatorioPartidoDto>>(
+                $"api/Polla/{pollaId}/recordatorios/partidos?solicitanteId={solicitanteId}"
+            ) ?? new();
+        }
+
+        public async Task<List<PollaRecordatorioUsuarioDto>> GetUsuariosPendientesPartidoAsync(
+            int pollaId,
+            int partidoId,
+            int solicitanteId)
+        {
+            return await LeerRespuestaAsync<List<PollaRecordatorioUsuarioDto>>(
+                $"api/Polla/{pollaId}/recordatorios/partidos/{partidoId}/usuarios?solicitanteId={solicitanteId}"
+            ) ?? new();
+        }
+
+        public async Task<ResultadoRecordatorioPollaDto> EnviarRecordatorioPartidoAsync(
+            int pollaId,
+            int partidoId,
+            int usuarioId,
+            int solicitanteId)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/recordatorios/partidos/{partidoId}/usuarios/{usuarioId}",
+                new EnviarRecordatorioPollaDto { SolicitanteId = solicitanteId });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<ResultadoRecordatorioPollaDto>()
+                ?? new ResultadoRecordatorioPollaDto();
+        }
+
+        public async Task<ResultadoRecordatorioPollaDto> EnviarRecordatorioPartidoATodosAsync(
+            int pollaId,
+            int partidoId,
+            int solicitanteId)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/recordatorios/partidos/{partidoId}/enviar-todos",
+                new EnviarRecordatorioPollaDto { SolicitanteId = solicitanteId });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<ResultadoRecordatorioPollaDto>()
+                ?? new ResultadoRecordatorioPollaDto();
+        }
+
         public async Task<ParticipanteDto> ActualizarObservacionParticipanteAsync(
             int pollaId,
             int usuarioId,

@@ -3,6 +3,7 @@
 
 @using WorldCup.App.Shared.DTOs
 @using WorldCup.App.Shared.Services
+@using WorldCup.App.Web.Components.Shared
 @inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
@@ -96,6 +97,49 @@
                     }
                 </div>
             </div>
+        }
+
+        var miRendimiento = ObtenerMiRendimiento();
+
+        @if (miRendimiento != null)
+        {
+            <section class="my-performance" aria-label="Mi rendimiento">
+                <div class="my-performance-intro">
+                    <span>Mi rendimiento</span>
+                    <strong>@miRendimiento.Usuario</strong>
+                    <small>
+                        Vas de <b>#@miRendimiento.Posicion</b> entre @ranking.Count participantes
+                    </small>
+                </div>
+
+                <div class="my-performance-stats">
+                    <div>
+                        <span>Posición</span>
+                        <strong>#@miRendimiento.Posicion</strong>
+                    </div>
+                    <div>
+                        <span>Puntos</span>
+                        <strong>@miRendimiento.Puntos</strong>
+                    </div>
+                    <div>
+                        <span>Promedio</span>
+                        <strong>@miRendimiento.PromedioPorPartido</strong>
+                        <small>por partido</small>
+                    </div>
+                    <div>
+                        <span>Exactos</span>
+                        <strong>@miRendimiento.Exactos</strong>
+                    </div>
+                    <div>
+                        <span>Con puntos</span>
+                        <strong>@miRendimiento.ConPuntos</strong>
+                    </div>
+                    <div>
+                        <span>Efectividad</span>
+                        <strong>@miRendimiento.Efectividad%</strong>
+                    </div>
+                </div>
+            </section>
         }
 
         <div class="summary-grid">
@@ -392,6 +436,9 @@
                 </table>
             </div>
         </div>
+
+        <RankingEvolutionChart Ranking="ranking"
+                               Detalles="rankingDetalle" />
     }
 </section>
 
@@ -540,6 +587,77 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: .8rem;
         margin-bottom: .9rem;
+    }
+
+    .my-performance {
+        display: grid;
+        grid-template-columns: minmax(230px, .8fr) 2.2fr;
+        gap: 1rem;
+        margin-bottom: .9rem;
+        border: 1px solid #cfe3d9;
+        border-left: 5px solid var(--green);
+        border-radius: 8px;
+        background: linear-gradient(105deg, #eff9f4 0%, #ffffff 58%);
+        box-shadow: 0 10px 24px rgba(27, 58, 45, .08);
+        padding: 1rem;
+    }
+
+    .my-performance-intro {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-width: 0;
+    }
+
+    .my-performance-intro > span {
+        color: var(--green);
+        font-size: .74rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .my-performance-intro > strong {
+        overflow: hidden;
+        margin: .15rem 0;
+        color: var(--ink);
+        font-size: 1.25rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .my-performance-intro small {
+        color: var(--muted);
+    }
+
+    .my-performance-stats {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(80px, 1fr));
+        gap: .55rem;
+    }
+
+    .my-performance-stats > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 76px;
+        border: 1px solid #dce9e3;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, .88);
+        padding: .65rem;
+    }
+
+    .my-performance-stats span,
+    .my-performance-stats small {
+        color: var(--muted);
+        font-size: .69rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .my-performance-stats strong {
+        color: #0d523d;
+        font-size: 1.2rem;
+        line-height: 1.15;
     }
 
     .winners-banner {
@@ -924,6 +1042,18 @@
         border: 1px solid #f1d185;
     }
 
+    .missing-prediction {
+        display: inline-block;
+        border: 1px solid #efc3c3;
+        border-radius: 6px;
+        background: #fff1f1;
+        color: #a02a2a;
+        padding: .22rem .45rem;
+        font-size: .78rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
     .result-pill {
         background: #16251f;
         color: white;
@@ -1018,6 +1148,14 @@
             flex-direction: column;
         }
 
+        .my-performance {
+            grid-template-columns: 1fr;
+        }
+
+        .my-performance-stats {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
         .summary-grid,
         .podium-strip,
         .winners-grid {
@@ -1052,6 +1190,18 @@
         .summary-grid,
         .podium-strip {
             gap: .65rem;
+        }
+
+        .my-performance {
+            padding: .8rem;
+        }
+
+        .my-performance-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .my-performance-stats > div {
+            min-height: 68px;
         }
 
         .summary-item,
@@ -1533,6 +1683,47 @@
             : 0;
     }
 
+    private RendimientoPersonal? ObtenerMiRendimiento()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return null;
+        }
+
+        var posicion = ranking.FindIndex(r =>
+            r.UsuarioId == Sesion.UsuarioId.Value);
+        if (posicion < 0)
+        {
+            return null;
+        }
+
+        var usuario = ranking[posicion];
+        var partidosFinalizados = rankingDetalle
+            .Where(d =>
+                d.UsuarioId == usuario.UsuarioId &&
+                d.ResultadoLocal.HasValue &&
+                d.ResultadoVisitante.HasValue)
+            .ToList();
+        var exactos = partidosFinalizados.Count(d => d.PuntosExacto > 0);
+        var conPuntos = partidosFinalizados.Count(d => d.PuntosMarcador > 0);
+
+        return new RendimientoPersonal
+        {
+            Usuario = usuario.Usuario,
+            Posicion = posicion + 1,
+            Puntos = usuario.Puntos,
+            PromedioPorPartido = partidosFinalizados.Any()
+                ? Math.Round(usuario.Puntos / (double)partidosFinalizados.Count, 1)
+                : 0,
+            Exactos = exactos,
+            ConPuntos = conPuntos,
+            Efectividad = partidosFinalizados.Any()
+                ? (int)Math.Round(
+                    conPuntos * 100d / partidosFinalizados.Count)
+                : 0
+        };
+    }
+
     private static string FormatoPremio(decimal? premio)
     {
         return premio.HasValue && premio.Value > 0
@@ -1583,6 +1774,12 @@
             return new MarkupString("<span class=\"prediction-pill locked-prediction\">Oculto</span>");
         }
 
+        if (!detalle.PronosticoLocal.HasValue ||
+            !detalle.PronosticoVisitante.HasValue)
+        {
+            return new MarkupString("<span class=\"missing-prediction\">No pronosticó</span>");
+        }
+
         return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
     }
 
@@ -1613,5 +1810,16 @@
     private void CerrarDetallePuntos()
     {
         detallePuntosVisible = false;
+    }
+
+    private sealed class RendimientoPersonal
+    {
+        public string Usuario { get; set; } = "";
+        public int Posicion { get; set; }
+        public int Puntos { get; set; }
+        public double PromedioPorPartido { get; set; }
+        public int Exactos { get; set; }
+        public int ConPuntos { get; set; }
+        public int Efectividad { get; set; }
     }
 }

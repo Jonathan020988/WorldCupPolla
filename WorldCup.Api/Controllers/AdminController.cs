@@ -847,6 +847,134 @@ namespace WorldCup.Api.Controllers
             return Ok(pollas);
         }
 
+        [HttpGet("tendencias-pronosticos")]
+        public async Task<IActionResult> GetTendenciasPronosticos(
+            [FromQuery] int adminUsuarioId,
+            [FromQuery] int partidoId,
+            [FromQuery] int? pollaId)
+        {
+            if (!await EsAdmin(adminUsuarioId))
+                return Forbid();
+
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Id == partidoId)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Fecha,
+                    p.Fase,
+                    Local = p.Local.Nombre,
+                    Visitante = p.Visitante.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (partido == null)
+                return NotFound("El partido seleccionado no existe.");
+
+            string? pollaNombre = null;
+            if (pollaId.HasValue)
+            {
+                pollaNombre = await _context.Pollas
+                    .AsNoTracking()
+                    .Where(p => p.Id == pollaId.Value)
+                    .Select(p => p.Nombre)
+                    .FirstOrDefaultAsync();
+
+                if (pollaNombre == null)
+                    return NotFound("La polla seleccionada no existe.");
+            }
+
+            var consulta = _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PartidoId == partidoId &&
+                    p.Usuario.Activo &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue);
+
+            if (pollaId.HasValue)
+            {
+                consulta = consulta.Where(p => p.PollaId == pollaId.Value);
+            }
+
+            var registros = await consulta
+                .Select(p => new
+                {
+                    p.UsuarioId,
+                    p.PollaId,
+                    GolesLocal = p.GolesLocal!.Value,
+                    GolesVisitante = p.GolesVisitante!.Value,
+                    p.FechaCreacion
+                })
+                .ToListAsync();
+
+            // En el consolidado general una persona cuenta una sola vez, aunque
+            // participe en varias pollas. Se toma su pronóstico más reciente.
+            var muestras = registros
+                .GroupBy(p => p.UsuarioId)
+                .Select(g => g
+                    .OrderByDescending(p => p.FechaCreacion)
+                    .First())
+                .ToList();
+
+            var usuariosObjetivo = pollaId.HasValue
+                ? await _context.PollaMiembros
+                    .AsNoTracking()
+                    .CountAsync(pm =>
+                        pm.PollaId == pollaId.Value &&
+                        pm.Usuario.Activo)
+                : await _context.PollaMiembros
+                    .AsNoTracking()
+                    .Where(pm => pm.Usuario.Activo)
+                    .Select(pm => pm.UsuarioId)
+                    .Distinct()
+                    .CountAsync();
+
+            var distribucion = muestras
+                .GroupBy(p => new { p.GolesLocal, p.GolesVisitante })
+                .Select(g => new
+                {
+                    marcador = $"{g.Key.GolesLocal}-{g.Key.GolesVisitante}",
+                    golesLocal = g.Key.GolesLocal,
+                    golesVisitante = g.Key.GolesVisitante,
+                    cantidad = g.Count(),
+                    porcentaje = muestras.Count == 0
+                        ? 0
+                        : Math.Round(g.Count() * 100d / muestras.Count, 1)
+                })
+                .OrderByDescending(x => x.cantidad)
+                .ThenBy(x => x.golesLocal + x.golesVisitante)
+                .ThenBy(x => x.golesLocal)
+                .ThenBy(x => x.golesVisitante)
+                .ToList();
+
+            return Ok(new
+            {
+                partido,
+                alcance = pollaId.HasValue ? "Polla" : "General",
+                pollaId,
+                pollaNombre,
+                usuariosConPronostico = muestras.Count,
+                usuariosObjetivo,
+                coberturaPorcentaje = usuariosObjetivo == 0
+                    ? 0
+                    : Math.Round(muestras.Count * 100d / usuariosObjetivo, 1),
+                pollasIncluidas = registros.Select(p => p.PollaId).Distinct().Count(),
+                promedioGolesLocal = muestras.Count == 0
+                    ? 0
+                    : Math.Round(muestras.Average(p => p.GolesLocal), 2),
+                promedioGolesVisitante = muestras.Count == 0
+                    ? 0
+                    : Math.Round(muestras.Average(p => p.GolesVisitante), 2),
+                promedioTotalGoles = muestras.Count == 0
+                    ? 0
+                    : Math.Round(muestras.Average(p => p.GolesLocal + p.GolesVisitante), 2),
+                marcadorMasElegido = distribucion.FirstOrDefault()?.marcador ?? "Sin datos",
+                distribucion
+            });
+        }
+
         [HttpGet("pollas/{pollaId:int}/miembros")]
         public async Task<IActionResult> GetMiembros(
             int pollaId,

@@ -1,0 +1,1424 @@
+@using System.Globalization
+@using WorldCup.App.Shared.DTOs
+
+<section class="evolution-panel" id="evolucion-ranking">
+    <div class="evolution-head">
+        <div>
+            <span class="evolution-kicker">Centro de rendimiento</span>
+            <h2>Evolución de la polla</h2>
+            <p>Elige participantes y un rango de partidos para comparar su avance.</p>
+        </div>
+    </div>
+
+    @if (!eventos.Any())
+    {
+        <div class="evolution-empty">
+            La gráfica aparecerá cuando finalice el primer partido.
+        </div>
+    }
+    else
+    {
+        <div class="evolution-config">
+            <label class="config-field">
+                <span>Tipo de gráfica</span>
+                <select @bind="modoBorrador">
+                    <option value="Rendimiento">Evolución de puntos</option>
+                    <option value="Partido">Puntos por partido</option>
+                    <option value="Posicion">Posición histórica</option>
+                </select>
+            </label>
+
+            <div class="config-field participant-field">
+                <span>Participantes</span>
+                <button type="button"
+                        class="participant-trigger"
+                        aria-expanded="@selectorParticipantesAbierto"
+                        @onclick="ToggleSelectorParticipantes">
+                    <span>@ResumenSeleccionBorrador()</span>
+                    <b aria-hidden="true">⌄</b>
+                </button>
+
+                @if (selectorParticipantesAbierto)
+                {
+                    <div class="participant-menu">
+                        <input type="search"
+                               placeholder="Buscar por nombre..."
+                               aria-label="Buscar participante"
+                               @bind="filtroUsuario"
+                               @bind:event="oninput" />
+
+                        <div class="participant-actions">
+                            <button type="button" @onclick="SeleccionarLideresBorrador">Top 5</button>
+                            <button type="button" @onclick="SeleccionarTodosBorrador">Todos</button>
+                            <button type="button" @onclick="LimpiarSeleccionBorrador">Limpiar</button>
+                            <button type="button"
+                                    class="participant-done"
+                                    @onclick="ToggleSelectorParticipantes">
+                                Listo
+                            </button>
+                        </div>
+
+                        <div class="participant-options">
+                            @foreach (var serie in SeriesFiltradas())
+                            {
+                                var seleccionada = usuariosBorrador.Contains(serie.UsuarioId);
+                                <div class="participant-option @(seleccionada ? "selected" : "")">
+                                    <label class="participant-select">
+                                        <input type="checkbox"
+                                               checked="@seleccionada"
+                                               @onchange="e => CambiarSeleccionBorrador(serie.UsuarioId, e)" />
+                                        <span class="user-color" style="background:@serie.Color"></span>
+                                        <span>
+                                            <strong>@serie.Usuario</strong>
+                                            <small>@serie.PuntosActuales pts · #@serie.PosicionActual</small>
+                                        </span>
+                                    </label>
+                                    <input type="color"
+                                           class="participant-color-picker"
+                                           value="@serie.Color"
+                                           title="Cambiar color de @serie.Usuario"
+                                           aria-label="Color de @serie.Usuario"
+                                           @oninput="e => CambiarColorUsuario(serie, e)" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <label class="config-field">
+                <span>Desde</span>
+                <select value="@rangoDesdeBorrador"
+                        @onchange="CambiarRangoDesde">
+                    @foreach (var evento in eventos)
+                    {
+                        <option value="@evento.Indice">@NombreEvento(evento)</option>
+                    }
+                </select>
+            </label>
+
+            <label class="config-field">
+                <span>Hasta</span>
+                <select value="@rangoHastaBorrador"
+                        @onchange="CambiarRangoHasta">
+                    @foreach (var evento in eventos)
+                    {
+                        <option value="@evento.Indice">@NombreEvento(evento)</option>
+                    }
+                </select>
+            </label>
+
+            <button type="button"
+                    class="generate-chart"
+                    @onclick="GenerarGrafica">
+                Generar gráfica
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(mensajeValidacion))
+        {
+            <div class="evolution-warning">@mensajeValidacion</div>
+        }
+
+        @if (!graficaGenerada)
+        {
+            <div class="evolution-empty compact">
+                Configura los participantes y el rango; después pulsa “Generar gráfica”.
+            </div>
+        }
+        else if (!SeriesAplicadas().Any())
+        {
+            <div class="evolution-empty compact">
+                Selecciona al menos un participante para generar la gráfica.
+            </div>
+        }
+        else
+        {
+            <div class="chart-context">
+                <div>
+                    <strong>@TituloGrafica()</strong>
+                    <span>@DescripcionRango()</span>
+                </div>
+                <p>
+                    Si varias líneas se superponen, esos participantes llevan el mismo resultado en ese tramo.
+                </p>
+            </div>
+
+            <div class="football-chart">
+                <div class="chart-scoreboard">
+                    <span>@TituloGrafica()</span>
+                    <strong>@CantidadEventosAplicados() partido@(CantidadEventosAplicados() == 1 ? "" : "s")</strong>
+                </div>
+
+                <svg viewBox="0 0 1000 410"
+                     role="img"
+                     aria-label="Gráfica de evolución del ranking">
+                    <rect x="64" y="30" width="910" height="294" rx="6" class="chart-field"></rect>
+
+                    @foreach (var tick in TicksVerticales())
+                    {
+                        <line x1="64"
+                              y1="@F(tick.Y)"
+                              x2="974"
+                              y2="@F(tick.Y)"
+                              class="chart-grid-line"></line>
+                        <foreignObject x="0"
+                                       y="@F(tick.Y - 11)"
+                                       width="55"
+                                       height="24">
+                            <div class="chart-axis-label">@tick.Texto</div>
+                        </foreignObject>
+                    }
+
+                    @foreach (var tick in TicksHorizontales())
+                    {
+                        <line x1="@F(tick.X)"
+                              y1="30"
+                              x2="@F(tick.X)"
+                              y2="324"
+                              class="chart-grid-line vertical"></line>
+                        <foreignObject x="@F(tick.X - 58)"
+                                       y="337"
+                                       width="116"
+                                       height="22">
+                            <div class="chart-event-label">@tick.Linea1</div>
+                        </foreignObject>
+                        <foreignObject x="@F(tick.X - 58)"
+                                       y="356"
+                                       width="116"
+                                       height="34">
+                            <div class="chart-event-label muted">@tick.Linea2</div>
+                        </foreignObject>
+                    }
+
+                    @foreach (var serie in SeriesAplicadas())
+                    {
+                        var puntosGrafica = PuntosGrafica(serie);
+                        <polyline points="@PuntosSvg(serie)"
+                                  style="stroke:@serie.Color"
+                                  class="chart-line"></polyline>
+
+                        @foreach (var punto in puntosGrafica.Select((valor, indice) => new { valor, indice }))
+                        {
+                            <circle cx="@F(X(punto.indice, puntosGrafica.Count))"
+                                    cy="@F(Y(punto.valor))"
+                                    r="5"
+                                    style="fill:@serie.Color"
+                                    class="chart-point">
+                                <title>@TextoPunto(serie, punto.valor)</title>
+                            </circle>
+                        }
+                    }
+                </svg>
+            </div>
+
+            <div class="evolution-legend">
+                @foreach (var serie in SeriesAplicadas())
+                {
+                    <div>
+                        <input type="color"
+                               class="legend-color-picker"
+                               value="@serie.Color"
+                               title="Cambiar color de @serie.Usuario"
+                               aria-label="Color de @serie.Usuario"
+                               @oninput="e => CambiarColorUsuario(serie, e)" />
+                        <strong>@serie.Usuario</strong>
+                        <small>@ValorFinalTexto(serie)</small>
+                    </div>
+                }
+            </div>
+
+            <div class="performance-grid">
+                @foreach (var serie in SeriesAplicadas())
+                {
+                    var resumen = ResumenRango(serie);
+                    <article class="performance-card" style="border-top-color:@serie.Color">
+                        <div class="performance-name">
+                            <strong>@serie.Usuario</strong>
+                            <span>#@serie.PosicionActual</span>
+                        </div>
+                        <dl>
+                            <div><dt>Puntos en rango</dt><dd>@resumen.PuntosGanados</dd></div>
+                            <div><dt>Exactos</dt><dd>@resumen.Exactos</dd></div>
+                            <div><dt>Con puntos</dt><dd>@resumen.ConPuntos</dd></div>
+                            <div><dt>Movimiento</dt><dd>@resumen.Movimiento</dd></div>
+                        </dl>
+                    </article>
+                }
+            </div>
+        }
+    }
+</section>
+
+<style>
+    .evolution-panel {
+        margin: 1rem 0 0;
+        border: 1px solid #d8e5de;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 12px 28px rgba(17, 65, 49, .1);
+        overflow: visible;
+    }
+
+    .evolution-head {
+        padding: 1rem 1.1rem;
+        border-bottom: 4px solid #d7a21a;
+        border-radius: 8px 8px 0 0;
+        background: #0b4937;
+        color: #fff;
+    }
+
+    .evolution-head h2 {
+        margin: .1rem 0;
+        font-size: 1.25rem;
+        font-weight: 900;
+    }
+
+    .evolution-head p {
+        margin: 0;
+        color: #d8eee5;
+        font-size: .88rem;
+    }
+
+    .evolution-kicker {
+        color: #ffda6a;
+        font-size: .73rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .evolution-config {
+        display: grid;
+        grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.35fr) minmax(180px, 1fr) minmax(180px, 1fr);
+        gap: .7rem;
+        align-items: end;
+        padding: 1rem;
+        border-bottom: 1px solid #e2ebe6;
+        background: #f8fbf9;
+    }
+
+    .config-field {
+        position: relative;
+        display: grid;
+        gap: .3rem;
+        min-width: 0;
+    }
+
+    .config-field > span {
+        color: #667085;
+        font-size: .72rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .config-field select,
+    .participant-trigger,
+    .generate-chart {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #c8d8d0;
+        border-radius: 6px;
+        background: #fff;
+        color: #17251f;
+        padding: .5rem .65rem;
+        font-weight: 750;
+    }
+
+    .participant-trigger {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+        align-items: center;
+        text-align: left;
+    }
+
+    .participant-trigger span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .participant-trigger b {
+        color: #356653;
+        font-size: 1.05rem;
+    }
+
+    .participant-menu {
+        position: absolute;
+        top: calc(100% + .35rem);
+        left: 0;
+        z-index: 30;
+        width: min(420px, 92vw);
+        border: 1px solid #bfd2c8;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 18px 42px rgba(20, 53, 41, .2);
+        padding: .7rem;
+    }
+
+    .participant-menu > input {
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid #cfd9d4;
+        border-radius: 6px;
+        padding: .5rem .65rem;
+    }
+
+    .participant-actions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: .35rem;
+        margin: .55rem 0;
+    }
+
+    .participant-actions button {
+        min-height: 34px;
+        border: 1px solid #bad1c5;
+        border-radius: 5px;
+        background: #f5faf7;
+        color: #146c43;
+        font-weight: 800;
+    }
+
+    .participant-actions .participant-done {
+        border-color: #0b6b4c;
+        background: #0b6b4c;
+        color: #fff;
+    }
+
+    .participant-options {
+        display: grid;
+        gap: .3rem;
+        max-height: 310px;
+        overflow-y: auto;
+    }
+
+    .participant-option {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 38px;
+        gap: .5rem;
+        align-items: center;
+        border: 1px solid #e0e8e4;
+        border-radius: 6px;
+        padding: .5rem;
+    }
+
+    .participant-option.selected {
+        border-color: #91bca8;
+        background: #eff8f3;
+    }
+
+    .participant-select {
+        display: grid;
+        grid-template-columns: auto 7px minmax(0, 1fr);
+        gap: .5rem;
+        align-items: center;
+        min-width: 0;
+        cursor: pointer;
+    }
+
+    .participant-select input {
+        width: 17px;
+        height: 17px;
+    }
+
+    .participant-option .user-color {
+        width: 7px;
+        height: 30px;
+        border-radius: 3px;
+    }
+
+    .participant-option strong,
+    .participant-option small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .participant-option strong {
+        font-size: .84rem;
+    }
+
+    .participant-option small {
+        color: #667085;
+        font-size: .72rem;
+    }
+
+    .participant-color-picker,
+    .legend-color-picker {
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .participant-color-picker {
+        width: 38px;
+        height: 34px;
+        padding: 2px;
+    }
+
+    .participant-color-picker::-webkit-color-swatch,
+    .legend-color-picker::-webkit-color-swatch {
+        border: 2px solid #fff;
+        border-radius: 5px;
+        box-shadow: 0 0 0 1px #aebfb7;
+    }
+
+    .participant-color-picker::-moz-color-swatch,
+    .legend-color-picker::-moz-color-swatch {
+        border: 2px solid #fff;
+        border-radius: 5px;
+        box-shadow: 0 0 0 1px #aebfb7;
+    }
+
+    .generate-chart {
+        grid-column: 1 / -1;
+        justify-self: end;
+        width: auto;
+        min-width: 190px;
+        border-color: #0b6b4c;
+        background: #0b6b4c;
+        color: #fff;
+        padding-inline: 1rem;
+        white-space: nowrap;
+    }
+
+    .generate-chart:hover,
+    .generate-chart:focus-visible {
+        background: #084f39;
+    }
+
+    .evolution-warning {
+        margin: .8rem 1rem 0;
+        border-left: 4px solid #d7a21a;
+        border-radius: 6px;
+        background: #fff8df;
+        color: #684d0a;
+        padding: .7rem .8rem;
+        font-weight: 750;
+    }
+
+    .chart-context {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 1rem 1rem .7rem;
+    }
+
+    .chart-context strong,
+    .chart-context span {
+        display: block;
+    }
+
+    .chart-context strong {
+        color: #16382d;
+        font-size: 1rem;
+    }
+
+    .chart-context span,
+    .chart-context p {
+        color: #66756d;
+        font-size: .8rem;
+    }
+
+    .chart-context p {
+        max-width: 450px;
+        margin: 0;
+        border-radius: 6px;
+        background: #f1f6f3;
+        padding: .55rem .7rem;
+    }
+
+    .football-chart {
+        margin: 0 1rem;
+        border: 1px solid #c9dbd2;
+        border-radius: 8px;
+        background: #f8fbf9;
+        overflow-x: auto;
+    }
+
+    .chart-scoreboard {
+        position: sticky;
+        left: 0;
+        display: flex;
+        justify-content: space-between;
+        gap: .8rem;
+        min-width: 700px;
+        padding: .6rem .8rem;
+        background: #132d25;
+        color: #fff;
+        font-size: .8rem;
+    }
+
+    .chart-scoreboard span {
+        color: #ffda6a;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .football-chart svg {
+        display: block;
+        width: 100%;
+        min-width: 700px;
+        min-height: 320px;
+    }
+
+    .chart-field {
+        fill: #eff8f3;
+        stroke: #b9d5c7;
+    }
+
+    .chart-grid-line {
+        stroke: #c7dcd1;
+        stroke-width: 1;
+        stroke-dasharray: 5 5;
+    }
+
+    .chart-grid-line.vertical {
+        opacity: .65;
+    }
+
+    .chart-axis-label,
+    .chart-event-label {
+        color: #40534a;
+        font-size: 12px;
+        font-weight: 750;
+        line-height: 22px;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .chart-axis-label {
+        text-align: right;
+    }
+
+    .chart-event-label.muted {
+        overflow: hidden;
+        color: #75847c;
+        font-size: 10px;
+        line-height: 14px;
+        white-space: normal;
+    }
+
+    .chart-line {
+        fill: none;
+        stroke-width: 3.5;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+        opacity: .86;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,.14));
+    }
+
+    .chart-point {
+        stroke: #fff;
+        stroke-width: 2;
+    }
+
+    .evolution-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .6rem 1rem;
+        padding: .75rem 1rem;
+    }
+
+    .evolution-legend > div {
+        display: grid;
+        grid-template-columns: 30px auto;
+        align-items: center;
+        column-gap: .4rem;
+    }
+
+    .legend-color-picker {
+        grid-row: 1 / 3;
+        width: 30px;
+        height: 28px;
+        padding: 2px;
+    }
+
+    .evolution-legend strong {
+        color: #22312a;
+        font-size: .8rem;
+    }
+
+    .evolution-legend small {
+        color: #667085;
+        font-size: .72rem;
+    }
+
+    .performance-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: .65rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .performance-card {
+        border: 1px solid #dce6e1;
+        border-top: 4px solid;
+        border-radius: 7px;
+        background: #fff;
+        padding: .75rem;
+    }
+
+    .performance-name {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+    }
+
+    .performance-name span {
+        color: #146c43;
+        font-weight: 900;
+    }
+
+    .performance-card dl {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: .35rem;
+        margin: .65rem 0 0;
+    }
+
+    .performance-card dl div {
+        border-top: 1px solid #edf1ef;
+        padding-top: .4rem;
+    }
+
+    .performance-card dt {
+        color: #667085;
+        font-size: .64rem;
+        text-transform: uppercase;
+    }
+
+    .performance-card dd {
+        margin: 0;
+        color: #18251f;
+        font-weight: 900;
+    }
+
+    .evolution-empty {
+        margin: 1rem;
+        border: 1px dashed #b9cec3;
+        border-radius: 7px;
+        background: #f7faf8;
+        color: #58675f;
+        padding: 1rem;
+        text-align: center;
+        font-weight: 750;
+    }
+
+    .evolution-empty.compact {
+        padding: .75rem;
+    }
+
+    @@media (max-width: 1050px) {
+        .evolution-config {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .generate-chart {
+            grid-column: 1 / -1;
+            justify-self: stretch;
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .evolution-config {
+            grid-template-columns: 1fr;
+            padding: .75rem;
+        }
+
+        .generate-chart {
+            grid-column: auto;
+        }
+
+        .participant-menu {
+            position: fixed;
+            inset: auto .65rem .65rem;
+            z-index: 2100;
+            width: auto;
+            max-height: min(78vh, 620px);
+        }
+
+        .participant-options {
+            max-height: calc(min(78vh, 620px) - 125px);
+        }
+
+        .chart-context {
+            align-items: stretch;
+            flex-direction: column;
+            padding-inline: .75rem;
+        }
+
+        .football-chart {
+            margin-inline: .55rem;
+        }
+
+        .evolution-legend,
+        .performance-grid {
+            padding-inline: .7rem;
+        }
+
+        .performance-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .performance-card dl {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<RankingPollaDto> Ranking { get; set; } =
+        Array.Empty<RankingPollaDto>();
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DetalleRankingDto> Detalles { get; set; } =
+        Array.Empty<DetalleRankingDto>();
+
+    private readonly string[] colores =
+    {
+        "#0b7a53", "#d59a00", "#2563eb", "#d92d20", "#7a5af8",
+        "#0086c9", "#b54708", "#c11574", "#475467", "#039855",
+        "#7f56d9", "#dc6803"
+    };
+
+    private List<EventoGrafica> eventos = new();
+    private List<SerieUsuario> series = new();
+    private readonly Dictionary<int, string> coloresPersonalizados = new();
+    private HashSet<int> usuariosBorrador = new();
+    private HashSet<int> usuariosAplicados = new();
+    private string modoBorrador = "Rendimiento";
+    private string modoAplicado = "Rendimiento";
+    private string filtroUsuario = "";
+    private string firmaDatos = "";
+    private string mensajeValidacion = "";
+    private bool selectorParticipantesAbierto;
+    private bool graficaGenerada;
+    private int rangoDesdeBorrador;
+    private int rangoHastaBorrador;
+    private int rangoDesdeAplicado;
+    private int rangoHastaAplicado;
+    private int maxPuntosGrafica = 1;
+
+    protected override void OnParametersSet()
+    {
+        var nuevaFirma =
+            $"{Ranking.Count}:{Detalles.Count}:{Detalles.Count(d => d.ResultadoLocal.HasValue && d.ResultadoVisitante.HasValue)}";
+
+        if (nuevaFirma == firmaDatos)
+        {
+            return;
+        }
+
+        firmaDatos = nuevaFirma;
+        ConstruirSeries();
+    }
+
+    private void ConstruirSeries()
+    {
+        eventos = Detalles
+            .Where(d => d.ResultadoLocal.HasValue && d.ResultadoVisitante.HasValue)
+            .GroupBy(d => new
+            {
+                d.Fecha,
+                d.Fase,
+                d.Local,
+                d.Visitante
+            })
+            .Select(g => new EventoGrafica
+            {
+                Fecha = g.Key.Fecha,
+                Fase = g.Key.Fase,
+                Local = g.Key.Local,
+                Visitante = g.Key.Visitante
+            })
+            .OrderBy(e => e.Fecha)
+            .ThenBy(e => e.Local)
+            .ThenBy(e => e.Visitante)
+            .ToList();
+
+        for (var i = 0; i < eventos.Count; i++)
+        {
+            eventos[i].Indice = i;
+        }
+
+        series = Ranking
+            .Select((r, index) => new SerieUsuario
+            {
+                UsuarioId = r.UsuarioId,
+                Usuario = r.Usuario,
+                Color = coloresPersonalizados.TryGetValue(r.UsuarioId, out var colorPersonalizado)
+                    ? colorPersonalizado
+                    : colores[index % colores.Length],
+                PosicionActual = index + 1,
+                PuntosActuales = r.Puntos
+            })
+            .ToList();
+
+        foreach (var serie in series)
+        {
+            var acumulado = 0;
+            var exactos = 0;
+            var ganadores = 0;
+            var goles = 0;
+            var diferencias = 0;
+            var clasificacion = 0;
+            var podio = 0;
+            var conPuntos = 0;
+
+            foreach (var evento in eventos)
+            {
+                var detalle = Detalles.FirstOrDefault(d =>
+                    d.UsuarioId == serie.UsuarioId &&
+                    d.Fecha == evento.Fecha &&
+                    d.Fase == evento.Fase &&
+                    d.Local == evento.Local &&
+                    d.Visitante == evento.Visitante);
+
+                var puntosEvento = detalle?.Total ?? 0;
+                acumulado += puntosEvento;
+
+                if (detalle != null)
+                {
+                    exactos += detalle.PuntosExacto > 0 ? 1 : 0;
+                    ganadores += detalle.PuntosGanador > 0 ? 1 : 0;
+                    goles += detalle.PuntosGoles > 0 ? 1 : 0;
+                    diferencias += detalle.PuntosDiferencia > 0 ? 1 : 0;
+                    clasificacion += detalle.PuntosClasificacion;
+                    podio += detalle.PuntosPodio;
+                    conPuntos += detalle.PuntosMarcador > 0 ? 1 : 0;
+                }
+
+                serie.Puntos.Add(new PuntoSerie
+                {
+                    PuntosEvento = puntosEvento,
+                    PuntosAcumulados = acumulado,
+                    ExactosAcumulados = exactos,
+                    GanadoresAcumulados = ganadores,
+                    GolesAcumulados = goles,
+                    DiferenciasAcumuladas = diferencias,
+                    ClasificacionAcumulada = clasificacion,
+                    PodioAcumulado = podio,
+                    ConPuntosAcumulados = conPuntos
+                });
+            }
+        }
+
+        for (var eventoIndex = 0; eventoIndex < eventos.Count; eventoIndex++)
+        {
+            var orden = series
+                .OrderByDescending(s => s.Puntos[eventoIndex].PuntosAcumulados)
+                .ThenByDescending(s => s.Puntos[eventoIndex].ExactosAcumulados)
+                .ThenByDescending(s => s.Puntos[eventoIndex].GanadoresAcumulados)
+                .ThenByDescending(s => s.Puntos[eventoIndex].GolesAcumulados)
+                .ThenByDescending(s => s.Puntos[eventoIndex].DiferenciasAcumuladas)
+                .ThenByDescending(s => s.Puntos[eventoIndex].ClasificacionAcumulada)
+                .ThenByDescending(s => s.Puntos[eventoIndex].PodioAcumulado)
+                .ThenBy(s => s.Usuario)
+                .ToList();
+
+            for (var posicion = 0; posicion < orden.Count; posicion++)
+            {
+                orden[posicion].Puntos[eventoIndex].Posicion = posicion + 1;
+            }
+        }
+
+        usuariosBorrador = series
+            .OrderBy(s => s.PosicionActual)
+            .Take(5)
+            .Select(s => s.UsuarioId)
+            .ToHashSet();
+        usuariosAplicados.Clear();
+        rangoDesdeBorrador = 0;
+        rangoHastaBorrador = Math.Max(0, eventos.Count - 1);
+        rangoDesdeAplicado = rangoDesdeBorrador;
+        rangoHastaAplicado = rangoHastaBorrador;
+        graficaGenerada = false;
+        mensajeValidacion = "";
+    }
+
+    private IEnumerable<SerieUsuario> SeriesFiltradas()
+    {
+        var texto = (filtroUsuario ?? "").Trim();
+        return series
+            .Where(s =>
+                string.IsNullOrWhiteSpace(texto) ||
+                s.Usuario.Contains(texto, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.PosicionActual);
+    }
+
+    private List<SerieUsuario> SeriesAplicadas()
+    {
+        return series
+            .Where(s => usuariosAplicados.Contains(s.UsuarioId))
+            .OrderBy(s => s.PosicionActual)
+            .ToList();
+    }
+
+    private List<EventoGrafica> EventosAplicados()
+    {
+        if (!eventos.Any())
+        {
+            return new();
+        }
+
+        var desde = Math.Clamp(rangoDesdeAplicado, 0, eventos.Count - 1);
+        var hasta = Math.Clamp(rangoHastaAplicado, desde, eventos.Count - 1);
+        return eventos
+            .Skip(desde)
+            .Take(hasta - desde + 1)
+            .ToList();
+    }
+
+    private IEnumerable<PuntoSerie> PuntosVisibles(SerieUsuario serie)
+    {
+        return serie.Puntos
+            .Skip(rangoDesdeAplicado)
+            .Take(CantidadEventosAplicados());
+    }
+
+    private void ToggleSelectorParticipantes()
+    {
+        selectorParticipantesAbierto = !selectorParticipantesAbierto;
+    }
+
+    private void CambiarSeleccionBorrador(int usuarioId, ChangeEventArgs e)
+    {
+        var seleccionado = e.Value is bool valor && valor;
+        if (seleccionado)
+        {
+            usuariosBorrador.Add(usuarioId);
+        }
+        else
+        {
+            usuariosBorrador.Remove(usuarioId);
+        }
+    }
+
+    private void CambiarColorUsuario(SerieUsuario serie, ChangeEventArgs e)
+    {
+        var color = e.Value?.ToString()?.Trim();
+        if (!EsColorHexValido(color))
+        {
+            return;
+        }
+
+        serie.Color = color!;
+        coloresPersonalizados[serie.UsuarioId] = color!;
+    }
+
+    private static bool EsColorHexValido(string? color)
+    {
+        return color is { Length: 7 } &&
+            color[0] == '#' &&
+            color.Skip(1).All(Uri.IsHexDigit);
+    }
+
+    private void SeleccionarLideresBorrador()
+    {
+        usuariosBorrador = series
+            .OrderBy(s => s.PosicionActual)
+            .Take(5)
+            .Select(s => s.UsuarioId)
+            .ToHashSet();
+    }
+
+    private void SeleccionarTodosBorrador()
+    {
+        usuariosBorrador = series
+            .Select(s => s.UsuarioId)
+            .ToHashSet();
+    }
+
+    private void LimpiarSeleccionBorrador()
+    {
+        usuariosBorrador.Clear();
+    }
+
+    private void CambiarRangoDesde(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var indice))
+        {
+            return;
+        }
+
+        rangoDesdeBorrador = indice;
+        if (rangoHastaBorrador < rangoDesdeBorrador)
+        {
+            rangoHastaBorrador = rangoDesdeBorrador;
+        }
+    }
+
+    private void CambiarRangoHasta(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var indice))
+        {
+            return;
+        }
+
+        rangoHastaBorrador = indice;
+        if (rangoDesdeBorrador > rangoHastaBorrador)
+        {
+            rangoDesdeBorrador = rangoHastaBorrador;
+        }
+    }
+
+    private void GenerarGrafica()
+    {
+        if (!usuariosBorrador.Any())
+        {
+            mensajeValidacion = "Selecciona al menos un participante.";
+            graficaGenerada = false;
+            return;
+        }
+
+        if (!eventos.Any())
+        {
+            mensajeValidacion = "Todavía no hay partidos finalizados.";
+            graficaGenerada = false;
+            return;
+        }
+
+        usuariosAplicados = usuariosBorrador.ToHashSet();
+        modoAplicado = modoBorrador;
+        rangoDesdeAplicado = Math.Min(rangoDesdeBorrador, rangoHastaBorrador);
+        rangoHastaAplicado = Math.Max(rangoDesdeBorrador, rangoHastaBorrador);
+        selectorParticipantesAbierto = false;
+        mensajeValidacion = "";
+        graficaGenerada = true;
+        CalcularEscala();
+    }
+
+    private void CalcularEscala()
+    {
+        var puntos = SeriesAplicadas()
+            .SelectMany(PuntosVisibles)
+            .ToList();
+
+        maxPuntosGrafica = Math.Max(
+            1,
+            modoAplicado == "Partido"
+                ? puntos.DefaultIfEmpty().Max(p => p?.PuntosEvento ?? 0)
+                : puntos.DefaultIfEmpty().Max(p => p?.PuntosAcumulados ?? 0));
+    }
+
+    private string ResumenSeleccionBorrador()
+    {
+        if (!usuariosBorrador.Any())
+        {
+            return "Seleccionar participantes";
+        }
+
+        if (usuariosBorrador.Count == series.Count)
+        {
+            return $"Todos ({series.Count})";
+        }
+
+        var nombres = series
+            .Where(s => usuariosBorrador.Contains(s.UsuarioId))
+            .OrderBy(s => s.PosicionActual)
+            .Take(2)
+            .Select(s => s.Usuario)
+            .ToList();
+
+        return usuariosBorrador.Count <= 2
+            ? string.Join(", ", nombres)
+            : $"{string.Join(", ", nombres)} y {usuariosBorrador.Count - 2} más";
+    }
+
+    private string PuntosSvg(SerieUsuario serie)
+    {
+        var puntos = PuntosGrafica(serie);
+        return string.Join(
+            " ",
+            puntos.Select((p, i) =>
+                $"{F(X(i, puntos.Count))},{F(Y(p))}"));
+    }
+
+    private List<PuntoGrafica> PuntosGrafica(SerieUsuario serie)
+    {
+        var eventosAplicados = EventosAplicados();
+        var puntos = PuntosVisibles(serie)
+            .Select((punto, indice) => new PuntoGrafica
+            {
+                Punto = punto,
+                Evento = eventosAplicados[indice],
+                Valor = modoAplicado == "Partido"
+                    ? punto.PuntosEvento
+                    : modoAplicado == "Posicion"
+                        ? punto.Posicion
+                        : punto.PuntosAcumulados
+            })
+            .ToList();
+
+        if (modoAplicado != "Posicion")
+        {
+            puntos.Insert(0, new PuntoGrafica
+            {
+                EsInicio = true,
+                Valor = 0
+            });
+        }
+
+        return puntos;
+    }
+
+    private static double X(int indice, int cantidad)
+    {
+        if (cantidad <= 1)
+        {
+            return 519;
+        }
+
+        return 64 + (910d * indice / (cantidad - 1));
+    }
+
+    private double Y(PuntoGrafica punto)
+    {
+        if (modoAplicado == "Posicion")
+        {
+            var maxPosicion = Math.Max(2, series.Count);
+            return 44 + (266d * (punto.Valor - 1) / (maxPosicion - 1));
+        }
+
+        return 310 - (266d * punto.Valor / maxPuntosGrafica);
+    }
+
+    private IEnumerable<TickVertical> TicksVerticales()
+    {
+        const int total = 5;
+
+        if (modoAplicado == "Posicion")
+        {
+            var maxPosicion = Math.Max(1, series.Count);
+            return Enumerable.Range(0, total)
+                .Select(i =>
+                {
+                    var posicion = 1 + (int)Math.Round(
+                        (maxPosicion - 1) * i / (double)(total - 1));
+                    return new TickVertical
+                    {
+                        Y = 44 + (266d * i / (total - 1)),
+                        Texto = $"#{posicion}"
+                    };
+                });
+        }
+
+        return Enumerable.Range(0, total)
+            .Select(i => new TickVertical
+            {
+                Y = 44 + (266d * i / (total - 1)),
+                Texto = ((int)Math.Round(
+                    maxPuntosGrafica * (total - 1 - i) /
+                    (double)(total - 1))).ToString()
+            });
+    }
+
+    private IEnumerable<TickHorizontal> TicksHorizontales()
+    {
+        var visibles = EventosAplicados();
+        if (!visibles.Any())
+        {
+            return Enumerable.Empty<TickHorizontal>();
+        }
+
+        var incluyeInicio = modoAplicado != "Posicion";
+        var totalPuntos = visibles.Count + (incluyeInicio ? 1 : 0);
+        var cantidad = Math.Min(6, totalPuntos);
+        var indices = Enumerable.Range(0, cantidad)
+            .Select(i => cantidad == 1
+                ? 0
+                : (int)Math.Round(
+                    (totalPuntos - 1) * i /
+                    (double)(cantidad - 1)))
+            .Distinct()
+            .ToList();
+
+        return indices.Select(i =>
+        {
+            if (incluyeInicio && i == 0)
+            {
+                return new TickHorizontal
+                {
+                    X = X(i, totalPuntos),
+                    Linea1 = "Inicio",
+                    Linea2 = "0 puntos"
+                };
+            }
+
+            var evento = visibles[i - (incluyeInicio ? 1 : 0)];
+            return new TickHorizontal
+            {
+                X = X(i, totalPuntos),
+                Linea1 = $"Partido {evento.Indice + 1}",
+                Linea2 = $"{Abreviar(evento.Local, 8)} - {Abreviar(evento.Visitante, 8)}"
+            };
+        });
+    }
+
+    private ResumenSerieRango ResumenRango(SerieUsuario serie)
+    {
+        var inicio = rangoDesdeAplicado > 0
+            ? serie.Puntos[rangoDesdeAplicado - 1]
+            : null;
+        var fin = serie.Puntos[rangoHastaAplicado];
+        var posicionInicio = serie.Puntos[rangoDesdeAplicado].Posicion;
+        var movimiento = posicionInicio == fin.Posicion
+            ? $"#{fin.Posicion} ="
+            : posicionInicio > fin.Posicion
+                ? $"#{posicionInicio} ↑ #{fin.Posicion}"
+                : $"#{posicionInicio} ↓ #{fin.Posicion}";
+
+        return new ResumenSerieRango
+        {
+            PuntosGanados = fin.PuntosAcumulados -
+                (inicio?.PuntosAcumulados ?? 0),
+            Exactos = fin.ExactosAcumulados -
+                (inicio?.ExactosAcumulados ?? 0),
+            ConPuntos = fin.ConPuntosAcumulados -
+                (inicio?.ConPuntosAcumulados ?? 0),
+            Movimiento = movimiento
+        };
+    }
+
+    private string ValorFinalTexto(SerieUsuario serie)
+    {
+        var punto = serie.Puntos[rangoHastaAplicado];
+        return modoAplicado switch
+        {
+            "Partido" => $"{punto.PuntosEvento} puntos en el último partido",
+            "Rendimiento" => $"{punto.PuntosAcumulados} puntos acumulados",
+            _ => $"Posición #{punto.Posicion}"
+        };
+    }
+
+    private string TextoPunto(
+        SerieUsuario serie,
+        PuntoGrafica punto)
+    {
+        if (punto.EsInicio)
+        {
+            return $"{serie.Usuario}: inicia con 0 puntos";
+        }
+
+        var valor = modoAplicado switch
+        {
+            "Partido" => $"{punto.Punto?.PuntosEvento ?? 0} puntos en el partido",
+            "Rendimiento" => $"{punto.Punto?.PuntosAcumulados ?? 0} puntos acumulados",
+            _ => $"posición #{punto.Punto?.Posicion ?? 0}"
+        };
+        return $"{serie.Usuario}: {valor} después de {punto.Evento?.Local} vs {punto.Evento?.Visitante}";
+    }
+
+    private string TituloGrafica()
+    {
+        return modoAplicado switch
+        {
+            "Rendimiento" => "Evolución de puntos",
+            "Partido" => "Puntos por partido",
+            _ => "Posición histórica"
+        };
+    }
+
+    private string DescripcionRango()
+    {
+        var visibles = EventosAplicados();
+        if (!visibles.Any())
+        {
+            return "";
+        }
+
+        return $"Del partido {visibles.First().Indice + 1} al {visibles.Last().Indice + 1}";
+    }
+
+    private int CantidadEventosAplicados()
+    {
+        return eventos.Any()
+            ? Math.Max(0, rangoHastaAplicado - rangoDesdeAplicado + 1)
+            : 0;
+    }
+
+    private static string NombreEvento(EventoGrafica evento)
+    {
+        return $"Partido {evento.Indice + 1}: {evento.Local} vs {evento.Visitante}";
+    }
+
+    private static string Abreviar(string texto, int maximo)
+    {
+        return texto.Length <= maximo
+            ? texto
+            : texto[..Math.Max(1, maximo - 1)] + ".";
+    }
+
+    private static string F(double valor)
+    {
+        return valor.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private sealed class EventoGrafica
+    {
+        public int Indice { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Fase { get; set; } = "";
+        public string Local { get; set; } = "";
+        public string Visitante { get; set; } = "";
+    }
+
+    private sealed class SerieUsuario
+    {
+        public int UsuarioId { get; set; }
+        public string Usuario { get; set; } = "";
+        public string Color { get; set; } = "";
+        public int PosicionActual { get; set; }
+        public int PuntosActuales { get; set; }
+        public List<PuntoSerie> Puntos { get; set; } = new();
+    }
+
+    private sealed class PuntoSerie
+    {
+        public int PuntosEvento { get; set; }
+        public int PuntosAcumulados { get; set; }
+        public int Posicion { get; set; }
+        public int ExactosAcumulados { get; set; }
+        public int GanadoresAcumulados { get; set; }
+        public int GolesAcumulados { get; set; }
+        public int DiferenciasAcumuladas { get; set; }
+        public int ClasificacionAcumulada { get; set; }
+        public int PodioAcumulado { get; set; }
+        public int ConPuntosAcumulados { get; set; }
+    }
+
+    private sealed class PuntoGrafica
+    {
+        public PuntoSerie? Punto { get; set; }
+        public EventoGrafica? Evento { get; set; }
+        public double Valor { get; set; }
+        public bool EsInicio { get; set; }
+    }
+
+    private sealed class TickVertical
+    {
+        public double Y { get; set; }
+        public string Texto { get; set; } = "";
+    }
+
+    private sealed class TickHorizontal
+    {
+        public double X { get; set; }
+        public string Linea1 { get; set; } = "";
+        public string Linea2 { get; set; } = "";
+    }
+
+    private sealed class ResumenSerieRango
+    {
+        public int PuntosGanados { get; set; }
+        public int Exactos { get; set; }
+        public int ConPuntos { get; set; }
+        public string Movimiento { get; set; } = "";
+    }
+}
