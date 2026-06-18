@@ -1,12 +1,17 @@
 @page "/ranking"
 @rendermode InteractiveServer
 
+@using Microsoft.JSInterop
+@using System.Net.Http.Json
 @using WorldCup.App.Shared.DTOs
 @using WorldCup.App.Shared.Services
 @using WorldCup.App.Web.Components.Shared
+@implements IAsyncDisposable
 @inject PollasService PollasService
 @inject SesionService Sesion
 @inject NavigationManager Navigation
+@inject HttpClient Http
+@inject IJSRuntime JS
 
 <section class="ranking-page">
     <div class="ranking-hero">
@@ -364,7 +369,10 @@
                                                                 {
                                                                     @foreach (var d in faseDetalle.OrderBy(x => x.Fecha).ThenBy(x => x.Local))
                                                                     {
-                                                                        <tr>
+                                                                        <tr data-track-prediction-view="@(DebeRegistrarVista(d) ? "true" : "false")"
+                                                                            data-polla-id="@Sesion.PollaActivaId"
+                                                                            data-owner-id="@d.UsuarioId"
+                                                                            data-match-id="@d.PartidoId">
                                                                             <td data-label="Partido"><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
                                                                             <td data-label="Fase"><span class="phase-pill">@d.Fase</span></td>
                                                                             <td data-label="Pronostico">@MarcadorPronostico(d)</td>
@@ -1471,37 +1479,95 @@
     private string? detalleGrupoFiltro;
     private DateTime? detalleFechaFiltro;
     private string? detalleFaseResumenFiltro;
+    private IJSObjectReference? predictionTrackerModule;
+    private DotNetObjectReference<Ranking>? predictionTrackerReference;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        if (firstRender)
+        {
+            await Sesion.RestaurarSesionAsync();
+
+            if (!Sesion.EstaLogueado)
+            {
+                Navigation.NavigateTo("/login?returnUrl=/ranking", true);
+                return;
+            }
+
+            predictionTrackerModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/prediction-view-tracker.js");
+            predictionTrackerReference = DotNetObjectReference.Create(this);
+
+            pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+
+            if (Sesion.PollaActivaId.HasValue &&
+                !pollas.Any(p => p.Id == Sesion.PollaActivaId.Value))
+            {
+                await Sesion.LimpiarPollaActivaAsync();
+            }
+
+            if (Sesion.PollaActivaId.HasValue)
+            {
+                await CargarRankingAsync();
+            }
+
+            cargando = false;
+            StateHasChanged();
+            return;
+        }
+
+        if (usuarioDetalleAbierto != null &&
+            predictionTrackerModule != null &&
+            predictionTrackerReference != null)
+        {
+            await predictionTrackerModule.InvokeVoidAsync(
+                "observePredictionViews",
+                predictionTrackerReference);
+        }
+    }
+
+    private bool DebeRegistrarVista(DetalleRankingDto detalle)
+    {
+        return Sesion.UsuarioId.HasValue &&
+               Sesion.PollaActivaId.HasValue &&
+               !Sesion.EsAdmin &&
+               detalle.UsuarioId != Sesion.UsuarioId.Value &&
+               detalle.PartidoId > 0 &&
+               PuedeMostrarPronostico(detalle) &&
+               detalle.PronosticoLocal.HasValue &&
+               detalle.PronosticoVisitante.HasValue;
+    }
+
+    [JSInvokable]
+    public async Task RegistrarVistaPrediccion(
+        int pollaId,
+        int usuarioObjetivoId,
+        int partidoId)
+    {
+        if (!Sesion.UsuarioId.HasValue ||
+            Sesion.EsAdmin ||
+            Sesion.UsuarioId.Value == usuarioObjetivoId)
         {
             return;
         }
 
-        await Sesion.RestaurarSesionAsync();
-
-        if (!Sesion.EstaLogueado)
+        try
         {
-            Navigation.NavigateTo("/login?returnUrl=/ranking", true);
-            return;
+            using var response = await Http.PostAsJsonAsync(
+                "api/Predicciones/registrar-visualizacion",
+                new
+                {
+                    PollaId = pollaId,
+                    UsuarioObjetivoId = usuarioObjetivoId,
+                    PartidoId = partidoId,
+                    UsuarioVisualizadorId = Sesion.UsuarioId.Value
+                });
         }
-
-        pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
-
-        if (Sesion.PollaActivaId.HasValue &&
-            !pollas.Any(p => p.Id == Sesion.PollaActivaId.Value))
+        catch
         {
-            await Sesion.LimpiarPollaActivaAsync();
+            // El seguimiento no debe interrumpir la experiencia del ranking.
         }
-
-        if (Sesion.PollaActivaId.HasValue)
-        {
-            await CargarRankingAsync();
-        }
-
-        cargando = false;
-        StateHasChanged();
     }
 
     private async Task SeleccionarPolla(PollaDto polla)
@@ -1518,12 +1584,36 @@
 
     private async Task CambiarPolla()
     {
+        if (predictionTrackerModule != null)
+        {
+            await predictionTrackerModule.InvokeVoidAsync(
+                "disconnectPredictionViews");
+        }
+
         await Sesion.LimpiarPollaActivaAsync();
         ranking.Clear();
         rankingDetalle.Clear();
         usuarioDetalleAbierto = null;
         fasesDetalleMinimizadas.Clear();
         LimpiarFiltrosDetalle();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (predictionTrackerModule != null)
+        {
+            try
+            {
+                await predictionTrackerModule.InvokeVoidAsync(
+                    "disconnectPredictionViews");
+                await predictionTrackerModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        predictionTrackerReference?.Dispose();
     }
 
     private async Task CargarRankingAsync()
@@ -1769,7 +1859,7 @@
 
     private MarkupString MarcadorPronostico(DetalleRankingDto detalle)
     {
-        if (!detalle.PronosticoVisible)
+        if (!PuedeMostrarPronostico(detalle))
         {
             return new MarkupString("<span class=\"prediction-pill locked-prediction\">Oculto</span>");
         }
@@ -1781,6 +1871,47 @@
         }
 
         return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
+    }
+
+    private bool PuedeMostrarPronostico(DetalleRankingDto detalle)
+    {
+        return detalle.PronosticoVisible &&
+               (
+                   Sesion.EsAdmin ||
+                   Sesion.UsuarioId.HasValue &&
+                   detalle.UsuarioId == Sesion.UsuarioId.Value ||
+                   PartidoCerradoParaVisibilidad(detalle)
+               );
+    }
+
+    private static bool PartidoCerradoParaVisibilidad(DetalleRankingDto detalle)
+    {
+        return detalle.ResultadoLocal.HasValue &&
+               detalle.ResultadoVisitante.HasValue ||
+               AhoraColombia() >= FechaColombia(detalle.Fecha).AddHours(-1);
+    }
+
+    private static DateTime AhoraColombia()
+    {
+        var zona = TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows()
+                ? "SA Pacific Standard Time"
+                : "America/Bogota");
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zona);
+    }
+
+    private static DateTime FechaColombia(DateTime fecha)
+    {
+        if (fecha.Kind != DateTimeKind.Utc)
+        {
+            return fecha;
+        }
+
+        var zona = TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows()
+                ? "SA Pacific Standard Time"
+                : "America/Bogota");
+        return TimeZoneInfo.ConvertTimeFromUtc(fecha, zona);
     }
 
     private MarkupString Puntos(int puntos, string clase)

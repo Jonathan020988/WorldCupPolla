@@ -11,6 +11,13 @@
 
 <h3 class="mb-4">🏆 Mis Pollas</h3>
 
+@if (Sesion.EsAdmin)
+{
+    <div class="alert alert-primary">
+        Superadministrador: estás viendo todas las pollas registradas.
+    </div>
+}
+
 @if (!string.IsNullOrWhiteSpace(mensaje))
 {
     <div class="alert @(mensajeError ? "alert-danger" : "alert-success")">
@@ -41,6 +48,11 @@ else
                         <small class="text-muted">
                             📅 @p.FechaCreacion.ToString("dd/MM/yyyy")
                         </small>
+
+                        @if (Sesion.EsAdmin && p.CreadorId != Sesion.UsuarioId)
+                        {
+                            <span class="badge bg-primary mt-2">Vista superadmin</span>
+                        }
                         <div class="d-flex align-items-center mt-3">
                             <!-- Estado -->
                             <span class="badge bg-success">Activa</span>
@@ -92,7 +104,9 @@ else
                 return;
             }
 
-            pollas = await PollasService.GetPollasPorUsuarioAsync(Sesion.UsuarioId!.Value);
+            pollas = await PollasService.GetPollasPorUsuarioAsync(
+                Sesion.UsuarioId!.Value,
+                Sesion.EsAdmin);
             StateHasChanged();
         }
     }

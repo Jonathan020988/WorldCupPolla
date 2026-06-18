@@ -28,6 +28,7 @@ namespace WorldCup.Api.Controllers
                 .Include(p => p.Visitante)
                 .OrderBy(p => p.Id)
                 .ToListAsync();
+            var mostrarMarcadoresEnVivo = MarcadoresEnVivoHabilitados();
 
             var resultado = partidos
                 .Select(p => new
@@ -42,6 +43,16 @@ namespace WorldCup.Api.Controllers
                     Visitante = p.Visitante.Nombre,
                     p.GolesLocal,
                     p.GolesVisitante,
+                    NumeroPartidoFifa = mostrarMarcadoresEnVivo ? p.NumeroPartidoFifa : null,
+                    MarcadorEnVivoLocal = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoLocal : null,
+                    MarcadorEnVivoVisitante = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoVisitante : null,
+                    EstadoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.EstadoMarcadorEnVivo : null,
+                    MinutoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.MinutoMarcadorEnVivo : null,
+                    MarcadorEnVivoActualizadoEn = mostrarMarcadoresEnVivo && p.MarcadorEnVivoActualizadoEn.HasValue
+                        ? ColombiaClock.ToColombia(p.MarcadorEnVivoActualizadoEn.Value)
+                        : (DateTime?)null,
+                    FuenteMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.FuenteMarcadorEnVivo : null,
+                    IdExternoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.IdExternoMarcadorEnVivo : null,
                     p.TiempoExtra,
                     p.ClasificadoId,
                     p.PenalesLocal,
@@ -59,6 +70,7 @@ namespace WorldCup.Api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<PartidoDTO>> GetPartido(int id)
         {
+            var mostrarMarcadoresEnVivo = MarcadoresEnVivoHabilitados();
             var p = await _context.Partidos
                 .Include(x => x.Local)
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -74,6 +86,16 @@ namespace WorldCup.Api.Controllers
                 Grupo = p.Local?.Grupo,
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
+                NumeroPartidoFifa = mostrarMarcadoresEnVivo ? p.NumeroPartidoFifa : null,
+                MarcadorEnVivoLocal = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoLocal : null,
+                MarcadorEnVivoVisitante = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoVisitante : null,
+                EstadoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.EstadoMarcadorEnVivo : null,
+                MinutoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.MinutoMarcadorEnVivo : null,
+                MarcadorEnVivoActualizadoEn = mostrarMarcadoresEnVivo && p.MarcadorEnVivoActualizadoEn.HasValue
+                    ? ColombiaClock.ToColombia(p.MarcadorEnVivoActualizadoEn.Value)
+                    : null,
+                FuenteMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.FuenteMarcadorEnVivo : null,
+                IdExternoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.IdExternoMarcadorEnVivo : null,
                 TiempoExtra = p.TiempoExtra,
                 ClasificadoId = p.ClasificadoId,
                 PenalesLocal = p.PenalesLocal,
@@ -189,6 +211,33 @@ namespace WorldCup.Api.Controllers
                 partido.GolesVisitante,
                 partido.Finalizado
             });
+        }
+
+        [HttpPost("admin-marcadores-en-vivo/sincronizar")]
+        public async Task<IActionResult> SincronizarMarcadoresEnVivoAdmin(
+            AdminSincronizarMarcadoresEnVivoDTO dto,
+            CancellationToken cancellationToken)
+        {
+            if (_adminAuthorization == null ||
+                !await _adminAuthorization.EsAdminAsync(dto.AdminUsuarioId))
+            {
+                return Forbid("Solo un administrador puede sincronizar marcadores en vivo");
+            }
+
+            if (_liveScoreSync == null)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "La sincronización de marcadores en vivo no está disponible.");
+            }
+
+            if (!MarcadoresEnVivoHabilitados())
+            {
+                return BadRequest("La sincronización de marcadores en vivo está deshabilitada.");
+            }
+
+            var resultado = await _liveScoreSync.SincronizarFifaAsync(cancellationToken);
+            return Ok(resultado);
         }
 
 
@@ -1137,6 +1186,8 @@ namespace WorldCup.Api.Controllers
 
         private readonly AppDbContext _context;
         private readonly AdminAuthorizationService? _adminAuthorization;
+        private readonly LiveScoreSyncService? _liveScoreSync;
+        private readonly IConfiguration? _configuration;
         private static readonly string[] FasesTorneo =
         {
             "Grupos",
@@ -1150,10 +1201,19 @@ namespace WorldCup.Api.Controllers
 
         public PartidosController(
             AppDbContext context,
-            AdminAuthorizationService? adminAuthorization = null)
+            AdminAuthorizationService? adminAuthorization = null,
+            LiveScoreSyncService? liveScoreSync = null,
+            IConfiguration? configuration = null)
         {
             _context = context;
             _adminAuthorization = adminAuthorization;
+            _liveScoreSync = liveScoreSync;
+            _configuration = configuration;
+        }
+
+        private bool MarcadoresEnVivoHabilitados()
+        {
+            return _configuration?.GetValue<bool?>("MarcadoresEnVivo:Enabled") ?? false;
         }
 
         private async Task<IActionResult?> ValidarAdminAsync(int? adminUsuarioId)
@@ -1762,6 +1822,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(c.NumeroPartido),
+                    NumeroPartidoFifa = c.NumeroPartido,
                     Fase = "Dieciseisavos",
                     LocalId = local.Id,
                     VisitanteId = visitante.Id,
@@ -1858,6 +1919,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(numeroPartido),
+                    NumeroPartidoFifa = numeroPartido,
                     Fase = "Octavos",
                     LocalId = ObtenerGanadorId(partidosPorNumero[cruce[0]]),
                     VisitanteId = ObtenerGanadorId(partidosPorNumero[cruce[1]]),
@@ -1907,6 +1969,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(numeroPartido),
+                    NumeroPartidoFifa = numeroPartido,
                     Fase = "Cuartos",
                     LocalId = ObtenerGanadorId(partidosPorNumero[cruce[0]]),
                     VisitanteId = ObtenerGanadorId(partidosPorNumero[cruce[1]]),
@@ -1947,6 +2010,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(numeroPartido),
+                    NumeroPartidoFifa = numeroPartido,
                     Fase = "Semifinales",
                     LocalId = ObtenerGanadorId(cuartos[i]),
                     VisitanteId = ObtenerGanadorId(cuartos[i + 1]),
@@ -1981,6 +2045,7 @@ namespace WorldCup.Api.Controllers
             _context.Partidos.Add(new Partido
             {
                 Fecha = FechaProgramadaEliminatoria(104),
+                NumeroPartidoFifa = 104,
                 Fase = "Final",
                 LocalId = ObtenerGanadorId(semis[0]),
                 VisitanteId = ObtenerGanadorId(semis[1]),
@@ -2014,6 +2079,7 @@ namespace WorldCup.Api.Controllers
             _context.Partidos.Add(new Partido
             {
                 Fecha = FechaProgramadaEliminatoria(103),
+                NumeroPartidoFifa = 103,
                 Fase = "TercerPuesto",
                 LocalId = ObtenerPerdedorId(semis[0]),
                 VisitanteId = ObtenerPerdedorId(semis[1]),
@@ -2138,6 +2204,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(cruce.NumeroPartido),
+                    NumeroPartidoFifa = cruce.NumeroPartido,
                     Fase = "Dieciseisavos",
                     LocalId = local.Id,
                     VisitanteId = visitante.Id,
@@ -2179,6 +2246,7 @@ namespace WorldCup.Api.Controllers
                 _context.Partidos.Add(new Partido
                 {
                     Fecha = FechaProgramadaEliminatoria(numeroPartido),
+                    NumeroPartidoFifa = numeroPartido,
                     Fase = faseNueva,
                     LocalId = ObtenerGanadorId(partidosAnteriores[cruce.LocalIndex]),
                     VisitanteId = ObtenerGanadorId(partidosAnteriores[cruce.VisitanteIndex]),
@@ -2209,6 +2277,7 @@ namespace WorldCup.Api.Controllers
             _context.Partidos.Add(new Partido
             {
                 Fecha = FechaProgramadaEliminatoria(104),
+                NumeroPartidoFifa = 104,
                 Fase = "Final",
                 LocalId = ObtenerGanadorId(semifinales[0]),
                 VisitanteId = ObtenerGanadorId(semifinales[1]),
@@ -2238,6 +2307,7 @@ namespace WorldCup.Api.Controllers
             _context.Partidos.Add(new Partido
             {
                 Fecha = FechaProgramadaEliminatoria(103),
+                NumeroPartidoFifa = 103,
                 Fase = "TercerPuesto",
                 LocalId = ObtenerPerdedorId(semifinales[0]),
                 VisitanteId = ObtenerPerdedorId(semifinales[1]),
@@ -2531,22 +2601,33 @@ namespace WorldCup.Api.Controllers
         {
             var grupoNorm = grupo.ToUpper();
 
-            // 1️⃣ Obtener equipos del grupo
-            var equiposIds = await _context.Equipos
-                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupoNorm)
-                .Select(e => e.Id)
+            var partidosGrupo = await _context.Partidos
+                .Where(p => p.Fase == "Grupos" && p.Local.Grupo != null)
+                .Select(p => new
+                {
+                    p.Id,
+                    Grupo = p.Local.Grupo!.ToUpper(),
+                    p.Finalizado
+                })
                 .ToListAsync();
 
-            if (equiposIds.Count != 4)
-                return;
+            var gruposTerminados = partidosGrupo
+                .GroupBy(p => p.Grupo)
+                .Where(g => g.Any() && g.All(p => p.Finalizado))
+                .Select(g => g.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var partidosGrupoIds = await _context.Partidos
-                .Where(p =>
-                    p.Fase == "Grupos" &&
-                    equiposIds.Contains(p.LocalId) &&
-                    equiposIds.Contains(p.VisitanteId))
+            var todosLosGruposTerminados =
+                PuntajesClasificacionGrupos.GruposMundial.All(gruposTerminados.Contains);
+            var gruposARecalcular = todosLosGruposTerminados
+                ? PuntajesClasificacionGrupos.GruposMundial
+                : new[] { grupoNorm };
+            var gruposARecalcularSet = gruposARecalcular
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var partidosGrupoIds = partidosGrupo
+                .Where(p => gruposARecalcularSet.Contains(p.Grupo))
                 .Select(p => p.Id)
-                .ToListAsync();
+                .ToList();
 
             var prediccionesPartidosGrupo = await _context.Predicciones
                 .Where(p => partidosGrupoIds.Contains(p.PartidoId))
@@ -2561,14 +2642,11 @@ namespace WorldCup.Api.Controllers
                     p.PuntosPodio;
             }
 
-            bool grupoTerminado = !await _context.Partidos
-                .AnyAsync(p => partidosGrupoIds.Contains(p.Id) && !p.Finalizado);
-
             var prediccionesGrupo = await _context.PrediccionesGrupo
-                .Where(p => p.Grupo == grupoNorm)
+                .Where(p => gruposARecalcular.Contains(p.Grupo))
                 .ToListAsync();
 
-            if (!grupoTerminado)
+            if (!gruposTerminados.Contains(grupoNorm))
             {
                 foreach (var pred in prediccionesGrupo)
                 {
@@ -2579,40 +2657,58 @@ namespace WorldCup.Api.Controllers
                 return;
             }
 
-            // 3️⃣ Obtener tabla real
-            var tablaReal = await ObtenerTablaGrupo(grupoNorm);
-            if (tablaReal.Count < 4)
-                return;
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var grupoMundial in PuntajesClasificacionGrupos.GruposMundial)
+            {
+                tablasGrupo[grupoMundial] = await ObtenerTablaGrupo(grupoMundial);
+            }
 
-            int primeroReal = tablaReal[0].EquipoId;
-            int segundoReal = tablaReal[1].EquipoId;
-            int terceroReal = tablaReal[2].EquipoId;
+            var gruposTercerosReales = todosLosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tercerosPredichos = await _context.PrediccionesTerceros
+                .ToListAsync();
+            var tercerosPorUsuario = tercerosPredichos
+                .GroupBy(p => (p.UsuarioId, p.PollaId))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .Select(p => p.Grupo.ToUpperInvariant())
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
             foreach (var pred in prediccionesGrupo)
             {
-                int puntos = 0;
+                var predGrupoNorm = pred.Grupo.ToUpperInvariant();
+                if (!gruposTerminados.Contains(predGrupoNorm) ||
+                    !tablasGrupo.TryGetValue(predGrupoNorm, out var tablaReal) ||
+                    tablaReal.Count < 3)
+                {
+                    pred.Bloqueada = false;
+                    continue;
+                }
 
-                var realesClasificados = new[] { primeroReal, segundoReal, terceroReal };
-
-                if (pred.PrimeroId == primeroReal)
-                    puntos += 15;
-                else if (realesClasificados.Contains(pred.PrimeroId))
-                    puntos += 10;
-
-                if (pred.SegundoId == segundoReal)
-                    puntos += 10;
-                else if (realesClasificados.Contains(pred.SegundoId))
-                    puntos += 5;
-
-                if (pred.TerceroId == terceroReal)
-                    puntos += 5;
-                else if (realesClasificados.Contains(pred.TerceroId))
-                    puntos += 3;
+                tercerosPorUsuario.TryGetValue(
+                    (pred.UsuarioId, pred.PollaId),
+                    out var gruposTercerosPredichos);
+                var puntos = PuntajesClasificacionGrupos.Calcular(
+                    pred,
+                    tablaReal,
+                    gruposTercerosReales,
+                    gruposTercerosPredichos ?? new HashSet<string>(
+                        StringComparer.OrdinalIgnoreCase));
+                var partidosIdsDeGrupo = partidosGrupo
+                    .Where(p => string.Equals(
+                        p.Grupo,
+                        predGrupoNorm,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(p => p.Id)
+                    .ToHashSet();
 
                 var prediccionRepresentativa = prediccionesPartidosGrupo
                     .Where(p =>
                         p.UsuarioId == pred.UsuarioId &&
-                        p.PollaId == pred.PollaId)
+                        p.PollaId == pred.PollaId &&
+                        partidosIdsDeGrupo.Contains(p.PartidoId))
                     .OrderBy(p => p.PartidoId)
                     .FirstOrDefault();
 

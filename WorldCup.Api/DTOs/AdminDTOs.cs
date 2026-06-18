@@ -3,6 +3,9 @@ namespace WorldCup.Api.DTOs
     public class AdminActualizarPrediccionDTO
     {
         public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public int PartidoId { get; set; }
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
     }

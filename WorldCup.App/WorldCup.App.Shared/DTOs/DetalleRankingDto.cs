@@ -3,6 +3,7 @@
     public class DetalleRankingDto
     {
         public int UsuarioId { get; set; }
+        public int PartidoId { get; set; }
         public string Usuario { get; set; } = "";
 
         public string Fase { get; set; } = "";

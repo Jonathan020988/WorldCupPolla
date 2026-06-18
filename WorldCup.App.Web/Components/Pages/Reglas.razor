@@ -347,6 +347,45 @@
             clasificacion, por ejemplo: +15 por acertar el primero del grupo o +10 porque el
             equipo clasifico aunque quedo en otra posicion.
         </div>
+
+        <div class="classification-examples">
+            <article>
+                <h3>Ejemplo 1: orden exacto y tercer clasificado</h3>
+                <p>
+                    Real: Brasil 1°, Alemania 2° y Canada 3°; el grupo queda dentro de los
+                    8 mejores terceros. Si el usuario marco ese grupo como mejor tercero y puso
+                    Brasil, Alemania y Canada en ese orden, suma 15 + 10 + 5 = 30 puntos.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 2: pasan, pero en otro orden</h3>
+                <p>
+                    Con los mismos clasificados, si el usuario puso Canada 1°, Brasil 2° y
+                    Alemania 3°, los tres equipos pasaron, pero en orden incorrecto:
+                    suma 10 + 5 + 3 = 18 puntos.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 3: el tercero no entra</h3>
+                <p>
+                    Real: Espana 1°, Japon 2° y Marruecos 3°, pero ese tercer puesto no queda
+                    entre los 8 mejores terceros. Aunque el usuario haya puesto a Marruecos 3°,
+                    ese tercer puesto no suma; solo suman los equipos que realmente clasifican.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 4: grupo de tercero no seleccionado</h3>
+                <p>
+                    Si el usuario guarda el 3° de un grupo, pero no marca ese grupo dentro de
+                    sus 8 mejores terceros, ese tercer puesto no cuenta como clasificado en su
+                    prediccion. Para sumar por el tercero, debe estar marcado y debe clasificar
+                    realmente.
+                </p>
+            </article>
+        </div>
     </div>
 
     <div class="rules-grid">
@@ -645,6 +684,32 @@
         border-radius: 8px;
     }
 
+    .classification-examples {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .85rem;
+        margin-top: 1rem;
+    }
+
+    .classification-examples article {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 1rem;
+    }
+
+    .classification-examples h3 {
+        margin: 0 0 .45rem;
+        font-size: 1rem;
+        font-weight: 850;
+    }
+
+    .classification-examples p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+    }
+
     .podium-rules {
         display: grid;
         gap: .45rem;
@@ -670,7 +735,8 @@
         }
 
         .rules-grid,
-        .rules-grid.compact {
+        .rules-grid.compact,
+        .classification-examples {
             grid-template-columns: 1fr;
         }
 

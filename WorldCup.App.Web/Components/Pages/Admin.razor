@@ -945,8 +945,16 @@ else
     @if (usuarioPredicciones != null)
     {
         <div class="card mt-4">
-            <div class="card-header fw-bold">
-                Predicciones de @usuarioPredicciones.Nombre
+            <div class="card-header admin-prediction-card-head">
+                <div>
+                    <strong>Predicciones de @usuarioPredicciones.Nombre</strong>
+                    <small>
+                        Edita marcadores existentes o crea los que el usuario no guardo.
+                    </small>
+                </div>
+                <span class="missing-count-badge">
+                    @MarcadoresFaltantesAdmin().Count sin marcador
+                </span>
             </div>
             <div class="card-body p-0">
                 <div class="reopen-panel p-3 border-bottom">
@@ -1084,6 +1092,48 @@ else
                     </div>
                 </div>
 
+                @if (MarcadoresFaltantesAdmin().Any())
+                {
+                    <div class="missing-markers-admin p-3 border-bottom">
+                        <div class="missing-markers-head">
+                            <div>
+                                <span>Marcadores faltantes</span>
+                                <strong>@MarcadoresFaltantesAdmin().Count partido(s) sin marcador</strong>
+                            </div>
+                            <small>
+                                El superadministrador puede llenar estos marcadores directamente.
+                            </small>
+                        </div>
+
+                        <div class="missing-markers-list">
+                            @foreach (var prediccion in MarcadoresFaltantesAdmin().Take(8))
+                            {
+                                <div class="missing-marker-item">
+                                    <div>
+                                        <strong>@prediccion.Partido</strong>
+                                        <small>@NombreFase(prediccion.Fase) - @prediccion.Fecha.ToString("dd/MM HH:mm")</small>
+                                    </div>
+                                    <div class="missing-marker-score">
+                                        <input class="form-control form-control-sm marcador-admin"
+                                               type="number"
+                                               min="0"
+                                               @bind="prediccion.GolesLocal" />
+                                        <span>-</span>
+                                        <input class="form-control form-control-sm marcador-admin"
+                                               type="number"
+                                               min="0"
+                                               @bind="prediccion.GolesVisitante" />
+                                        <button class="btn btn-sm btn-primary"
+                                                @onclick="() => GuardarPrediccion(prediccion)">
+                                            Crear marcador
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
                 <table class="table table-sm mb-0 align-middle admin-mobile-table predictions-table">
                     <thead>
                         <tr>
@@ -1098,7 +1148,16 @@ else
                         @foreach (var prediccion in prediccionesUsuario)
                         {
                             <tr>
-                                <td>@prediccion.Partido</td>
+                                <td>
+                                    <strong>@prediccion.Partido</strong>
+                                    <small class="text-muted d-block">
+                                        @NombreFase(prediccion.Fase) - @prediccion.Fecha.ToString("dd/MM HH:mm")
+                                    </small>
+                                    @if (!prediccion.TienePrediccion)
+                                    {
+                                        <span class="badge bg-warning text-dark">Sin marcador</span>
+                                    }
+                                </td>
                                 <td>
                                     <input class="form-control form-control-sm d-inline-block marcador-admin"
                                            type="number"
@@ -1502,6 +1561,87 @@ else
 
     .marcador-admin {
         width: 70px;
+    }
+
+    .admin-prediction-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .admin-prediction-card-head strong,
+    .admin-prediction-card-head small {
+        display: block;
+    }
+
+    .admin-prediction-card-head small {
+        color: #667085;
+        font-weight: 500;
+        margin-top: .15rem;
+    }
+
+    .missing-count-badge {
+        border: 1px solid #f3d38b;
+        border-radius: 999px;
+        background: #fff8e6;
+        color: #8a5b00;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: .35rem .6rem;
+        white-space: nowrap;
+    }
+
+    .missing-markers-admin {
+        background: #fff8e6;
+    }
+
+    .missing-markers-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: .75rem;
+    }
+
+    .missing-markers-head span {
+        display: block;
+        color: #8a5b00;
+        font-size: .76rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .missing-markers-head strong {
+        display: block;
+        color: #432818;
+    }
+
+    .missing-markers-list {
+        display: grid;
+        gap: .55rem;
+    }
+
+    .missing-marker-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .75rem;
+        border: 1px solid #f3d38b;
+        border-radius: 8px;
+        background: #fff;
+        padding: .65rem;
+    }
+
+    .missing-marker-item small {
+        display: block;
+        color: #667085;
+    }
+
+    .missing-marker-score {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
     }
 
     .phase-control th {
@@ -2578,6 +2718,18 @@ else
 
         .admin-prediction-extra {
             grid-template-columns: 1fr;
+        }
+
+        .missing-markers-head,
+        .missing-marker-item,
+        .missing-marker-score {
+            align-items: stretch;
+            grid-template-columns: 1fr;
+            flex-direction: column;
+        }
+
+        .missing-marker-score .btn {
+            width: 100%;
         }
 
         .mass-alert-grid {
@@ -4079,6 +4231,15 @@ else
             $"api/Admin/reaperturas?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={usuarioPredicciones.UsuarioId}") ?? new();
     }
 
+    private List<PrediccionAdminDto> MarcadoresFaltantesAdmin()
+    {
+        return prediccionesUsuario
+            .Where(p => !p.TienePrediccion)
+            .OrderBy(p => p.Fecha)
+            .ThenBy(p => p.Partido)
+            .ToList();
+    }
+
     private IEnumerable<PartidoCalendarioAdminDto> PartidosReaperturaDisponibles()
     {
         return partidosCalendario
@@ -4165,6 +4326,9 @@ else
             new
             {
                 AdminUsuarioId = Sesion.UsuarioId!.Value,
+                PollaId = pollaSeleccionada?.Id ?? 0,
+                UsuarioId = usuarioPredicciones?.UsuarioId ?? 0,
+                prediccion.PartidoId,
                 prediccion.GolesLocal,
                 prediccion.GolesVisitante
             });
@@ -4480,7 +4644,11 @@ else
     private class PrediccionAdminDto
     {
         public int Id { get; set; }
+        public int PartidoId { get; set; }
         public string Partido { get; set; } = "";
+        public string Fase { get; set; } = "";
+        public DateTime Fecha { get; set; }
+        public bool TienePrediccion { get; set; }
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
         public int? ResultadoLocal { get; set; }

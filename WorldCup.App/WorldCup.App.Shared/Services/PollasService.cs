@@ -19,10 +19,13 @@ namespace WorldCup.App.Shared.Services
             ) ?? new();
         }
 
-        public async Task<List<PollaDto>> GetPollasPorUsuarioAsync(int usuarioId)
+        public async Task<List<PollaDto>> GetPollasPorUsuarioAsync(
+            int usuarioId,
+            bool incluirTodasSiAdmin = false)
         {
             return await _http.GetFromJsonAsync<List<PollaDto>>(
-                $"api/Polla/usuario/{usuarioId}"
+                $"api/Polla/usuario/{usuarioId}" +
+                $"?incluirTodasSiAdmin={incluirTodasSiAdmin.ToString().ToLowerInvariant()}"
             ) ?? new();
         }
 

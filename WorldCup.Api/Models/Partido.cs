@@ -21,6 +21,16 @@
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
 
+        // Marcador provisional tomado de una fuente externa. No calcula puntos.
+        public int? NumeroPartidoFifa { get; set; }
+        public int? MarcadorEnVivoLocal { get; set; }
+        public int? MarcadorEnVivoVisitante { get; set; }
+        public string? EstadoMarcadorEnVivo { get; set; }
+        public string? MinutoMarcadorEnVivo { get; set; }
+        public DateTime? MarcadorEnVivoActualizadoEn { get; set; }
+        public string? FuenteMarcadorEnVivo { get; set; }
+        public string? IdExternoMarcadorEnVivo { get; set; }
+
         // ¿El partido ya terminó y tiene marcador oficial?
         public bool Finalizado { get; set; } = false;
 

@@ -1067,30 +1067,52 @@ namespace WorldCup.Api.Controllers
             if (!await EsAdmin(adminUsuarioId))
                 return Forbid();
 
+            var pertenecePolla = await UsuarioPerteneceAPollaAsync(pollaId, usuarioId);
+            if (!pertenecePolla)
+                return BadRequest("El usuario no pertenece a la polla seleccionada.");
+
             var predicciones = await _context.Predicciones
-                .Include(p => p.Partido)
-                    .ThenInclude(p => p.Local)
-                .Include(p => p.Partido)
-                    .ThenInclude(p => p.Visitante)
+                .AsNoTracking()
                 .Where(p => p.PollaId == pollaId && p.UsuarioId == usuarioId)
-                .OrderBy(p => p.Partido.Fecha)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.PartidoId,
-                    Partido = p.Partido.Local.Nombre + " vs " + p.Partido.Visitante.Nombre,
-                    p.GolesLocal,
-                    p.GolesVisitante,
-                    ResultadoLocal = p.Partido.GolesLocal,
-                    ResultadoVisitante = p.Partido.GolesVisitante,
-                    p.PuntosMarcador,
-                    p.PuntosClasificacion,
-                    p.PuntosPodio,
-                    p.PuntosTotales
-                })
+                .ToListAsync();
+            var prediccionesPorPartido = predicciones
+                .GroupBy(p => p.PartidoId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var partidos = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .OrderBy(p => p.Fecha)
+                .ThenBy(p => p.Id)
                 .ToListAsync();
 
-            return Ok(predicciones);
+            var respuesta = partidos
+                .Select(partido =>
+                {
+                    prediccionesPorPartido.TryGetValue(partido.Id, out var prediccion);
+
+                    return new
+                    {
+                        Id = prediccion?.Id ?? 0,
+                        PartidoId = partido.Id,
+                        Partido = partido.Local.Nombre + " vs " + partido.Visitante.Nombre,
+                        partido.Fase,
+                        Fecha = ColombiaClock.ToColombia(partido.Fecha),
+                        TienePrediccion = prediccion != null,
+                        GolesLocal = prediccion?.GolesLocal,
+                        GolesVisitante = prediccion?.GolesVisitante,
+                        ResultadoLocal = partido.GolesLocal,
+                        ResultadoVisitante = partido.GolesVisitante,
+                        PuntosMarcador = prediccion?.PuntosMarcador ?? 0,
+                        PuntosClasificacion = prediccion?.PuntosClasificacion ?? 0,
+                        PuntosPodio = prediccion?.PuntosPodio ?? 0,
+                        PuntosTotales = prediccion?.PuntosTotales ?? 0
+                    };
+                })
+                .ToList();
+
+            return Ok(respuesta);
         }
 
         [HttpGet("predicciones/complemento")]
@@ -1450,12 +1472,72 @@ namespace WorldCup.Api.Controllers
             if (!await EsAdmin(dto.AdminUsuarioId))
                 return Forbid();
 
-            var prediccion = await _context.Predicciones
-                .Include(p => p.Partido)
-                .FirstOrDefaultAsync(p => p.Id == prediccionId);
+            if (dto.GolesLocal.HasValue != dto.GolesVisitante.HasValue)
+                return BadRequest("Debes ingresar ambos goles del marcador.");
+
+            if ((dto.GolesLocal.HasValue &&
+                 (dto.GolesLocal.Value < 0 || dto.GolesLocal.Value > 99)) ||
+                (dto.GolesVisitante.HasValue &&
+                 (dto.GolesVisitante.Value < 0 || dto.GolesVisitante.Value > 99)))
+            {
+                return BadRequest("El marcador debe estar entre 0 y 99 goles.");
+            }
+
+            Prediccion? prediccion = null;
+            if (prediccionId > 0)
+            {
+                prediccion = await _context.Predicciones
+                    .Include(p => p.Partido)
+                    .FirstOrDefaultAsync(p => p.Id == prediccionId);
+            }
+
+            if (prediccion == null &&
+                dto.PollaId > 0 &&
+                dto.UsuarioId > 0 &&
+                dto.PartidoId > 0)
+            {
+                if (!dto.GolesLocal.HasValue || !dto.GolesVisitante.HasValue)
+                    return BadRequest("Debes ingresar un marcador para crear la predicción.");
+
+                if (!await UsuarioPerteneceAPollaAsync(dto.PollaId, dto.UsuarioId))
+                    return BadRequest("El usuario no pertenece a la polla seleccionada.");
+
+                var partido = await _context.Partidos
+                    .FirstOrDefaultAsync(p => p.Id == dto.PartidoId);
+                if (partido == null)
+                    return BadRequest("Partido inválido.");
+
+                prediccion = await _context.Predicciones
+                    .Include(p => p.Partido)
+                    .FirstOrDefaultAsync(p =>
+                        p.PollaId == dto.PollaId &&
+                        p.UsuarioId == dto.UsuarioId &&
+                        p.PartidoId == dto.PartidoId);
+
+                if (prediccion == null)
+                {
+                    prediccion = new Prediccion
+                    {
+                        PollaId = dto.PollaId,
+                        UsuarioId = dto.UsuarioId,
+                        PartidoId = dto.PartidoId,
+                        Partido = partido,
+                        FechaCreacion = DateTime.UtcNow
+                    };
+
+                    _context.Predicciones.Add(prediccion);
+                }
+            }
 
             if (prediccion == null)
                 return NotFound("Predicción no encontrada");
+
+            if ((dto.PollaId > 0 && prediccion.PollaId != dto.PollaId) ||
+                (dto.UsuarioId > 0 && prediccion.UsuarioId != dto.UsuarioId) ||
+                (dto.PartidoId > 0 && prediccion.PartidoId != dto.PartidoId))
+            {
+                return BadRequest("Los datos no coinciden con la predicción seleccionada.");
+            }
 
             prediccion.GolesLocal = dto.GolesLocal;
             prediccion.GolesVisitante = dto.GolesVisitante;
@@ -1484,6 +1566,11 @@ namespace WorldCup.Api.Controllers
             else
             {
                 prediccion.PuntosMarcador = 0;
+            }
+
+            if (prediccion.Partido.Fase == "Grupos")
+            {
+                await RecalcularClasificacionGrupoUsuarioAsync(prediccion);
             }
 
             prediccion.PuntosTotales =
@@ -1975,6 +2062,189 @@ namespace WorldCup.Api.Controllers
 
         private async Task<bool> EsAdmin(int usuarioId) =>
             await _adminAuthorization.EsAdminAsync(usuarioId);
+
+        private async Task<bool> UsuarioPerteneceAPollaAsync(int pollaId, int usuarioId)
+        {
+            return await _context.Pollas.AnyAsync(p =>
+                       p.Id == pollaId &&
+                       p.CreadorId == usuarioId) ||
+                   await _context.PollaMiembros.AnyAsync(pm =>
+                       pm.PollaId == pollaId &&
+                       pm.UsuarioId == usuarioId);
+        }
+
+        private async Task RecalcularClasificacionGrupoUsuarioAsync(Prediccion prediccion)
+        {
+            var grupo = await _context.Equipos
+                .Where(e => e.Id == prediccion.Partido.LocalId)
+                .Select(e => e.Grupo)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(grupo))
+                return;
+
+            var grupoNorm = grupo.ToUpperInvariant();
+            var equiposIds = await _context.Equipos
+                .Where(e => e.Grupo != null && e.Grupo.ToUpper() == grupoNorm)
+                .Select(e => e.Id)
+                .ToListAsync();
+
+            if (equiposIds.Count != 4)
+                return;
+
+            var partidosGrupo = await _context.Partidos
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId))
+                .ToListAsync();
+            var partidosGrupoIds = partidosGrupo
+                .Select(p => p.Id)
+                .ToList();
+
+            var prediccionesGrupoUsuario = await _context.Predicciones
+                .Where(p =>
+                    p.PollaId == prediccion.PollaId &&
+                    p.UsuarioId == prediccion.UsuarioId &&
+                    partidosGrupoIds.Contains(p.PartidoId))
+                .OrderBy(p => p.PartidoId)
+                .ToListAsync();
+
+            foreach (var marcadorGrupo in prediccionesGrupoUsuario)
+            {
+                marcadorGrupo.PuntosClasificacion = 0;
+                marcadorGrupo.PuntosTotales =
+                    marcadorGrupo.PuntosMarcador +
+                    marcadorGrupo.PuntosClasificacion +
+                    marcadorGrupo.PuntosPodio;
+            }
+
+            var predGrupo = await _context.PrediccionesGrupo
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == prediccion.PollaId &&
+                    p.UsuarioId == prediccion.UsuarioId &&
+                    p.Grupo == grupoNorm);
+
+            if (predGrupo == null)
+                return;
+
+            if (partidosGrupo.Any(p => !p.Finalizado))
+            {
+                predGrupo.Bloqueada = false;
+                return;
+            }
+
+            var tablaReal = await ObtenerTablaGrupoAdminAsync(grupoNorm);
+            if (tablaReal.Count < 3)
+                return;
+
+            var todosGruposTerminados = !await _context.Partidos
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var grupoMundial in PuntajesClasificacionGrupos.GruposMundial)
+            {
+                tablasGrupo[grupoMundial] =
+                    await ObtenerTablaGrupoAdminAsync(grupoMundial);
+            }
+
+            var gruposTercerosReales = todosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(
+                    tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var gruposTercerosPredichos = (await _context.PrediccionesTerceros
+                    .Where(p =>
+                        p.PollaId == prediccion.PollaId &&
+                        p.UsuarioId == prediccion.UsuarioId)
+                    .Select(p => p.Grupo.ToUpper())
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var puntos = PuntajesClasificacionGrupos.Calcular(
+                predGrupo,
+                tablaReal,
+                gruposTercerosReales,
+                gruposTercerosPredichos);
+            var representativa = prediccionesGrupoUsuario
+                .OrderBy(p => p.PartidoId)
+                .FirstOrDefault() ?? prediccion;
+
+            representativa.PuntosClasificacion = puntos;
+            representativa.PuntosTotales =
+                representativa.PuntosMarcador +
+                representativa.PuntosClasificacion +
+                representativa.PuntosPodio;
+            predGrupo.Bloqueada = true;
+        }
+
+        private async Task<List<TablaPosicionDTO>> ObtenerTablaGrupoAdminAsync(
+            string grupo)
+        {
+            var grupoNormalizado = grupo.ToUpperInvariant();
+            var equipos = await _context.Equipos
+                .Where(e =>
+                    e.Grupo != null &&
+                    e.Grupo.ToUpper() == grupoNormalizado)
+                .ToListAsync();
+
+            var tabla = equipos.Select(e => new TablaPosicionDTO
+            {
+                EquipoId = e.Id,
+                Equipo = e.Nombre
+            }).ToList();
+            var equiposIds = equipos.Select(e => e.Id).ToList();
+            var partidos = await _context.Partidos
+                .Where(p =>
+                    p.Fase == "Grupos" &&
+                    p.Finalizado &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue &&
+                    equiposIds.Contains(p.LocalId) &&
+                    equiposIds.Contains(p.VisitanteId))
+                .ToListAsync();
+
+            foreach (var partido in partidos)
+            {
+                var local = tabla.First(t => t.EquipoId == partido.LocalId);
+                var visitante = tabla.First(t => t.EquipoId == partido.VisitanteId);
+                var golesLocal = partido.GolesLocal!.Value;
+                var golesVisitante = partido.GolesVisitante!.Value;
+
+                local.PJ++;
+                visitante.PJ++;
+                local.GF += golesLocal;
+                local.GC += golesVisitante;
+                visitante.GF += golesVisitante;
+                visitante.GC += golesLocal;
+
+                if (golesLocal > golesVisitante)
+                {
+                    local.PG++;
+                    local.Puntos += 3;
+                    visitante.PP++;
+                }
+                else if (golesLocal < golesVisitante)
+                {
+                    visitante.PG++;
+                    visitante.Puntos += 3;
+                    local.PP++;
+                }
+                else
+                {
+                    local.PE++;
+                    visitante.PE++;
+                    local.Puntos++;
+                    visitante.Puntos++;
+                }
+            }
+
+            return tabla
+                .OrderByDescending(t => t.Puntos)
+                .ThenByDescending(t => t.DG)
+                .ThenByDescending(t => t.GF)
+                .ThenBy(t => t.Equipo)
+                .ToList();
+        }
 
         private static int OrdenFaseHistorial(string fase) => fase switch
         {

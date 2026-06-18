@@ -9,6 +9,7 @@ using WorldCup.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 const string ApiKeyHeaderName = "X-WorldCup-Api-Key";
+builder.Logging.AddFilter("System.Net.Http.HttpClient.FifaLiveScoreFeedService", LogLevel.Warning);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -28,6 +29,13 @@ builder.Services.AddScoped<AdminAuthorizationService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<FormatoManualPdfService>();
 builder.Services.AddSingleton<AttemptRateLimiter>();
+builder.Services.AddHttpClient<FifaLiveScoreFeedService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("WorldCupPolla/1.0");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+});
+builder.Services.AddScoped<LiveScoreSyncService>();
+builder.Services.AddHostedService<LiveScoreSyncHostedService>();
 
 // JWT
 var jwt = builder.Configuration.GetSection("Jwt");

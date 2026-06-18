@@ -695,12 +695,27 @@ namespace WorldCup.Api.Controllers
                 .ToDictionary(g => g.Key, g => g.First());
 
             var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var grupo in prediccionesGrupo
-                .Select(p => p.Grupo.ToUpperInvariant())
-                .Distinct())
+            foreach (var grupo in PuntajesClasificacionGrupos.GruposMundial)
             {
                 tablasGrupo[grupo] = await ObtenerTablaGrupo(grupo);
             }
+
+            var todosGruposTerminados = !await _context.Partidos
+                .AsNoTracking()
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var gruposTercerosReales = todosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tercerosPredichos = await _context.PrediccionesTerceros
+                .Where(p => p.PollaId == pollaId)
+                .ToListAsync();
+            var tercerosPorUsuario = tercerosPredichos
+                .GroupBy(p => (p.UsuarioId, p.PollaId))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .Select(p => p.Grupo.ToUpperInvariant())
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
             var prediccionesPodio = await _context.PrediccionesPodio
                 .Where(p => p.PollaId == pollaId)
@@ -724,6 +739,8 @@ namespace WorldCup.Api.Controllers
                     p,
                     gruposPorUsuario,
                     tablasGrupo,
+                    tercerosPorUsuario,
+                    gruposTercerosReales,
                     podiosPorUsuario,
                     final,
                     tercerPuesto,
@@ -754,6 +771,7 @@ namespace WorldCup.Api.Controllers
                     detalle.Add(new DetalleRankingDto
                     {
                         UsuarioId = miembro.UsuarioId,
+                        PartidoId = partido.Id,
                         Usuario = miembro.Usuario,
                         Fase = partido.Fase,
                         Grupo = partido.Local.Grupo?.ToUpperInvariant() ?? "",
@@ -777,6 +795,8 @@ namespace WorldCup.Api.Controllers
             Prediccion prediccion,
             Dictionary<(int UsuarioId, int PollaId, string Grupo), PrediccionGrupo> gruposPorUsuario,
             Dictionary<string, List<TablaPosicionDTO>> tablasGrupo,
+            Dictionary<(int UsuarioId, int PollaId), HashSet<string>> tercerosPorUsuario,
+            HashSet<string> gruposTercerosReales,
             Dictionary<(int UsuarioId, int PollaId), PrediccionPodio> podiosPorUsuario,
             Partido? final,
             Partido? tercerPuesto,
@@ -799,6 +819,7 @@ namespace WorldCup.Api.Controllers
             return new DetalleRankingDto
             {
                 UsuarioId = prediccion.UsuarioId,
+                PartidoId = prediccion.PartidoId,
                 Usuario = prediccion.Usuario.Nombre,
                 Fase = prediccion.Partido.Fase,
                 Grupo = grupo,
@@ -824,6 +845,8 @@ namespace WorldCup.Api.Controllers
                     puntosKo,
                     gruposPorUsuario,
                     tablasGrupo,
+                    tercerosPorUsuario,
+                    gruposTercerosReales,
                     grupo),
                 DetalleExtras = DescribirExtras(prediccion, puntosKo),
                 DetallePodio = DescribirPodio(
@@ -841,6 +864,8 @@ namespace WorldCup.Api.Controllers
             PuntosKoDetalle puntosKo,
             Dictionary<(int UsuarioId, int PollaId, string Grupo), PrediccionGrupo> gruposPorUsuario,
             Dictionary<string, List<TablaPosicionDTO>> tablasGrupo,
+            Dictionary<(int UsuarioId, int PollaId), HashSet<string>> tercerosPorUsuario,
+            HashSet<string> gruposTercerosReales,
             string grupo)
         {
             if (puntosClasificacion <= 0)
@@ -864,46 +889,23 @@ namespace WorldCup.Api.Controllers
                 return $"Puntos por clasificación del grupo {grupo}.";
             }
 
-            var primero = tabla[0].EquipoId;
-            var segundo = tabla[1].EquipoId;
-            var tercero = tabla[2].EquipoId;
-            var clasificados = new[] { primero, segundo, tercero };
-            var partes = new List<string>();
+            tercerosPorUsuario.TryGetValue(
+                (prediccion.UsuarioId, prediccion.PollaId),
+                out var gruposTercerosPredichos);
 
-            AgregarDetalleGrupo(partes, predGrupo.PrimeroId, primero, clasificados, tabla, 15, 10, "primero");
-            AgregarDetalleGrupo(partes, predGrupo.SegundoId, segundo, clasificados, tabla, 10, 5, "segundo");
-            AgregarDetalleGrupo(partes, predGrupo.TerceroId, tercero, clasificados, tabla, 5, 3, "tercero");
+            var partes = PuntajesClasificacionGrupos
+                .Desglosar(
+                    predGrupo,
+                    tabla,
+                    gruposTercerosReales,
+                    gruposTercerosPredichos ?? new HashSet<string>(
+                        StringComparer.OrdinalIgnoreCase))
+                .Select(d => $"+{d.Puntos}: {d.Descripcion}")
+                .ToList();
 
             return partes.Any()
                 ? string.Join("; ", partes)
                 : $"Puntos por clasificación del grupo {grupo}.";
-        }
-
-        private static void AgregarDetalleGrupo(
-            List<string> partes,
-            int predichoId,
-            int realId,
-            int[] clasificados,
-            List<TablaPosicionDTO> tabla,
-            int puntosExactos,
-            int puntosClasifico,
-            string posicion)
-        {
-            var equipo = NombreEquipoTabla(predichoId, tabla);
-
-            if (predichoId == realId)
-            {
-                partes.Add($"+{puntosExactos}: {equipo} quedó de {posicion}");
-            }
-            else if (clasificados.Contains(predichoId))
-            {
-                partes.Add($"+{puntosClasifico}: {equipo} clasificó, aunque en otra posición");
-            }
-        }
-
-        private static string NombreEquipoTabla(int equipoId, List<TablaPosicionDTO> tabla)
-        {
-            return tabla.FirstOrDefault(t => t.EquipoId == equipoId)?.Equipo ?? $"Equipo {equipoId}";
         }
 
         private static string DescribirExtras(Prediccion prediccion, PuntosKoDetalle puntosKo)
@@ -992,15 +994,7 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             int solicitanteId)
         {
-            if (await _adminAuthorization.EsAdminAsync(solicitanteId))
-            {
-                return true;
-            }
-
-            return await _context.Pollas
-                .AnyAsync(p =>
-                    p.Id == pollaId &&
-                    p.CreadorId == solicitanteId);
+            return await _adminAuthorization.EsAdminAsync(solicitanteId);
         }
 
         private static bool PuedeVerPronostico(
@@ -1252,10 +1246,17 @@ namespace WorldCup.Api.Controllers
         }
 
         [HttpGet("usuario/{usuarioId}")]
-        public async Task<IActionResult> GetPollasPorUsuario(int usuarioId)
+        public async Task<IActionResult> GetPollasPorUsuario(
+            int usuarioId,
+            [FromQuery] bool incluirTodasSiAdmin = false)
         {
+            var puedeVerTodas =
+                incluirTodasSiAdmin &&
+                await _adminAuthorization.EsAdminAsync(usuarioId);
+
             var pollas = await _context.Pollas
                 .Where(p =>
+                    puedeVerTodas ||
                     p.CreadorId == usuarioId ||
                     _context.PollaMiembros.Any(pm =>
                         pm.PollaId == p.Id &&
@@ -1796,9 +1797,18 @@ namespace WorldCup.Api.Controllers
             [FromQuery] int usuarioId,
             [FromQuery] string tipo = "partidos-grupos")
         {
-            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
             if (acceso != null)
                 return acceso;
+
+            var solicitanteEsSuperAdmin =
+                await _adminAuthorization.EsAdminAsync(solicitanteId);
+            if (!solicitanteEsSuperAdmin && solicitanteId != usuarioId)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el propio usuario o el superadministrador puede descargar este formato diligenciado.");
+            }
 
             var polla = await _context.Pollas
                 .AsNoTracking()

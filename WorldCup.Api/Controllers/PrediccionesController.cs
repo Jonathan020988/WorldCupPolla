@@ -356,7 +356,7 @@ namespace WorldCup.Api.Controllers
 
             if (polla.CreadorId == usuarioId)
             {
-                return (null, usuarioId, true);
+                return (null, usuarioId, false);
             }
 
             var esMiembro = await _context.PollaMiembros
@@ -381,6 +381,272 @@ namespace WorldCup.Api.Controllers
             return puedeVerTodo ||
                    prediccion.UsuarioId == solicitanteId ||
                    PartidoCerrado(partido);
+        }
+
+        [HttpGet("buscar-marcador")]
+        public async Task<IActionResult> BuscarJugadoresPorMarcador(
+            [FromQuery] int pollaId,
+            [FromQuery] int? solicitanteId,
+            [FromQuery] int partidoId,
+            [FromQuery] int golesLocal,
+            [FromQuery] int golesVisitante)
+        {
+            var acceso = await ValidarLecturaPollaAsync(pollaId, solicitanteId);
+            if (acceso.Error != null)
+                return acceso.Error;
+
+            var esAdminGlobal = await _adminAuthorization.EsAdminAsync(acceso.UsuarioId);
+
+            if (partidoId <= 0)
+                return BadRequest("Debes seleccionar un partido válido.");
+
+            if (golesLocal < 0 || golesVisitante < 0 ||
+                golesLocal > 99 || golesVisitante > 99)
+            {
+                return BadRequest("El marcador debe estar entre 0 y 99 goles.");
+            }
+
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null)
+                return NotFound("El partido no existe.");
+
+            if ((!partido.Finalizado ||
+                 !partido.GolesLocal.HasValue ||
+                 !partido.GolesVisitante.HasValue) &&
+                !esAdminGlobal)
+            {
+                return Conflict(
+                    "La búsqueda estará disponible cuando el partido finalice y sus puntos hayan sido calculados.");
+            }
+
+            var jugadores = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.PartidoId == partidoId &&
+                    p.Usuario.Activo &&
+                    (
+                        p.Polla.CreadorId == p.UsuarioId ||
+                        p.Usuario.PollaMiembros.Any(pm => pm.PollaId == pollaId)
+                    ) &&
+                    p.GolesLocal == golesLocal &&
+                    p.GolesVisitante == golesVisitante)
+                .Select(p => new
+                {
+                    usuarioId = p.UsuarioId,
+                    usuario = p.Usuario.Nombre,
+                    puntosMarcador = p.PuntosMarcador,
+                    puntosBonificacion = p.Partido.Fase == "Grupos"
+                        ? 0
+                        : p.PuntosClasificacion,
+                    puntos = p.PuntosMarcador +
+                        (p.Partido.Fase == "Grupos"
+                            ? 0
+                            : p.PuntosClasificacion)
+                })
+                .OrderByDescending(p => p.puntos)
+                .ThenBy(p => p.usuario)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                partido = new
+                {
+                    partido.Id,
+                    local = partido.Local.Nombre,
+                    visitante = partido.Visitante.Nombre,
+                    partido.Fase,
+                    fecha = ColombiaClock.ToColombia(partido.Fecha),
+                    resultadoLocal = partido.GolesLocal,
+                    resultadoVisitante = partido.GolesVisitante,
+                    partido.Finalizado,
+                    consultaAnticipada = esAdminGlobal && !partido.Finalizado
+                },
+                marcadorBuscado = new
+                {
+                    local = golesLocal,
+                    visitante = golesVisitante
+                },
+                totalJugadores = jugadores.Count,
+                jugadores
+            });
+        }
+
+        [HttpPost("registrar-visualizacion")]
+        public async Task<IActionResult> RegistrarVisualizacionPrediccion(
+            [FromBody] RegistrarVisualizacionPrediccionDto dto)
+        {
+            if (dto.PollaId <= 0 ||
+                dto.UsuarioObjetivoId <= 0 ||
+                dto.PartidoId <= 0 ||
+                dto.UsuarioVisualizadorId <= 0)
+            {
+                return NoContent();
+            }
+
+            if (dto.UsuarioObjetivoId == dto.UsuarioVisualizadorId ||
+                await _adminAuthorization.EsAdminAsync(dto.UsuarioVisualizadorId))
+            {
+                return NoContent();
+            }
+
+            var visualizadorTieneAcceso = await _context.Pollas
+                .AnyAsync(p =>
+                    p.Id == dto.PollaId &&
+                    (
+                        p.CreadorId == dto.UsuarioVisualizadorId ||
+                        p.Miembros.Any(pm =>
+                            pm.UsuarioId == dto.UsuarioVisualizadorId &&
+                            pm.Usuario.Activo)
+                    ));
+
+            if (!visualizadorTieneAcceso)
+                return NoContent();
+
+            var prediccion = await _context.Predicciones
+                .AsNoTracking()
+                .Include(p => p.Partido)
+                .Where(p =>
+                    p.PollaId == dto.PollaId &&
+                    p.UsuarioId == dto.UsuarioObjetivoId &&
+                    p.PartidoId == dto.PartidoId &&
+                    p.Usuario.Activo &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue &&
+                    (
+                        p.Polla.CreadorId == p.UsuarioId ||
+                        p.Usuario.PollaMiembros.Any(pm =>
+                            pm.PollaId == dto.PollaId)
+                    ))
+                .FirstOrDefaultAsync();
+
+            if (prediccion == null ||
+                !PartidoCerrado(prediccion.Partido))
+            {
+                return NoContent();
+            }
+
+            _context.VisualizacionesPrediccion.Add(new VisualizacionPrediccion
+            {
+                PollaId = dto.PollaId,
+                UsuarioObjetivoId = dto.UsuarioObjetivoId,
+                PartidoId = dto.PartidoId,
+                UsuarioVisualizadorId = dto.UsuarioVisualizadorId,
+                FechaVisualizacion = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpGet("visualizaciones")]
+        public async Task<IActionResult> ObtenerVisualizacionesPrediccion(
+            [FromQuery] int adminUsuarioId,
+            [FromQuery] int pollaId,
+            [FromQuery] int usuarioObjetivoId,
+            [FromQuery] int partidoId)
+        {
+            if (!await _adminAuthorization.EsAdminAsync(adminUsuarioId))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    "Solo el administrador general puede consultar este historial.");
+            }
+
+            var prediccion = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioObjetivoId &&
+                    p.PartidoId == partidoId &&
+                    p.GolesLocal.HasValue &&
+                    p.GolesVisitante.HasValue)
+                .Select(p => new
+                {
+                    usuarioId = p.UsuarioId,
+                    usuario = p.Usuario.Nombre,
+                    partidoId = p.PartidoId,
+                    local = p.Partido.Local.Nombre,
+                    visitante = p.Partido.Visitante.Nombre,
+                    p.Partido.Fase,
+                    fecha = p.Partido.Fecha,
+                    golesLocal = p.GolesLocal!.Value,
+                    golesVisitante = p.GolesVisitante!.Value,
+                    p.Partido.Finalizado
+                })
+                .FirstOrDefaultAsync();
+
+            if (prediccion == null)
+                return NotFound("Ese usuario no tiene un marcador guardado para el partido seleccionado.");
+
+            var cerrado = prediccion.Finalizado ||
+                ColombiaClock.Now() >=
+                ColombiaClock.ToColombia(prediccion.fecha).AddHours(-1);
+
+            var vistas = await _context.VisualizacionesPrediccion
+                .AsNoTracking()
+                .Where(v =>
+                    v.PollaId == pollaId &&
+                    v.UsuarioObjetivoId == usuarioObjetivoId &&
+                    v.PartidoId == partidoId)
+                .OrderByDescending(v => v.FechaVisualizacion)
+                .Select(v => new
+                {
+                    v.UsuarioVisualizadorId,
+                    usuario = v.UsuarioVisualizador.Nombre,
+                    v.FechaVisualizacion
+                })
+                .ToListAsync();
+
+            var visualizadores = vistas
+                .GroupBy(v => new
+                {
+                    v.UsuarioVisualizadorId,
+                    v.usuario
+                })
+                .Select(g => new
+                {
+                    usuarioId = g.Key.UsuarioVisualizadorId,
+                    usuario = g.Key.usuario,
+                    totalVistas = g.Count(),
+                    primeraVista = ColombiaClock.ToColombia(
+                        g.Min(v => v.FechaVisualizacion)),
+                    ultimaVista = ColombiaClock.ToColombia(
+                        g.Max(v => v.FechaVisualizacion)),
+                    vistas = g
+                        .OrderByDescending(v => v.FechaVisualizacion)
+                        .Select(v => ColombiaClock.ToColombia(v.FechaVisualizacion))
+                        .ToList()
+                })
+                .OrderByDescending(v => v.ultimaVista)
+                .ThenBy(v => v.usuario)
+                .ToList();
+
+            return Ok(new
+            {
+                prediccion = new
+                {
+                    prediccion.usuarioId,
+                    prediccion.usuario,
+                    prediccion.partidoId,
+                    prediccion.local,
+                    prediccion.visitante,
+                    prediccion.Fase,
+                    fecha = ColombiaClock.ToColombia(prediccion.fecha),
+                    fechaCierre = ColombiaClock.ToColombia(prediccion.fecha).AddHours(-1),
+                    prediccion.golesLocal,
+                    prediccion.golesVisitante,
+                    cerrado
+                },
+                totalVistas = vistas.Count,
+                usuariosUnicos = visualizadores.Count,
+                visualizadores
+            });
         }
 
         private async Task<bool> TieneReaperturaActivaAsync(
@@ -513,26 +779,29 @@ namespace WorldCup.Api.Controllers
             if (tablaReal.Count < 3)
                 return;
 
-            var primeroReal = tablaReal[0].EquipoId;
-            var segundoReal = tablaReal[1].EquipoId;
-            var terceroReal = tablaReal[2].EquipoId;
-            var clasificados = new[] { primeroReal, segundoReal, terceroReal };
-            var puntos = 0;
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var grupoMundial in PuntajesClasificacionGrupos.GruposMundial)
+            {
+                tablasGrupo[grupoMundial] = await ObtenerTablaRealGrupoAsync(grupoMundial);
+            }
 
-            if (predGrupo.PrimeroId == primeroReal)
-                puntos += 15;
-            else if (clasificados.Contains(predGrupo.PrimeroId))
-                puntos += 10;
-
-            if (predGrupo.SegundoId == segundoReal)
-                puntos += 10;
-            else if (clasificados.Contains(predGrupo.SegundoId))
-                puntos += 5;
-
-            if (predGrupo.TerceroId == terceroReal)
-                puntos += 5;
-            else if (clasificados.Contains(predGrupo.TerceroId))
-                puntos += 3;
+            var todosGruposTerminados = !await _context.Partidos
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var gruposTercerosReales = todosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var gruposTercerosPredichos = (await _context.PrediccionesTerceros
+                    .Where(p =>
+                        p.PollaId == pollaId &&
+                        p.UsuarioId == usuarioId)
+                    .Select(p => p.Grupo.ToUpper())
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var puntos = PuntajesClasificacionGrupos.Calcular(
+                predGrupo,
+                tablaReal,
+                gruposTercerosReales,
+                gruposTercerosPredichos);
 
             var partidosGrupoIds = partidosGrupo.Select(p => p.Id).ToList();
             var prediccionRepresentativa = await _context.Predicciones

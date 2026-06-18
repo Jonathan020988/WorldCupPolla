@@ -34,6 +34,7 @@ namespace WorldCup.Api.Data
         public DbSet<AdminReaperturaPrediccion> AdminReaperturasPrediccion { get; set; }
         public DbSet<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; }
         public DbSet<AlertaUsuario> AlertasUsuario { get; set; }
+        public DbSet<VisualizacionPrediccion> VisualizacionesPrediccion { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -186,6 +187,39 @@ namespace WorldCup.Api.Data
 
             modelBuilder.Entity<AlertaUsuario>()
                 .HasIndex(a => new { a.UsuarioId, a.Estado, a.FechaCreacion });
+
+            modelBuilder.Entity<VisualizacionPrediccion>()
+                .HasOne(v => v.Polla)
+                .WithMany()
+                .HasForeignKey(v => v.PollaId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<VisualizacionPrediccion>()
+                .HasOne(v => v.UsuarioObjetivo)
+                .WithMany()
+                .HasForeignKey(v => v.UsuarioObjetivoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<VisualizacionPrediccion>()
+                .HasOne(v => v.UsuarioVisualizador)
+                .WithMany()
+                .HasForeignKey(v => v.UsuarioVisualizadorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<VisualizacionPrediccion>()
+                .HasOne(v => v.Partido)
+                .WithMany()
+                .HasForeignKey(v => v.PartidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<VisualizacionPrediccion>()
+                .HasIndex(v => new
+                {
+                    v.PollaId,
+                    v.UsuarioObjetivoId,
+                    v.PartidoId,
+                    v.FechaVisualizacion
+                });
 
         }
     }

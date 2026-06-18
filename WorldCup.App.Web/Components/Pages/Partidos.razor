@@ -161,6 +161,18 @@
         box-shadow: 0 7px 18px rgba(0,0,0,.2);
     }
 
+    .live-meta {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        margin-top: .35rem;
+        color: #d7fff0;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
     .goal-callout {
         position: absolute;
         inset: auto 50% 5px auto;
@@ -191,6 +203,20 @@
         font-size: .68rem;
         font-weight: 950;
         letter-spacing: .05em;
+    }
+
+    .live-reference {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .35rem;
+        padding: .35rem .65rem;
+        border-radius: 999px;
+        background: #fff8e6;
+        color: #8a5f00;
+        font-size: .78rem;
+        font-weight: 850;
     }
 
     @@keyframes livePulse {
@@ -485,7 +511,7 @@
                         <span class="live-dot"></span>
                         Partidos en vivo
                     </span>
-                    <small>El puntaje se calcula únicamente al finalizar el partido.</small>
+                    <small>Marcador provisional FIFA. El puntaje se calcula únicamente cuando el admin confirma.</small>
                 </div>
 
                 <div class="live-arena-list">
@@ -494,11 +520,19 @@
                         <div class="live-scoreboard">
                             <span class="live-team local">@partidoEnJuego.Local</span>
                             <span class="live-score">
-                                <span>@(partidoEnJuego.GolesLocal ?? 0)</span>
+                                <span>@(MarcadorEnVivoLocal(partidoEnJuego) ?? 0)</span>
                                 <span>-</span>
-                                <span>@(partidoEnJuego.GolesVisitante ?? 0)</span>
+                                <span>@(MarcadorEnVivoVisitante(partidoEnJuego) ?? 0)</span>
                             </span>
                             <span class="live-team visitante">@partidoEnJuego.Visitante</span>
+
+                            <span class="live-meta">
+                                <span>@EstadoEnVivoTexto(partidoEnJuego)</span>
+                                @if (!string.IsNullOrWhiteSpace(partidoEnJuego.MinutoMarcadorEnVivo))
+                                {
+                                    <span>· @partidoEnJuego.MinutoMarcadorEnVivo</span>
+                                }
+                            </span>
 
                             @if (golEnVivo?.PartidoId == partidoEnJuego.Id)
                             {
@@ -562,10 +596,10 @@
                                 <div class="col-5 fw-bold text-end">@p.Local</div>
 
                                 <div class="col-2 score">
-                                    @if (p.Finalizado || (p.Estado == "EnJuego" && TieneMarcadorCompleto(p)))
+                                    @if (p.Finalizado || TieneMarcadorCompleto(p))
                                     {
                                         @($"{p.GolesLocal} - {p.GolesVisitante}")
-                                        @if (p.Estado == "EnJuego")
+                                        @if (!p.Finalizado && p.Estado == "EnJuego")
                                         {
                                             <span class="live-card-label">EN VIVO</span>
                                         }
@@ -591,6 +625,11 @@
                                             </div>
                                         }
                                     }
+                                    else if (TieneMarcadorEnVivo(p))
+                                    {
+                                        @($"{p.MarcadorEnVivoLocal} - {p.MarcadorEnVivoVisitante}")
+                                        <span class="live-card-label">@EtiquetaMarcadorEnVivo(p)</span>
+                                    }
                                     else
                                     {
                                         <span class="text-muted">–</span>
@@ -614,6 +653,17 @@
                                     @p.Estado
                                 </span>
                             </div>
+
+                            @if (!p.Finalizado && TieneMarcadorEnVivo(p))
+                            {
+                                <div class="text-center mt-2">
+                                    <span class="live-reference">
+                                        FIFA provisional:
+                                        @($"{p.MarcadorEnVivoLocal} - {p.MarcadorEnVivoVisitante}")
+                                        @EstadoEnVivoTexto(p)
+                                    </span>
+                                </div>
+                            }
 
                             @if (Sesion.EsAdmin)
                             {
@@ -1065,7 +1115,7 @@
 
         marcadoresServidor = nuevosPartidos.ToDictionary(
             p => p.Id,
-            p => (p.GolesLocal, p.GolesVisitante));
+            MarcadorParaDetectar);
         partidos = nuevosPartidos;
         resultadosPersistidos = partidos
             .Where(TieneResultadoRealPersistido)
@@ -1077,14 +1127,18 @@
     private IEnumerable<PartidoDto> PartidosEnJuego()
     {
         return partidos
-            .Where(p => p.Estado == "EnJuego")
+            .Where(p =>
+                MarcadorEnVivoActivo(p) ||
+                (p.Estado == "EnJuego" && TieneMarcadorCompleto(p)))
             .OrderBy(p => p.Fecha)
             .ThenBy(p => p.Id);
     }
 
     private void DetectarGol(IEnumerable<PartidoDto> nuevosPartidos)
     {
-        foreach (var partido in nuevosPartidos.Where(p => p.Estado == "EnJuego"))
+        foreach (var partido in nuevosPartidos.Where(p =>
+            MarcadorEnVivoActivo(p) ||
+            (p.Estado == "EnJuego" && TieneMarcadorCompleto(p))))
         {
             if (!marcadoresServidor.TryGetValue(
                     partido.Id,
@@ -1093,12 +1147,13 @@
                 continue;
             }
 
+            var marcadorNuevo = MarcadorParaDetectar(partido);
             var aumentoLocal =
-                partido.GolesLocal.HasValue &&
-                partido.GolesLocal.Value > (marcadorAnterior.Local ?? 0);
+                marcadorNuevo.Local.HasValue &&
+                marcadorNuevo.Local.Value > (marcadorAnterior.Local ?? 0);
             var aumentoVisitante =
-                partido.GolesVisitante.HasValue &&
-                partido.GolesVisitante.Value > (marcadorAnterior.Visitante ?? 0);
+                marcadorNuevo.Visitante.HasValue &&
+                marcadorNuevo.Visitante.Value > (marcadorAnterior.Visitante ?? 0);
 
             if (!aumentoLocal && !aumentoVisitante)
             {
@@ -1177,6 +1232,77 @@
                partido.ClasificadoId.HasValue ||
                partido.Finalizado ||
                partido.Estado != "Pendiente";
+    }
+
+    private static bool TieneMarcadorEnVivo(PartidoDto partido)
+    {
+        return partido.MarcadorEnVivoLocal.HasValue &&
+               partido.MarcadorEnVivoVisitante.HasValue;
+    }
+
+    private static bool MarcadorEnVivoActivo(PartidoDto partido)
+    {
+        if (!TieneMarcadorEnVivo(partido) || partido.Finalizado)
+        {
+            return false;
+        }
+
+        return partido.EstadoMarcadorEnVivo switch
+        {
+            "EnJuego" or "Descanso" or "TiempoExtra" or "Penales" => true,
+            _ => false
+        };
+    }
+
+    private static (int? Local, int? Visitante) MarcadorParaDetectar(PartidoDto partido)
+    {
+        if (TieneMarcadorEnVivo(partido))
+        {
+            return (partido.MarcadorEnVivoLocal, partido.MarcadorEnVivoVisitante);
+        }
+
+        if (partido.Estado == "EnJuego" && TieneMarcadorCompleto(partido))
+        {
+            return (partido.GolesLocal, partido.GolesVisitante);
+        }
+
+        return (null, null);
+    }
+
+    private static int? MarcadorEnVivoLocal(PartidoDto partido)
+    {
+        return TieneMarcadorEnVivo(partido)
+            ? partido.MarcadorEnVivoLocal
+            : partido.GolesLocal;
+    }
+
+    private static int? MarcadorEnVivoVisitante(PartidoDto partido)
+    {
+        return TieneMarcadorEnVivo(partido)
+            ? partido.MarcadorEnVivoVisitante
+            : partido.GolesVisitante;
+    }
+
+    private static string EstadoEnVivoTexto(PartidoDto partido)
+    {
+        return partido.EstadoMarcadorEnVivo switch
+        {
+            "Finalizado" => "FIFA final",
+            "Programado" => "FIFA programado",
+            "EnJuego" => "FIFA en vivo",
+            "Descanso" => "Descanso",
+            "TiempoExtra" => "Tiempo extra",
+            "Penales" => "Penales",
+            _ when partido.Estado == "EnJuego" => "En vivo",
+            _ => "FIFA provisional"
+        };
+    }
+
+    private static string EtiquetaMarcadorEnVivo(PartidoDto partido)
+    {
+        return partido.EstadoMarcadorEnVivo == "Finalizado"
+            ? "FIFA FINAL"
+            : "FIFA PROV.";
     }
 
     private void EditarResultadoAdmin(PartidoDto partido)
