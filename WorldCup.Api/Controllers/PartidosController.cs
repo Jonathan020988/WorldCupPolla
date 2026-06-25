@@ -358,6 +358,16 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
+            var puntajesAntes = estado == "Finalizado"
+                ? await ObtenerSnapshotPuntajesRankingAsync()
+                : null;
+            if (puntajesAntes != null)
+            {
+                await AjustarSnapshotConAuditoriaPendienteExistenteAsync(
+                    partido.Id,
+                    puntajesAntes);
+            }
+
             partido.Estado = estado;
             partido.Finalizado = estado == "Finalizado";
             partido.GolesLocal = dto.GolesLocal;
@@ -395,6 +405,18 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
+            if (partido.Finalizado)
+            {
+                await GuardarAuditoriaRankingPartidoAsync(
+                    partido.Id,
+                    dto.AdminUsuarioId,
+                    puntajesAntes ?? new Dictionary<(int PollaId, int UsuarioId), PuntajesRankingSnapshot>());
+            }
+            else
+            {
+                await LimpiarAuditoriaRankingPartidoAsync(partido.Id);
+            }
+
             return Ok(new
             {
                 partido.Id,
@@ -405,6 +427,44 @@ namespace WorldCup.Api.Controllers
                 partido.ClasificadoId,
                 partido.Finalizado
             });
+        }
+
+        [HttpGet("{id}/ranking-auditoria")]
+        public async Task<IActionResult> ObtenerAuditoriaRankingPartido(
+            int id,
+            [FromQuery] int? adminUsuarioId)
+        {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
+            return await ConstruirRespuestaAuditoriaRankingPartidoAsync(id);
+        }
+
+        [HttpPost("{id}/ranking-publicacion")]
+        public async Task<IActionResult> PublicarRevisionRankingPartido(
+            int id,
+            AdminPublicarRankingPartidoDTO dto)
+        {
+            var adminError = await ValidarAdminAsync(dto.AdminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .FirstOrDefaultAsync(r => r.PartidoId == id);
+
+            if (publicacion == null)
+            {
+                return NotFound("Todavia no hay una auditoria de ranking para este partido.");
+            }
+
+            publicacion.Publicado = true;
+            publicacion.FechaPublicacion = DateTime.UtcNow;
+            publicacion.AdminPublicacionId = dto.AdminUsuarioId;
+
+            await _context.SaveChangesAsync();
+
+            return await ConstruirRespuestaAuditoriaRankingPartidoAsync(id);
         }
 
         [HttpPut("{id}/admin-fecha")]
@@ -460,6 +520,7 @@ namespace WorldCup.Api.Controllers
             foreach (var fase in FasesTorneo)
             {
                 var partidosFase = await _context.Partidos
+                    .Include(p => p.Local)
                     .Where(p => p.Fase == fase)
                     .ToListAsync();
 
@@ -477,11 +538,28 @@ namespace WorldCup.Api.Controllers
                 var partidosPosteriores = await _context.Partidos
                     .CountAsync(p => fasesPosteriores.Contains(p.Fase));
                 var siguienteFase = ObtenerSiguienteFase(fase);
-                var siguienteGenerada = fase == "Semifinales"
-                    ? await _context.Partidos.AnyAsync(p => p.Fase == "Final") &&
-                      await _context.Partidos.AnyAsync(p => p.Fase == "TercerPuesto")
-                    : siguienteFase != null &&
-                      await _context.Partidos.AnyAsync(p => p.Fase == siguienteFase);
+                var fasesDestinoCruces = ObtenerFasesDestinoCruces(fase);
+                var totalCrucesSiguienteFase =
+                    ObtenerCantidadCrucesEsperada(fase);
+                var partidosSiguienteFase = fasesDestinoCruces.Length == 0
+                    ? 0
+                    : await _context.Partidos
+                        .CountAsync(p => fasesDestinoCruces.Contains(p.Fase));
+                var siguienteGenerada = totalCrucesSiguienteFase > 0 &&
+                    partidosSiguienteFase >= totalCrucesSiguienteFase;
+                var gruposTerminados = fase == "Grupos"
+                    ? partidosFase
+                        .Where(p => !string.IsNullOrWhiteSpace(p.Local.Grupo))
+                        .GroupBy(p => p.Local.Grupo)
+                        .Count(g => g.Any() && g.All(p => p.Finalizado))
+                    : 0;
+                var puedeRevisarCruces = fase == "Grupos"
+                    ? gruposTerminados > 0 && !siguienteGenerada
+                    : total > 0 &&
+                        finalizados == total &&
+                        penalesInvalidos == 0 &&
+                        siguienteFase != null &&
+                        !siguienteGenerada;
 
                 fases.Add(new
                 {
@@ -501,6 +579,9 @@ namespace WorldCup.Api.Controllers
                          partidosPosteriores > 0),
                     siguienteFase,
                     siguienteGenerada,
+                    puedeRevisarCruces,
+                    partidosSiguienteFase,
+                    totalCrucesSiguienteFase,
                     partidosPosteriores
                 });
             }
@@ -617,25 +698,116 @@ namespace WorldCup.Api.Controllers
                 await CalcularPuntosPodio();
             }
 
-            List<string> fasesGeneradas;
-            try
-            {
-                fasesGeneradas = await GenerarSiguientesFasesAsync(faseNormalizada);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-
             await _context.SaveChangesAsync();
 
-            var extra = fasesGeneradas.Any()
-                ? $" Se generó: {string.Join(", ", fasesGeneradas)}."
-                : "";
+            var siguienteFase = ObtenerSiguienteFase(faseNormalizada);
+            var extra = string.IsNullOrWhiteSpace(siguienteFase)
+                ? ""
+                : $" Revisa los cruces de {siguienteFase} antes de publicarlos.";
 
             return Ok(new
             {
                 mensaje = $"Fase {faseNormalizada} finalizada correctamente.{extra}"
+            });
+        }
+
+        [HttpGet("admin-fases/{fase}/cruces")]
+        public async Task<IActionResult> PrevisualizarCrucesFaseAdmin(
+            string fase,
+            [FromQuery] int adminUsuarioId)
+        {
+            var adminError = await ValidarAdminAsync(adminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
+            var faseNormalizada = NormalizarFaseTorneo(fase);
+            if (faseNormalizada == null)
+            {
+                return BadRequest("Fase inválida");
+            }
+
+            if (ObtenerFasesDestinoCruces(faseNormalizada).Length == 0)
+            {
+                return BadRequest("Esta fase no genera una ronda posterior");
+            }
+
+            try
+            {
+                return Ok(await ConstruirPreviewCrucesAdminAsync(faseNormalizada));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+        }
+
+        [HttpPost("admin-fases/{fase}/cruces/publicar")]
+        public async Task<IActionResult> PublicarCrucesFaseAdmin(
+            string fase,
+            AdminPublicarCrucesDTO dto)
+        {
+            var adminError = await ValidarAdminAsync(dto.AdminUsuarioId);
+            if (adminError != null)
+                return adminError;
+
+            var faseNormalizada = NormalizarFaseTorneo(fase);
+            if (faseNormalizada == null)
+            {
+                return BadRequest("Fase inválida");
+            }
+
+            var fasesDestino = ObtenerFasesDestinoCruces(faseNormalizada);
+            if (fasesDestino.Length == 0)
+            {
+                return BadRequest("Esta fase no genera una ronda posterior");
+            }
+
+            if (faseNormalizada != "Grupos" &&
+                await _context.Partidos.AnyAsync(p => fasesDestino.Contains(p.Fase)))
+            {
+                return Conflict("La siguiente fase ya tiene partidos generados.");
+            }
+
+            if (faseNormalizada == "Grupos")
+            {
+                var dieciseisavosPublicados = await _context.Partidos
+                    .CountAsync(p => p.Fase == "Dieciseisavos");
+
+                if (dieciseisavosPublicados >= 16)
+                {
+                    return Conflict("Los dieciseisavos ya están completos.");
+                }
+            }
+
+            var errorValidacion = await ValidarCrucesParaPublicarAsync(
+                faseNormalizada,
+                fasesDestino,
+                dto.Cruces);
+
+            if (errorValidacion != null)
+            {
+                return BadRequest(errorValidacion);
+            }
+
+            foreach (var cruce in dto.Cruces.OrderBy(c => c.NumeroPartido))
+            {
+                _context.Partidos.Add(new Partido
+                {
+                    Fecha = ColombiaClock.FromColombiaToUtc(cruce.Fecha),
+                    NumeroPartidoFifa = cruce.NumeroPartido,
+                    Fase = cruce.Fase,
+                    LocalId = cruce.LocalId,
+                    VisitanteId = cruce.VisitanteId,
+                    Estado = "Pendiente",
+                    Finalizado = false
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Cruces de {string.Join(", ", fasesDestino.Select(NombreFaseAdmin))} publicados correctamente."
             });
         }
 
@@ -818,24 +990,14 @@ namespace WorldCup.Api.Controllers
             }
 
 
-            var ordenada = tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            var ordenada = PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal ?? 0,
+                    p.GolesVisitante ?? 0)));
 
-            ordenada.Sort((a, b) =>
-            {
-                if (a.Puntos == b.Puntos &&
-                    a.DG == b.DG &&
-                    a.GF == b.GF)
-                {
-                    return CompararEnfrentamientoDirecto(a, b, partidos);
-                }
-
-                return 0;
-            });
             return Ok(ordenada);
 
         }
@@ -982,11 +1144,13 @@ namespace WorldCup.Api.Controllers
             }
 
             // 4️⃣ Orden FIFA + tomar TOP 2
-            var clasificados = tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
+            var clasificados = PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                    tabla,
+                    partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                        p.LocalId,
+                        p.VisitanteId,
+                        p.GolesLocal ?? 0,
+                        p.GolesVisitante ?? 0)))
                 .Take(2)
                 .Select(t => new
                 {
@@ -997,41 +1161,6 @@ namespace WorldCup.Api.Controllers
                 .ToList();
 
             return Ok(clasificados);
-        }
-
-        private int CompararEnfrentamientoDirecto(
-            TablaPosicionDTO a,
-            TablaPosicionDTO b,
-             List<Partido> partidos)
-        {
-            var partidoDirecto = partidos.FirstOrDefault(p =>
-                (p.LocalId == a.EquipoId && p.VisitanteId == b.EquipoId) ||
-                (p.LocalId == b.EquipoId && p.VisitanteId == a.EquipoId)
-            );
-
-            if (partidoDirecto == null)
-                return 0; // no hubo partido
-
-            int golesA, golesB;
-
-            if (partidoDirecto.LocalId == a.EquipoId)
-            {
-                golesA = partidoDirecto.GolesLocal ?? 0;
-                golesB = partidoDirecto.GolesVisitante ?? 0;
-            }
-            else
-            {
-                golesA = partidoDirecto.GolesVisitante ?? 0;
-                golesB = partidoDirecto.GolesLocal ?? 0;
-            }
-
-            // A ganó
-            if (golesA > golesB) return -1;
-
-            // B ganó
-            if (golesA < golesB) return 1;
-
-            return 0; // empate
         }
 
         [HttpGet("mejores-terceros")]
@@ -2125,6 +2254,549 @@ namespace WorldCup.Api.Controllers
             return true;
         }
 
+        private async Task<AdminCrucesFaseDTO> ConstruirPreviewCrucesAdminAsync(string faseOrigen)
+        {
+            var fasesDestino = ObtenerFasesDestinoCruces(faseOrigen);
+            var esperados = ObtenerCantidadCrucesEsperada(faseOrigen);
+            var publicados = await _context.Partidos
+                .CountAsync(p => fasesDestino.Contains(p.Fase));
+            var yaGenerada = esperados > 0 && publicados >= esperados;
+            var cruces = yaGenerada
+                ? await ObtenerCrucesPublicadosAdminAsync(fasesDestino)
+                : await ConstruirCrucesSugeridosAdminAsync(faseOrigen);
+            var puedePublicar = !yaGenerada &&
+                (faseOrigen == "Grupos"
+                    ? cruces.Any()
+                    : cruces.Count == esperados);
+            var equiposDisponibles = await ObtenerEquiposDisponiblesCrucesAsync(
+                faseOrigen,
+                cruces);
+
+            return new AdminCrucesFaseDTO
+            {
+                FaseOrigen = faseOrigen,
+                SiguienteFase = ObtenerSiguienteFase(faseOrigen) ?? "",
+                PuedePublicar = puedePublicar,
+                YaGenerada = yaGenerada,
+                Mensaje = yaGenerada
+                    ? "La siguiente fase ya fue publicada."
+                    : puedePublicar
+                        ? publicados > 0
+                            ? $"Ya hay {publicados} cruce(s) publicado(s). Revisa los nuevos cruces disponibles antes de publicarlos."
+                            : "Revisa los cruces sugeridos. Puedes cambiar equipos antes de publicar."
+                        : faseOrigen == "Grupos"
+                            ? "Todavía no hay cruces nuevos con ambos equipos definidos."
+                            : "Todavía no se pueden construir todos los cruces de la siguiente fase.",
+                Cruces = cruces,
+                EquiposDisponibles = equiposDisponibles
+            };
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesSugeridosAdminAsync(
+            string faseOrigen)
+        {
+            return faseOrigen switch
+            {
+                "Grupos" => await ConstruirCrucesDieciseisavosPreviewAdminAsync(),
+                "Dieciseisavos" => await ConstruirCrucesGanadoresPreviewAdminAsync(
+                    "Dieciseisavos",
+                    "Octavos",
+                    16),
+                "Octavos" => await ConstruirCrucesGanadoresPreviewAdminAsync(
+                    "Octavos",
+                    "Cuartos",
+                    8),
+                "Cuartos" => await ConstruirCrucesGanadoresPreviewAdminAsync(
+                    "Cuartos",
+                    "Semifinales",
+                    4),
+                "Semifinales" => await ConstruirCrucesFinalesPreviewAdminAsync(),
+                _ => new List<AdminCrucePartidoDTO>()
+            };
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesDieciseisavosPreviewAdminAsync()
+        {
+            var partidosGrupo = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Where(p => p.Fase == "Grupos" && p.Local.Grupo != null)
+                .Select(p => new
+                {
+                    Grupo = p.Local.Grupo!.ToUpper(),
+                    p.Finalizado
+                })
+                .ToListAsync();
+            var gruposTerminados = partidosGrupo
+                .GroupBy(p => p.Grupo)
+                .Where(g => g.Any() && g.All(p => p.Finalizado))
+                .Select(g => g.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var todosLosGruposTerminados =
+                PuntajesClasificacionGrupos.GruposMundial.All(gruposTerminados.Contains);
+            var numerosPublicados = (await _context.Partidos
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Fase == "Dieciseisavos" &&
+                        p.NumeroPartidoFifa.HasValue)
+                    .Select(p => p.NumeroPartidoFifa!.Value)
+                    .ToListAsync())
+                .ToHashSet();
+
+            if (!gruposTerminados.Any() ||
+                numerosPublicados.Count >= 16)
+            {
+                return new List<AdminCrucePartidoDTO>();
+            }
+
+            var tablas = await ObtenerTablasPorGrupoAsync();
+            if (tablas.Count != GruposMundial.Length)
+            {
+                return new List<AdminCrucePartidoDTO>();
+            }
+
+            Dictionary<int, string>? asignacionTerceros = null;
+            Dictionary<string, TerceroClasificado>? tercerosPorGrupo = null;
+
+            if (todosLosGruposTerminados)
+            {
+                var terceros = ObtenerMejoresTerceros(tablas);
+                if (terceros.Count == 8)
+                {
+                    asignacionTerceros = AsignarTercerosDieciseisavos(
+                        CrucesDieciseisavos.Where(c => c.UsaTercero),
+                        terceros
+                            .Select(t => t.Grupo)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase));
+                    tercerosPorGrupo = terceros.ToDictionary(
+                        t => t.Grupo,
+                        StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
+            var equipos = await _context.Equipos
+                .AsNoTracking()
+                .ToListAsync();
+            var equiposPorId = equipos.ToDictionary(e => e.Id);
+            var cruces = new List<AdminCrucePartidoDTO>();
+
+            foreach (var definicion in CrucesDieciseisavos)
+            {
+                if (numerosPublicados.Contains(definicion.NumeroPartido) ||
+                    !gruposTerminados.Contains(definicion.LocalGrupo) ||
+                    !tablas.TryGetValue(definicion.LocalGrupo, out var tablaLocal) ||
+                    tablaLocal.Count < definicion.LocalPosicion)
+                {
+                    continue;
+                }
+
+                var local = tablaLocal[definicion.LocalPosicion - 1];
+                TablaPosicionDTO? visitante = null;
+                string etiquetaVisitante;
+
+                if (definicion.UsaTercero)
+                {
+                    if (asignacionTerceros == null ||
+                        tercerosPorGrupo == null ||
+                        !asignacionTerceros.TryGetValue(
+                            definicion.NumeroPartido,
+                            out var grupoTercero))
+                    {
+                        continue;
+                    }
+
+                    visitante = tercerosPorGrupo[grupoTercero].Equipo;
+                    etiquetaVisitante = $"3º Grupo {grupoTercero}";
+                }
+                else
+                {
+                    var grupoVisitante = definicion.VisitanteGrupo!;
+                    if (!gruposTerminados.Contains(grupoVisitante) ||
+                        !tablas.TryGetValue(grupoVisitante, out var tablaVisitante) ||
+                        tablaVisitante.Count < definicion.VisitantePosicion!.Value)
+                    {
+                        continue;
+                    }
+
+                    visitante = tablaVisitante[definicion.VisitantePosicion.Value - 1];
+                    etiquetaVisitante =
+                        $"{definicion.VisitantePosicion}º Grupo {grupoVisitante}";
+                }
+
+                if (!equiposPorId.TryGetValue(local.EquipoId, out var localEquipo) ||
+                    !equiposPorId.TryGetValue(visitante.EquipoId, out var visitanteEquipo))
+                {
+                    continue;
+                }
+
+                cruces.Add(new AdminCrucePartidoDTO
+                {
+                    NumeroPartido = definicion.NumeroPartido,
+                    Fase = "Dieciseisavos",
+                    Fecha = ColombiaClock.ToColombia(
+                        FechaProgramadaEliminatoria(definicion.NumeroPartido)),
+                    LocalId = localEquipo.Id,
+                    Local = localEquipo.Nombre,
+                    VisitanteId = visitanteEquipo.Id,
+                    Visitante = visitanteEquipo.Nombre,
+                    OrigenLocal = $"{definicion.LocalPosicion}º Grupo {definicion.LocalGrupo}",
+                    OrigenVisitante = etiquetaVisitante
+                });
+            }
+
+            return cruces;
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesGanadoresPreviewAdminAsync(
+            string faseAnterior,
+            string faseNueva,
+            int cantidadEsperada)
+        {
+            if (!await FaseListaParaGenerar(faseAnterior, cantidadEsperada))
+            {
+                return new List<AdminCrucePartidoDTO>();
+            }
+
+            var partidosAnteriores = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Fase == faseAnterior)
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+            var cruces = ObtenerCrucesSiguienteFase(
+                faseAnterior,
+                partidosAnteriores.Count);
+            var resultado = new List<AdminCrucePartidoDTO>();
+
+            for (var i = 0; i < cruces.Count; i++)
+            {
+                var cruce = cruces[i];
+                var partidoLocal = partidosAnteriores[cruce.LocalIndex];
+                var partidoVisitante = partidosAnteriores[cruce.VisitanteIndex];
+                var localId = ObtenerGanadorId(partidoLocal);
+                var visitanteId = ObtenerGanadorId(partidoVisitante);
+
+                var numeroPartido = ObtenerNumeroPartidoGenerado(faseNueva, i);
+                resultado.Add(new AdminCrucePartidoDTO
+                {
+                    NumeroPartido = numeroPartido,
+                    Fase = faseNueva,
+                    Fecha = ColombiaClock.ToColombia(
+                        FechaProgramadaEliminatoria(numeroPartido)),
+                    LocalId = localId,
+                    Local = NombreEquipoEnPartido(partidoLocal, localId),
+                    VisitanteId = visitanteId,
+                    Visitante = NombreEquipoEnPartido(partidoVisitante, visitanteId),
+                    OrigenLocal = $"Ganador {EtiquetaPartido(partidoLocal)}",
+                    OrigenVisitante = $"Ganador {EtiquetaPartido(partidoVisitante)}"
+                });
+            }
+
+            return resultado;
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesFinalesPreviewAdminAsync()
+        {
+            if (!await FaseListaParaGenerar("Semifinales", 2))
+            {
+                return new List<AdminCrucePartidoDTO>();
+            }
+
+            var semifinales = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => p.Fase == "Semifinales")
+                .OrderBy(p => p.Id)
+                .ToListAsync();
+            var ganador1 = ObtenerGanadorId(semifinales[0]);
+            var ganador2 = ObtenerGanadorId(semifinales[1]);
+            var perdedor1 = ObtenerPerdedorId(semifinales[0]);
+            var perdedor2 = ObtenerPerdedorId(semifinales[1]);
+
+            return new List<AdminCrucePartidoDTO>
+            {
+                new()
+                {
+                    NumeroPartido = 103,
+                    Fase = "TercerPuesto",
+                    Fecha = ColombiaClock.ToColombia(FechaProgramadaEliminatoria(103)),
+                    LocalId = perdedor1,
+                    Local = NombreEquipoEnPartido(semifinales[0], perdedor1),
+                    VisitanteId = perdedor2,
+                    Visitante = NombreEquipoEnPartido(semifinales[1], perdedor2),
+                    OrigenLocal = $"Perdedor {EtiquetaPartido(semifinales[0])}",
+                    OrigenVisitante = $"Perdedor {EtiquetaPartido(semifinales[1])}"
+                },
+                new()
+                {
+                    NumeroPartido = 104,
+                    Fase = "Final",
+                    Fecha = ColombiaClock.ToColombia(FechaProgramadaEliminatoria(104)),
+                    LocalId = ganador1,
+                    Local = NombreEquipoEnPartido(semifinales[0], ganador1),
+                    VisitanteId = ganador2,
+                    Visitante = NombreEquipoEnPartido(semifinales[1], ganador2),
+                    OrigenLocal = $"Ganador {EtiquetaPartido(semifinales[0])}",
+                    OrigenVisitante = $"Ganador {EtiquetaPartido(semifinales[1])}"
+                }
+            };
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ObtenerCrucesPublicadosAdminAsync(
+            string[] fasesDestino)
+        {
+            var partidosPublicados = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .Where(p => fasesDestino.Contains(p.Fase))
+                .OrderBy(p => p.NumeroPartidoFifa ?? p.Id)
+                .ToListAsync();
+
+            return partidosPublicados
+                .Select(p => new AdminCrucePartidoDTO
+                {
+                    NumeroPartido = p.NumeroPartidoFifa ?? p.Id,
+                    Fase = p.Fase,
+                    Fecha = ColombiaClock.ToColombia(p.Fecha),
+                    LocalId = p.LocalId,
+                    Local = p.Local.Nombre,
+                    VisitanteId = p.VisitanteId,
+                    Visitante = p.Visitante.Nombre,
+                    OrigenLocal = "Publicado",
+                    OrigenVisitante = "Publicado"
+                })
+                .ToList();
+        }
+
+        private async Task<List<AdminEquipoCruceDTO>> ObtenerEquiposDisponiblesCrucesAsync(
+            string faseOrigen,
+            IReadOnlyCollection<AdminCrucePartidoDTO> cruces)
+        {
+            if (faseOrigen == "Grupos")
+            {
+                return await _context.Equipos
+                    .AsNoTracking()
+                    .OrderBy(e => e.Nombre)
+                    .Select(e => new AdminEquipoCruceDTO
+                    {
+                        Id = e.Id,
+                        Nombre = e.Nombre,
+                        Grupo = e.Grupo ?? ""
+                    })
+                    .ToListAsync();
+            }
+
+            var equiposIds = cruces
+                .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            return await _context.Equipos
+                .AsNoTracking()
+                .Where(e => equiposIds.Contains(e.Id))
+                .OrderBy(e => e.Nombre)
+                .Select(e => new AdminEquipoCruceDTO
+                {
+                    Id = e.Id,
+                    Nombre = e.Nombre,
+                    Grupo = e.Grupo ?? ""
+                })
+                .ToListAsync();
+        }
+
+        private async Task<string?> ValidarCrucesParaPublicarAsync(
+            string faseOrigen,
+            string[] fasesDestino,
+            List<AdminCrucePartidoDTO>? cruces)
+        {
+            if (cruces == null || !cruces.Any())
+            {
+                return "No hay cruces para publicar.";
+            }
+
+            if (!await FaseOrigenListaParaPublicarAsync(faseOrigen))
+            {
+                return $"La fase {NombreFaseAdmin(faseOrigen)} todavía no está completa.";
+            }
+
+            var esperados = ObtenerCantidadCrucesEsperada(faseOrigen);
+            if (faseOrigen == "Grupos")
+            {
+                if (cruces.Count > esperados)
+                {
+                    return $"No puedes publicar más de {esperados} cruce(s).";
+                }
+            }
+            else if (cruces.Count != esperados)
+            {
+                return $"Debes publicar exactamente {esperados} cruce(s).";
+            }
+
+            foreach (var cruce in cruces)
+            {
+                cruce.Fase = NormalizarFaseTorneo(cruce.Fase) ?? cruce.Fase;
+            }
+
+            if (cruces.Any(c => !fasesDestino.Contains(c.Fase)))
+            {
+                return "Hay cruces asignados a una fase que no corresponde.";
+            }
+
+            if (fasesDestino.Length == 1 &&
+                cruces.Any(c => c.Fase != fasesDestino[0]))
+            {
+                return $"Todos los cruces deben pertenecer a {NombreFaseAdmin(fasesDestino[0])}.";
+            }
+
+            if (faseOrigen == "Semifinales" &&
+                (cruces.Count(c => c.Fase == "Final") != 1 ||
+                 cruces.Count(c => c.Fase == "TercerPuesto") != 1))
+            {
+                return "Desde semifinales debes publicar una final y un partido por el tercer puesto.";
+            }
+
+            if (cruces.GroupBy(c => c.NumeroPartido).Any(g => g.Count() > 1))
+            {
+                return "Hay números de partido repetidos.";
+            }
+
+            var numerosPartido = cruces.Select(c => c.NumeroPartido).ToList();
+            var numerosExistentes = await _context.Partidos
+                .Where(p =>
+                    fasesDestino.Contains(p.Fase) &&
+                    p.NumeroPartidoFifa.HasValue &&
+                    numerosPartido.Contains(p.NumeroPartidoFifa.Value))
+                .Select(p => p.NumeroPartidoFifa!.Value)
+                .ToListAsync();
+
+            if (numerosExistentes.Any())
+            {
+                return "Ya existen estos partidos: " +
+                    string.Join(", ", numerosExistentes.OrderBy(n => n));
+            }
+
+            if (cruces.Any(c => c.Fecha <= DateTime.MinValue.AddDays(1)))
+            {
+                return "Todos los cruces deben tener una fecha válida.";
+            }
+
+            if (cruces.Any(c => c.LocalId <= 0 || c.VisitanteId <= 0))
+            {
+                return "Todos los cruces deben tener local y visitante.";
+            }
+
+            if (cruces.Any(c => c.LocalId == c.VisitanteId))
+            {
+                return "Un equipo no puede jugar contra sí mismo.";
+            }
+
+            var equiposIds = cruces
+                .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
+                .ToList();
+
+            if (equiposIds.Distinct().Count() != equiposIds.Count)
+            {
+                return "No se puede repetir un equipo en más de un cruce de la misma publicación.";
+            }
+
+            var partidosYaPublicados = await _context.Partidos
+                .Where(p => fasesDestino.Contains(p.Fase))
+                .ToListAsync();
+            var equiposYaPublicados = partidosYaPublicados
+                .SelectMany(p => new[] { p.LocalId, p.VisitanteId })
+                .ToList();
+
+            var repetidosConPublicados = equiposIds
+                .Intersect(equiposYaPublicados)
+                .ToList();
+
+            if (repetidosConPublicados.Any())
+            {
+                return "Hay equipos que ya están publicados en la siguiente fase.";
+            }
+
+            var equiposExistentes = await _context.Equipos
+                .Where(e => equiposIds.Contains(e.Id))
+                .Select(e => e.Id)
+                .ToListAsync();
+
+            if (equiposExistentes.Count != equiposIds.Distinct().Count())
+            {
+                return "Hay equipos seleccionados que no existen.";
+            }
+
+            return null;
+        }
+
+        private async Task<bool> FaseOrigenListaParaPublicarAsync(string faseOrigen)
+        {
+            return faseOrigen switch
+            {
+                "Grupos" => true,
+                "Dieciseisavos" => await FaseListaParaGenerar("Dieciseisavos", 16),
+                "Octavos" => await FaseListaParaGenerar("Octavos", 8),
+                "Cuartos" => await FaseListaParaGenerar("Cuartos", 4),
+                "Semifinales" => await FaseListaParaGenerar("Semifinales", 2),
+                _ => false
+            };
+        }
+
+        private static string[] ObtenerFasesDestinoCruces(string faseOrigen)
+        {
+            return faseOrigen switch
+            {
+                "Grupos" => new[] { "Dieciseisavos" },
+                "Dieciseisavos" => new[] { "Octavos" },
+                "Octavos" => new[] { "Cuartos" },
+                "Cuartos" => new[] { "Semifinales" },
+                "Semifinales" => new[] { "TercerPuesto", "Final" },
+                _ => Array.Empty<string>()
+            };
+        }
+
+        private static int ObtenerCantidadCrucesEsperada(string faseOrigen)
+        {
+            return faseOrigen switch
+            {
+                "Grupos" => 16,
+                "Dieciseisavos" => 8,
+                "Octavos" => 4,
+                "Cuartos" => 2,
+                "Semifinales" => 2,
+                _ => 0
+            };
+        }
+
+        private static string NombreEquipoEnPartido(Partido partido, int equipoId)
+        {
+            if (partido.LocalId == equipoId)
+            {
+                return partido.Local.Nombre;
+            }
+
+            return partido.VisitanteId == equipoId
+                ? partido.Visitante.Nombre
+                : $"Equipo {equipoId}";
+        }
+
+        private static string EtiquetaPartido(Partido partido)
+        {
+            return partido.NumeroPartidoFifa.HasValue
+                ? $"P{partido.NumeroPartidoFifa.Value}"
+                : $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}";
+        }
+
+        private static string NombreFaseAdmin(string fase)
+        {
+            return fase == "TercerPuesto"
+                ? "Tercer puesto"
+                : fase;
+        }
+
         private async Task<List<string>> GenerarSiguientesFasesAsync(string fase)
         {
             var generadas = new List<string>();
@@ -2420,6 +3092,319 @@ namespace WorldCup.Api.Controllers
             };
         }
 
+        private async Task<Dictionary<(int PollaId, int UsuarioId), PuntajesRankingSnapshot>> ObtenerSnapshotPuntajesRankingAsync()
+        {
+            var filas = await _context.Predicciones
+                .AsNoTracking()
+                .GroupBy(p => new { p.PollaId, p.UsuarioId })
+                .Select(g => new
+                {
+                    g.Key.PollaId,
+                    g.Key.UsuarioId,
+                    Total = g.Sum(p => p.PuntosTotales),
+                    Marcador = g.Sum(p => p.PuntosMarcador),
+                    Clasificacion = g.Sum(p => p.PuntosClasificacion),
+                    Podio = g.Sum(p => p.PuntosPodio)
+                })
+                .ToListAsync();
+
+            return filas.ToDictionary(
+                f => (f.PollaId, f.UsuarioId),
+                f => new PuntajesRankingSnapshot
+                {
+                    PollaId = f.PollaId,
+                    UsuarioId = f.UsuarioId,
+                    Total = f.Total,
+                    Marcador = f.Marcador,
+                    Clasificacion = f.Clasificacion,
+                    Podio = f.Podio
+                });
+        }
+
+        private async Task GuardarAuditoriaRankingPartidoAsync(
+            int partidoId,
+            int adminUsuarioId,
+            Dictionary<(int PollaId, int UsuarioId), PuntajesRankingSnapshot> puntajesAntes)
+        {
+            var calculadoEn = DateTime.UtcNow;
+            var puntajesDespues = await ObtenerSnapshotPuntajesRankingAsync();
+
+            var miembros = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm => pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.PollaId,
+                    pm.UsuarioId
+                })
+                .Distinct()
+                .ToListAsync();
+
+            var prediccionesPartido = await _context.Predicciones
+                .AsNoTracking()
+                .Where(p => p.PartidoId == partidoId)
+                .Select(p => new
+                {
+                    p.PollaId,
+                    p.UsuarioId,
+                    p.GolesLocal,
+                    p.GolesVisitante
+                })
+                .ToListAsync();
+
+            var prediccionesPorUsuario = prediccionesPartido
+                .GroupBy(p => (p.PollaId, p.UsuarioId))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var detallesPrevios = await _context.RankingsPartidosAuditoriaDetalle
+                .Where(d => d.PartidoId == partidoId)
+                .ToListAsync();
+            if (detallesPrevios.Any())
+            {
+                _context.RankingsPartidosAuditoriaDetalle.RemoveRange(detallesPrevios);
+                await _context.SaveChangesAsync();
+            }
+
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .FirstOrDefaultAsync(r => r.PartidoId == partidoId);
+
+            if (publicacion == null)
+            {
+                publicacion = new RankingPartidoPublicacion
+                {
+                    PartidoId = partidoId
+                };
+                _context.RankingsPartidosPublicacion.Add(publicacion);
+            }
+
+            publicacion.Publicado = false;
+            publicacion.FechaCalculo = calculadoEn;
+            publicacion.FechaPublicacion = null;
+            publicacion.AdminCalculoId = adminUsuarioId;
+            publicacion.AdminPublicacionId = null;
+
+            foreach (var miembro in miembros)
+            {
+                var key = (miembro.PollaId, miembro.UsuarioId);
+                puntajesAntes.TryGetValue(key, out var antes);
+                puntajesDespues.TryGetValue(key, out var despues);
+                prediccionesPorUsuario.TryGetValue(key, out var prediccion);
+
+                var puntosPrevios = antes?.Total ?? 0;
+                var puntosRanking = despues?.Total ?? 0;
+
+                _context.RankingsPartidosAuditoriaDetalle.Add(new RankingPartidoAuditoriaDetalle
+                {
+                    PartidoId = partidoId,
+                    PollaId = miembro.PollaId,
+                    UsuarioId = miembro.UsuarioId,
+                    TienePrediccion = prediccion?.GolesLocal.HasValue == true &&
+                        prediccion.GolesVisitante.HasValue,
+                    GolesLocalPrediccion = prediccion?.GolesLocal,
+                    GolesVisitantePrediccion = prediccion?.GolesVisitante,
+                    PuntosPrevios = puntosPrevios,
+                    PuntosCambio = puntosRanking - puntosPrevios,
+                    PuntosRanking = puntosRanking,
+                    PuntosMarcadorCierre = (despues?.Marcador ?? 0) - (antes?.Marcador ?? 0),
+                    PuntosClasificacionCierre = (despues?.Clasificacion ?? 0) - (antes?.Clasificacion ?? 0),
+                    PuntosPodioCierre = (despues?.Podio ?? 0) - (antes?.Podio ?? 0),
+                    FechaCalculo = calculadoEn
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task AjustarSnapshotConAuditoriaPendienteExistenteAsync(
+            int partidoId,
+            Dictionary<(int PollaId, int UsuarioId), PuntajesRankingSnapshot> snapshot)
+        {
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .AsNoTracking()
+                .Where(r => r.PartidoId == partidoId)
+                .Select(r => new { r.Publicado })
+                .FirstOrDefaultAsync();
+
+            if (publicacion?.Publicado != false)
+            {
+                return;
+            }
+
+            var detallesPendientes = await _context.RankingsPartidosAuditoriaDetalle
+                .AsNoTracking()
+                .Where(d => d.PartidoId == partidoId)
+                .Select(d => new
+                {
+                    d.PollaId,
+                    d.UsuarioId,
+                    d.PuntosCambio,
+                    d.PuntosMarcadorCierre,
+                    d.PuntosClasificacionCierre,
+                    d.PuntosPodioCierre
+                })
+                .ToListAsync();
+
+            foreach (var detalle in detallesPendientes)
+            {
+                var key = (detalle.PollaId, detalle.UsuarioId);
+                if (!snapshot.TryGetValue(key, out var puntos))
+                {
+                    puntos = new PuntajesRankingSnapshot
+                    {
+                        PollaId = detalle.PollaId,
+                        UsuarioId = detalle.UsuarioId
+                    };
+                    snapshot[key] = puntos;
+                }
+
+                puntos.Total -= detalle.PuntosCambio;
+                puntos.Marcador -= detalle.PuntosMarcadorCierre;
+                puntos.Clasificacion -= detalle.PuntosClasificacionCierre;
+                puntos.Podio -= detalle.PuntosPodioCierre;
+            }
+        }
+
+        private async Task LimpiarAuditoriaRankingPartidoAsync(int partidoId)
+        {
+            var detalles = await _context.RankingsPartidosAuditoriaDetalle
+                .Where(d => d.PartidoId == partidoId)
+                .ToListAsync();
+            _context.RankingsPartidosAuditoriaDetalle.RemoveRange(detalles);
+
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .FirstOrDefaultAsync(r => r.PartidoId == partidoId);
+
+            if (publicacion != null)
+            {
+                _context.RankingsPartidosPublicacion.Remove(publicacion);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<IActionResult> ConstruirRespuestaAuditoriaRankingPartidoAsync(int partidoId)
+        {
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .Include(p => p.Local)
+                .Include(p => p.Visitante)
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null)
+            {
+                return NotFound("Partido no encontrado");
+            }
+
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.PartidoId == partidoId);
+
+            var pollas = await _context.Pollas
+                .AsNoTracking()
+                .OrderBy(p => p.Nombre)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Nombre
+                })
+                .ToListAsync();
+
+            var detalles = await (
+                from d in _context.RankingsPartidosAuditoriaDetalle.AsNoTracking()
+                join u in _context.Usuarios.AsNoTracking() on d.UsuarioId equals u.Id
+                where d.PartidoId == partidoId && u.Activo
+                select new
+                {
+                    d.PollaId,
+                    d.UsuarioId,
+                    Usuario = u.Nombre,
+                    d.TienePrediccion,
+                    d.GolesLocalPrediccion,
+                    d.GolesVisitantePrediccion,
+                    d.PuntosPrevios,
+                    d.PuntosCambio,
+                    d.PuntosRanking,
+                    d.PuntosMarcadorCierre,
+                    d.PuntosClasificacionCierre,
+                    d.PuntosPodioCierre
+                })
+                .ToListAsync();
+
+            var detallesPorPolla = detalles
+                .GroupBy(d => d.PollaId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var pollasRespuesta = pollas
+                .Select(p =>
+                {
+                    detallesPorPolla.TryGetValue(p.Id, out var filas);
+                    filas ??= new();
+
+                    var filasOrdenadas = filas
+                        .OrderByDescending(f => f.PuntosRanking)
+                        .ThenByDescending(f => f.PuntosCambio)
+                        .ThenBy(f => f.Usuario)
+                        .Select((f, index) => new
+                        {
+                            Posicion = index + 1,
+                            f.UsuarioId,
+                            f.Usuario,
+                            Pronostico = f.TienePrediccion
+                                ? $"{f.GolesLocalPrediccion} - {f.GolesVisitantePrediccion}"
+                                : "Sin marcador",
+                            f.TienePrediccion,
+                            f.PuntosPrevios,
+                            f.PuntosCambio,
+                            f.PuntosRanking,
+                            f.PuntosMarcadorCierre,
+                            f.PuntosClasificacionCierre,
+                            f.PuntosPodioCierre
+                        })
+                        .ToList();
+
+                    return new
+                    {
+                        PollaId = p.Id,
+                        Nombre = p.Nombre,
+                        Participantes = filasOrdenadas.Count,
+                        PuntosOtorgados = filasOrdenadas.Sum(f => f.PuntosCambio),
+                        ParticipantesConCambio = filasOrdenadas.Count(f => f.PuntosCambio != 0),
+                        Filas = filasOrdenadas
+                    };
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                PartidoId = partido.Id,
+                Partido = $"{partido.Local.Nombre} vs {partido.Visitante.Nombre}",
+                partido.Fase,
+                Resultado = partido.Finalizado &&
+                    partido.GolesLocal.HasValue &&
+                    partido.GolesVisitante.HasValue
+                        ? $"{partido.GolesLocal} - {partido.GolesVisitante}"
+                        : "Sin resultado final",
+                Publicado = publicacion?.Publicado ?? false,
+                FechaCalculo = publicacion == null
+                    ? (DateTime?)null
+                    : ColombiaClock.ToColombia(publicacion.FechaCalculo),
+                FechaPublicacion = publicacion?.FechaPublicacion.HasValue == true
+                    ? ColombiaClock.ToColombia(publicacion.FechaPublicacion.Value)
+                    : (DateTime?)null,
+                Pollas = pollasRespuesta
+            });
+        }
+
+        private sealed class PuntajesRankingSnapshot
+        {
+            public int PollaId { get; set; }
+            public int UsuarioId { get; set; }
+            public int Total { get; set; }
+            public int Marcador { get; set; }
+            public int Clasificacion { get; set; }
+            public int Podio { get; set; }
+        }
+
         private async Task RecalcularPuntosPartidoAsync(Partido partido)
         {
             var predicciones = await _context.Predicciones
@@ -2589,12 +3574,13 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            return tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            return PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal ?? 0,
+                    p.GolesVisitante ?? 0)));
         }
 
         private async Task CalcularPuntosClasificacionGrupo(string grupo)

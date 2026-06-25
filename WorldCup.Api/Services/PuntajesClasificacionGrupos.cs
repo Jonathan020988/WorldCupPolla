@@ -39,6 +39,19 @@ namespace WorldCup.Api.Services
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
+        public static List<TablaPosicionDTO> OrdenarTablaGrupo(
+            IReadOnlyList<TablaPosicionDTO> tabla,
+            IEnumerable<ResultadoGrupo> resultados)
+        {
+            var resultadosGrupo = resultados.ToList();
+
+            return tabla
+                .GroupBy(t => t.Puntos)
+                .OrderByDescending(g => g.Key)
+                .SelectMany(g => OrdenarEmpate(g.ToList(), resultadosGrupo))
+                .ToList();
+        }
+
         public static int Calcular(
             PrediccionGrupo prediccion,
             IReadOnlyList<TablaPosicionDTO> tablaReal,
@@ -152,6 +165,126 @@ namespace WorldCup.Api.Services
         {
             return tabla.FirstOrDefault(t => t.EquipoId == equipoId)?.Equipo ??
                 $"Equipo {equipoId}";
+        }
+
+        private static List<TablaPosicionDTO> OrdenarEmpate(
+            IReadOnlyList<TablaPosicionDTO> equipos,
+            IReadOnlyList<ResultadoGrupo> resultados)
+        {
+            if (equipos.Count <= 1)
+            {
+                return equipos.ToList();
+            }
+
+            return OrdenarEmpateInterno(equipos, resultados);
+        }
+
+        private static List<TablaPosicionDTO> OrdenarEmpateInterno(
+            IReadOnlyList<TablaPosicionDTO> equipos,
+            IReadOnlyList<ResultadoGrupo> resultados)
+        {
+            var metricas = CalcularMetricasDirectas(equipos, resultados)
+                .OrderByDescending(m => m.PuntosDirectos)
+                .ThenByDescending(m => m.DiferenciaDirecta)
+                .ThenByDescending(m => m.GolesDirectos)
+                .ThenByDescending(m => m.Equipo.DG)
+                .ThenByDescending(m => m.Equipo.GF)
+                .ThenBy(m => m.Equipo.Equipo)
+                .ToList();
+
+            var ordenados = new List<TablaPosicionDTO>();
+
+            foreach (var grupo in metricas.GroupBy(m => new
+                     {
+                         m.PuntosDirectos,
+                         m.DiferenciaDirecta,
+                         m.GolesDirectos
+                     }))
+            {
+                var empatados = grupo.Select(m => m.Equipo).ToList();
+
+                if (empatados.Count == 1)
+                {
+                    ordenados.Add(empatados[0]);
+                    continue;
+                }
+
+                if (empatados.Count < equipos.Count)
+                {
+                    ordenados.AddRange(OrdenarEmpateInterno(
+                        empatados,
+                        resultados));
+                    continue;
+                }
+
+                ordenados.AddRange(empatados
+                    .OrderByDescending(e => e.DG)
+                    .ThenByDescending(e => e.GF)
+                    .ThenBy(e => e.Equipo));
+            }
+
+            return ordenados;
+        }
+
+        private static List<MetricasDirectas> CalcularMetricasDirectas(
+            IReadOnlyList<TablaPosicionDTO> equipos,
+            IReadOnlyList<ResultadoGrupo> resultados)
+        {
+            var ids = equipos
+                .Select(e => e.EquipoId)
+                .ToHashSet();
+            var metricas = equipos.ToDictionary(
+                e => e.EquipoId,
+                e => new MetricasDirectas(e));
+
+            foreach (var resultado in resultados.Where(r =>
+                         ids.Contains(r.LocalId) &&
+                         ids.Contains(r.VisitanteId)))
+            {
+                var local = metricas[resultado.LocalId];
+                var visitante = metricas[resultado.VisitanteId];
+
+                local.GolesDirectos += resultado.GolesLocal;
+                local.GolesContraDirectos += resultado.GolesVisitante;
+                visitante.GolesDirectos += resultado.GolesVisitante;
+                visitante.GolesContraDirectos += resultado.GolesLocal;
+
+                if (resultado.GolesLocal > resultado.GolesVisitante)
+                {
+                    local.PuntosDirectos += 3;
+                }
+                else if (resultado.GolesVisitante > resultado.GolesLocal)
+                {
+                    visitante.PuntosDirectos += 3;
+                }
+                else
+                {
+                    local.PuntosDirectos++;
+                    visitante.PuntosDirectos++;
+                }
+            }
+
+            return metricas.Values.ToList();
+        }
+
+        public sealed record ResultadoGrupo(
+            int LocalId,
+            int VisitanteId,
+            int GolesLocal,
+            int GolesVisitante);
+
+        private sealed class MetricasDirectas
+        {
+            public MetricasDirectas(TablaPosicionDTO equipo)
+            {
+                Equipo = equipo;
+            }
+
+            public TablaPosicionDTO Equipo { get; }
+            public int PuntosDirectos { get; set; }
+            public int GolesDirectos { get; set; }
+            public int GolesContraDirectos { get; set; }
+            public int DiferenciaDirecta => GolesDirectos - GolesContraDirectos;
         }
     }
 

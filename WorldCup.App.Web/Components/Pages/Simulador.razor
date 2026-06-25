@@ -2645,10 +2645,11 @@ else
         IEnumerable<SimuladorPartidoDto> partidosGrupo,
         string grupo)
     {
+        var partidos = partidosGrupo.ToList();
         var equipos = new Dictionary<string, EquipoGrupoDto>(StringComparer.OrdinalIgnoreCase);
         var grupoNormalizado = NormalizarGrupo(grupo);
 
-        foreach (var partido in partidosGrupo)
+        foreach (var partido in partidos)
         {
             if (!equipos.ContainsKey(partido.Local))
             {
@@ -2695,12 +2696,22 @@ else
             }
         }
 
-        return equipos.Values
-            .OrderByDescending(x => x.Puntos)
-            .ThenByDescending(x => x.Diferencia)
-            .ThenByDescending(x => x.GolesFavor)
-            .ThenBy(x => x.Nombre)
+        var resultadosGrupo = partidos
+            .Select(p => new ClasificacionGrupoOrdenService.ResultadoGrupoOrden(
+                p.LocalId,
+                p.VisitanteId,
+                p.GolesLocal ?? 0,
+                p.GolesVisitante ?? 0))
             .ToList();
+
+        return ClasificacionGrupoOrdenService.Ordenar(
+            equipos.Values.ToList(),
+            resultadosGrupo,
+            e => e.EquipoId,
+            e => e.Puntos,
+            e => e.Diferencia,
+            e => e.GolesFavor,
+            e => e.Nombre);
     }
 
 
@@ -2787,11 +2798,22 @@ else
                 }
             }
 
-            var ordenados = equipos.Values
-                .OrderByDescending(x => x.Puntos)
-                .ThenByDescending(x => x.Diferencia)
-                .ThenByDescending(x => x.GolesFavor)
+            var resultadosGrupo = grupo
+                .Select(p => new ClasificacionGrupoOrdenService.ResultadoGrupoOrden(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal ?? 0,
+                    p.GolesVisitante ?? 0))
                 .ToList();
+
+            var ordenados = ClasificacionGrupoOrdenService.Ordenar(
+                equipos.Values.ToList(),
+                resultadosGrupo,
+                e => e.EquipoId,
+                e => e.Puntos,
+                e => e.Diferencia,
+                e => e.GolesFavor,
+                e => e.Nombre);
 
             tablasPorGrupo[NormalizarGrupo(grupo.Key)] = ordenados;
 

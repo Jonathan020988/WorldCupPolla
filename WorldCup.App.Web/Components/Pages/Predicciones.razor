@@ -1852,12 +1852,26 @@ else
                 }
             }
 
-            var ordenados = equipos.Values
-                .OrderByDescending(e => e.Puntos)
-                .ThenByDescending(e => e.Diferencia)
-                .ThenByDescending(e => e.GolesFavor)
-                .ThenBy(e => e.Equipo)
+            var resultadosGrupo = grupo
+                .Select(partido =>
+                {
+                    var item = predicciones[partido.Id];
+                    return new ClasificacionGrupoOrdenService.ResultadoGrupoOrden(
+                        partido.LocalId,
+                        partido.VisitanteId,
+                        item.GolesLocal!.Value,
+                        item.GolesVisitante!.Value);
+                })
                 .ToList();
+
+            var ordenados = ClasificacionGrupoOrdenService.Ordenar(
+                equipos.Values.ToList(),
+                resultadosGrupo,
+                e => e.EquipoId,
+                e => e.Puntos,
+                e => e.Diferencia,
+                e => e.GolesFavor,
+                e => e.Equipo);
 
             for (var i = 0; i < ordenados.Count; i++)
             {

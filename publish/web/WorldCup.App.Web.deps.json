@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v9.0": {
-      "WorldCup.App.Web/1.0.1": {
+      "WorldCup.App.Web/1.0.16": {
         "dependencies": {
           "WorldCup.App.Shared": "1.0.0"
         },
@@ -42,6 +42,7 @@
           "Microsoft.JSInterop": "9.0.0"
         }
       },
+      "Microsoft.AspNetCore.DataProtection.Abstractions/9.0.0": {},
       "Microsoft.AspNetCore.Metadata/9.0.0": {},
       "Microsoft.Extensions.DependencyInjection/9.0.0": {
         "dependencies": {
@@ -64,7 +65,8 @@
       "Microsoft.JSInterop/9.0.0": {},
       "WorldCup.App.Shared/1.0.0": {
         "dependencies": {
-          "Microsoft.AspNetCore.Components.Web": "9.0.0"
+          "Microsoft.AspNetCore.Components.Web": "9.0.0",
+          "Microsoft.AspNetCore.DataProtection.Abstractions": "9.0.0"
         },
         "runtime": {
           "WorldCup.App.Shared.dll": {
@@ -76,7 +78,7 @@
     }
   },
   "libraries": {
-    "WorldCup.App.Web/1.0.1": {
+    "WorldCup.App.Web/1.0.16": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -115,6 +117,13 @@
       "sha512": "sha512-ZfJwwV05T+268cnJsO6yfi9oXYLe3ATRAEk0VZgBMptA5HVsduIsnFLjhNOYT7+I8NolxDEx1CEW8yKe5xTb6Q==",
       "path": "microsoft.aspnetcore.components.web/9.0.0",
       "hashPath": "microsoft.aspnetcore.components.web.9.0.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.DataProtection.Abstractions/9.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-o7JVGMXofZ4IuQdyoL0eKC1GnNmviZt2aI7CGHnQjqbz9hIrYim3DUfCKpvKaVzLWfzfgmwaXNg8Zx7fFQaBbA==",
+      "path": "microsoft.aspnetcore.dataprotection.abstractions/9.0.0",
+      "hashPath": "microsoft.aspnetcore.dataprotection.abstractions.9.0.0.nupkg.sha512"
     },
     "Microsoft.AspNetCore.Metadata/9.0.0": {
       "type": "package",

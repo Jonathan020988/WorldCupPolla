@@ -3,13 +3,13 @@
   "ManifestType": "Publish",
   "Endpoints": [
     {
-      "Route": "WorldCup.App.Web.hq2xn2h9nt.styles.css",
+      "Route": "WorldCup.App.Web.me9sal4wy4.styles.css",
       "AssetFile": "WorldCup.App.Web.styles.css.gz",
       "Selectors": [
         {
           "Name": "Content-Encoding",
           "Value": "gzip",
-          "Quality": "0.000383288616"
+          "Quality": "0.000323834197"
         }
       ],
       "ResponseHeaders": [
@@ -27,7 +27,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2608"
+          "Value": "3087"
         },
         {
           "Name": "Content-Type",
@@ -35,19 +35,19 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs=\""
+          "Value": "\"A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "W/\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         },
         {
           "Name": "Vary",
@@ -57,11 +57,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "hq2xn2h9nt"
+          "Value": "me9sal4wy4"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         },
         {
           "Name": "label",
@@ -70,13 +70,13 @@
       ]
     },
     {
-      "Route": "WorldCup.App.Web.hq2xn2h9nt.styles.css",
+      "Route": "WorldCup.App.Web.me9sal4wy4.styles.css",
       "AssetFile": "WorldCup.App.Web.styles.css.br",
       "Selectors": [
         {
           "Name": "Content-Encoding",
           "Value": "br",
-          "Quality": "0.000448631673"
+          "Quality": "0.000379794911"
         }
       ],
       "ResponseHeaders": [
@@ -94,7 +94,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2228"
+          "Value": "2632"
         },
         {
           "Name": "Content-Type",
@@ -102,19 +102,19 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ=\""
+          "Value": "\"Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "W/\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         },
         {
           "Name": "Vary",
@@ -124,11 +124,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "hq2xn2h9nt"
+          "Value": "me9sal4wy4"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         },
         {
           "Name": "label",
@@ -137,7 +137,7 @@
       ]
     },
     {
-      "Route": "WorldCup.App.Web.hq2xn2h9nt.styles.css",
+      "Route": "WorldCup.App.Web.me9sal4wy4.styles.css",
       "AssetFile": "WorldCup.App.Web.styles.css",
       "Selectors": [],
       "ResponseHeaders": [
@@ -151,7 +151,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "9904"
+          "Value": "12795"
         },
         {
           "Name": "Content-Type",
@@ -159,25 +159,25 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         }
       ],
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "hq2xn2h9nt"
+          "Value": "me9sal4wy4"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         },
         {
           "Name": "label",
@@ -186,7 +186,7 @@
       ]
     },
     {
-      "Route": "WorldCup.App.Web.hq2xn2h9nt.styles.css.br",
+      "Route": "WorldCup.App.Web.me9sal4wy4.styles.css.br",
       "AssetFile": "WorldCup.App.Web.styles.css.br",
       "Selectors": [],
       "ResponseHeaders": [
@@ -204,7 +204,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2228"
+          "Value": "2632"
         },
         {
           "Name": "Content-Type",
@@ -212,11 +212,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ=\""
+          "Value": "\"Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Vary",
@@ -226,11 +226,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "hq2xn2h9nt"
+          "Value": "me9sal4wy4"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ="
+          "Value": "sha256-Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU="
         },
         {
           "Name": "label",
@@ -239,7 +239,7 @@
       ]
     },
     {
-      "Route": "WorldCup.App.Web.hq2xn2h9nt.styles.css.gz",
+      "Route": "WorldCup.App.Web.me9sal4wy4.styles.css.gz",
       "AssetFile": "WorldCup.App.Web.styles.css.gz",
       "Selectors": [],
       "ResponseHeaders": [
@@ -257,7 +257,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2608"
+          "Value": "3087"
         },
         {
           "Name": "Content-Type",
@@ -265,11 +265,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs=\""
+          "Value": "\"A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Vary",
@@ -279,11 +279,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "hq2xn2h9nt"
+          "Value": "me9sal4wy4"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs="
+          "Value": "sha256-A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk="
         },
         {
           "Name": "label",
@@ -298,7 +298,7 @@
         {
           "Name": "Content-Encoding",
           "Value": "gzip",
-          "Quality": "0.000383288616"
+          "Quality": "0.000323834197"
         }
       ],
       "ResponseHeaders": [
@@ -316,7 +316,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2608"
+          "Value": "3087"
         },
         {
           "Name": "Content-Type",
@@ -324,19 +324,19 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs=\""
+          "Value": "\"A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "W/\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         },
         {
           "Name": "Vary",
@@ -346,7 +346,7 @@
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         }
       ]
     },
@@ -357,7 +357,7 @@
         {
           "Name": "Content-Encoding",
           "Value": "br",
-          "Quality": "0.000448631673"
+          "Quality": "0.000379794911"
         }
       ],
       "ResponseHeaders": [
@@ -375,7 +375,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2228"
+          "Value": "2632"
         },
         {
           "Name": "Content-Type",
@@ -383,19 +383,19 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ=\""
+          "Value": "\"Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "W/\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         },
         {
           "Name": "Vary",
@@ -405,7 +405,7 @@
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         }
       ]
     },
@@ -424,7 +424,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "9904"
+          "Value": "12795"
         },
         {
           "Name": "Content-Type",
@@ -432,21 +432,21 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc=\""
+          "Value": "\"YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Link",
-          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css>; rel=\"preload\"; as=\"style\""
+          "Value": "<_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css>; rel=\"preload\"; as=\"style\""
         }
       ],
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-52T6IxWN42/FxoRQiddXCTVXz8kQ2DER95D90GFNiRc="
+          "Value": "sha256-YuP1xCVt1BbhohnNkPnsNCevaM6kp9x16quYRG27Xhw="
         }
       ]
     },
@@ -469,7 +469,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2228"
+          "Value": "2632"
         },
         {
           "Name": "Content-Type",
@@ -477,11 +477,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ=\""
+          "Value": "\"Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Vary",
@@ -491,7 +491,7 @@
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-ncIkELTrdL37JeQByT0lqQ/lHL6FrVkuCmX4BRNctPQ="
+          "Value": "sha256-Gssos/6XDEtRceuhZ1dXrSfkg5L8QdSl35i0o6KcouU="
         }
       ]
     },
@@ -514,7 +514,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "2608"
+          "Value": "3087"
         },
         {
           "Name": "Content-Type",
@@ -522,11 +522,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs=\""
+          "Value": "\"A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 17 May 2026 18:21:25 GMT"
+          "Value": "Thu, 04 Jun 2026 15:29:24 GMT"
         },
         {
           "Name": "Vary",
@@ -536,18 +536,255 @@
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-e89SBDWRvJZd0VtTeB8rhbhkE2yaoZz0VEhr1Y7MmYs="
+          "Value": "sha256-A3tpGsMBfdAPc1NnJmcLntODEWQrvq/DESLfqTZzpJk="
         }
       ]
     },
     {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.gz",
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.gz",
       "Selectors": [
         {
           "Name": "Content-Encoding",
           "Value": "gzip",
-          "Quality": "0.000567536890"
+          "Quality": "0.000548847420"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1821"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
+        }
+      ]
+    },
+    {
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.br",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "br",
+          "Quality": "0.000660066007"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1514"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
+        }
+      ]
+    },
+    {
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "6212"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
+        }
+      ]
+    },
+    {
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css.br",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.br",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1514"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s="
+        }
+      ]
+    },
+    {
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css.gz",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1821"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM="
+        }
+      ]
+    },
+    {
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.000548847420"
         }
       ],
       "ResponseHeaders": [
@@ -565,7 +802,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "1761"
+          "Value": "1821"
         },
         {
           "Name": "Content-Type",
@@ -573,15 +810,15 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8=\""
+          "Value": "\"6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
+          "Value": "W/\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
         },
         {
           "Name": "Vary",
@@ -591,11 +828,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "bpsbmqg7o0"
+          "Value": "s62o0jz15t"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
         },
         {
           "Name": "label",
@@ -604,13 +841,13 @@
       ]
     },
     {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.br",
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.br",
       "Selectors": [
         {
           "Name": "Content-Encoding",
           "Value": "br",
-          "Quality": "0.000680272109"
+          "Quality": "0.000660066007"
         }
       ],
       "ResponseHeaders": [
@@ -628,7 +865,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "1469"
+          "Value": "1514"
         },
         {
           "Name": "Content-Type",
@@ -636,15 +873,15 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY=\""
+          "Value": "\"Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s=\""
         },
         {
           "Name": "ETag",
-          "Value": "W/\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
+          "Value": "W/\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
         },
         {
           "Name": "Vary",
@@ -654,11 +891,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "bpsbmqg7o0"
+          "Value": "s62o0jz15t"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
         },
         {
           "Name": "label",
@@ -667,8 +904,8 @@
       ]
     },
     {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css",
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -681,7 +918,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "5928"
+          "Value": "6212"
         },
         {
           "Name": "Content-Type",
@@ -689,21 +926,21 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
+          "Value": "\"7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
         }
       ],
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "bpsbmqg7o0"
+          "Value": "s62o0jz15t"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
+          "Value": "sha256-7EK+9hAesGvr+w3fSAZr45bqctzoGXWiTaJ+AlRUSfU="
         },
         {
           "Name": "label",
@@ -712,8 +949,8 @@
       ]
     },
     {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.br",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.br",
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.br",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.br",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -730,7 +967,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "1469"
+          "Value": "1514"
         },
         {
           "Name": "Content-Type",
@@ -738,11 +975,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY=\""
+          "Value": "\"Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
         },
         {
           "Name": "Vary",
@@ -752,11 +989,11 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "bpsbmqg7o0"
+          "Value": "s62o0jz15t"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY="
+          "Value": "sha256-Iuan0aqeehJ+5Ipio2hLTFj/PuFqka4q3Sl0eJCjH4s="
         },
         {
           "Name": "label",
@@ -765,8 +1002,8 @@
       ]
     },
     {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.gz",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.gz",
+      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.gz",
+      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css.gz",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -783,7 +1020,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "1761"
+          "Value": "1821"
         },
         {
           "Name": "Content-Type",
@@ -791,11 +1028,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8=\""
+          "Value": "\"6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
+          "Value": "Wed, 03 Jun 2026 02:34:18 GMT"
         },
         {
           "Name": "Vary",
@@ -805,252 +1042,15 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "bpsbmqg7o0"
+          "Value": "s62o0jz15t"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8="
+          "Value": "sha256-6uPvnWOHeuint7WHWujE2nsLkLMvuDEV1I4CapdHivM="
         },
         {
           "Name": "label",
           "Value": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css.gz"
-        }
-      ]
-    },
-    {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.gz",
-      "Selectors": [
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip",
-          "Quality": "0.000567536890"
-        }
-      ],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "1761"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8=\""
-        },
-        {
-          "Name": "ETag",
-          "Value": "W/\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
-        }
-      ]
-    },
-    {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.br",
-      "Selectors": [
-        {
-          "Name": "Content-Encoding",
-          "Value": "br",
-          "Quality": "0.000680272109"
-        }
-      ],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "br"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "1469"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY=\""
-        },
-        {
-          "Name": "ETag",
-          "Value": "W/\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
-        }
-      ]
-    },
-    {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "5928"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-D6QdSts4kVMkMTaREf/Xjyi+kNec3nH65qGtwYL1tp0="
-        }
-      ]
-    },
-    {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css.br",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.br",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "br"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "1469"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-6dxirNrCDnV/WwtcDfmUltPRzb8IKwNVYAXiAPGzKLY="
-        }
-      ]
-    },
-    {
-      "Route": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bundle.scp.css.gz",
-      "AssetFile": "_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css.gz",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "1761"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 15 May 2026 00:18:53 GMT"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-2FPkzmBotVRQmfpZybzdpqu2ULMwtDUJIe3JRqQCNu8="
         }
       ]
     },
@@ -2679,6 +2679,283 @@
       ]
     },
     {
+      "Route": "app.384nn1iv2q.js",
+      "AssetFile": "app.js.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.002450980392"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "407"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "384nn1iv2q"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        },
+        {
+          "Name": "label",
+          "Value": "app.js"
+        }
+      ]
+    },
+    {
+      "Route": "app.384nn1iv2q.js",
+      "AssetFile": "app.js.br",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "br",
+          "Quality": "0.003225806452"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "309"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "384nn1iv2q"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        },
+        {
+          "Name": "label",
+          "Value": "app.js"
+        }
+      ]
+    },
+    {
+      "Route": "app.384nn1iv2q.js",
+      "AssetFile": "app.js",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "795"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "384nn1iv2q"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        },
+        {
+          "Name": "label",
+          "Value": "app.js"
+        }
+      ]
+    },
+    {
+      "Route": "app.384nn1iv2q.js.br",
+      "AssetFile": "app.js.br",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "309"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "384nn1iv2q"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM="
+        },
+        {
+          "Name": "label",
+          "Value": "app.js.br"
+        }
+      ]
+    },
+    {
+      "Route": "app.384nn1iv2q.js.gz",
+      "AssetFile": "app.js.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "407"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "384nn1iv2q"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0="
+        },
+        {
+          "Name": "label",
+          "Value": "app.js.gz"
+        }
+      ]
+    },
+    {
       "Route": "app.7tvqm2czye.css",
       "AssetFile": "app.css.gz",
       "Selectors": [
@@ -3193,6 +3470,243 @@
       ]
     },
     {
+      "Route": "app.js",
+      "AssetFile": "app.js.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.002450980392"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "407"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        }
+      ]
+    },
+    {
+      "Route": "app.js",
+      "AssetFile": "app.js.br",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "br",
+          "Quality": "0.003225806452"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "309"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        }
+      ]
+    },
+    {
+      "Route": "app.js",
+      "AssetFile": "app.js",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "795"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-I3D7l85AE/tOHtmk7jRBa7rpI/0Ne5FPT6SIdcPMkjk="
+        }
+      ]
+    },
+    {
+      "Route": "app.js.br",
+      "AssetFile": "app.js.br",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "309"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-cfMIgf9x/Z92tOptnzl63BOWK23rLeGgyNzVDiAXxeM="
+        }
+      ]
+    },
+    {
+      "Route": "app.js.gz",
+      "AssetFile": "app.js.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "407"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 04 Jun 2026 15:28:58 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-mUmeKvFgOW7SE2oOivMyDHfw+ct22apGEsqa6FnIxP0="
+        }
+      ]
+    },
+    {
       "Route": "favicon.ifv42okdf2.png",
       "AssetFile": "favicon.png",
       "Selectors": [],
@@ -3271,6 +3785,520 @@
         {
           "Name": "integrity",
           "Value": "sha256-4mWsDy3aHl36ZbGt8zByK7Pvd4kRUoNgTYzRnwmPHwg="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.js",
+      "AssetFile": "js/prediction-view-tracker.js.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.001501501502"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "665"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.js",
+      "AssetFile": "js/prediction-view-tracker.js.br",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "br",
+          "Quality": "0.001742160279"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "573"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.js",
+      "AssetFile": "js/prediction-view-tracker.js",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1552"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.js.br",
+      "AssetFile": "js/prediction-view-tracker.js.br",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "573"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.js.gz",
+      "AssetFile": "js/prediction-view-tracker.js.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "665"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM="
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.zscggnz5u8.js",
+      "AssetFile": "js/prediction-view-tracker.js.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.001501501502"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "665"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "zscggnz5u8"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        },
+        {
+          "Name": "label",
+          "Value": "js/prediction-view-tracker.js"
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.zscggnz5u8.js",
+      "AssetFile": "js/prediction-view-tracker.js.br",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "br",
+          "Quality": "0.001742160279"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "573"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0=\""
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "zscggnz5u8"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        },
+        {
+          "Name": "label",
+          "Value": "js/prediction-view-tracker.js"
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.zscggnz5u8.js",
+      "AssetFile": "js/prediction-view-tracker.js",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1552"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "zscggnz5u8"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-0+BeFxaxWg5TooDSER+h2k41eoB5JvZKhXAGyWEjncA="
+        },
+        {
+          "Name": "label",
+          "Value": "js/prediction-view-tracker.js"
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.zscggnz5u8.js.br",
+      "AssetFile": "js/prediction-view-tracker.js.br",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "br"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "573"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "zscggnz5u8"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-wXty87CfwBDeHVjmu4Jr1gGkIKzWIcOyN0bdTVvxjh0="
+        },
+        {
+          "Name": "label",
+          "Value": "js/prediction-view-tracker.js.br"
+        }
+      ]
+    },
+    {
+      "Route": "js/prediction-view-tracker.zscggnz5u8.js.gz",
+      "AssetFile": "js/prediction-view-tracker.js.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "665"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/javascript"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Fri, 19 Jun 2026 03:12:49 GMT"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "zscggnz5u8"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-V5RHZP19t3cp7heI5ZpUSAmNfUDdogayjmDh+V5b7GM="
+        },
+        {
+          "Name": "label",
+          "Value": "js/prediction-view-tracker.js.gz"
         }
       ]
     },

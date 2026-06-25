@@ -23,19 +23,22 @@ namespace WorldCup.Api.Controllers
         private readonly AdminAuthorizationService _adminAuthorization;
         private readonly IConfiguration _configuration;
         private readonly FormatoManualPdfService _formatoManualPdfService;
+        private readonly ILogger<PollaController> _logger;
 
         public PollaController(
             AppDbContext context,
             EmailService emailService,
             AdminAuthorizationService adminAuthorization,
             IConfiguration configuration,
-            FormatoManualPdfService formatoManualPdfService)
+            FormatoManualPdfService formatoManualPdfService,
+            ILogger<PollaController> logger)
         {
             _context = context;
             _emailService = emailService;
             _adminAuthorization = adminAuthorization;
             _configuration = configuration;
             _formatoManualPdfService = formatoManualPdfService;
+            _logger = logger;
         }
 
         // =========================================================
@@ -574,6 +577,7 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             var detalles = await ObtenerDetalleRanking(pollaId);
+            var ajustesPendientes = await ObtenerAjustesRankingPendientesAsync(pollaId);
 
             var ranking = miembros
                 .Select(m =>
@@ -581,6 +585,10 @@ namespace WorldCup.Api.Controllers
                     var detalleUsuario = detalles
                         .Where(d => d.UsuarioId == m.UsuarioId)
                         .ToList();
+                    ajustesPendientes.TryGetValue(m.UsuarioId, out var ajustePendiente);
+                    var puntosPendientes = ajustePendiente?.Total ?? 0;
+                    var clasificacionPendiente = ajustePendiente?.Clasificacion ?? 0;
+                    var podioPendiente = ajustePendiente?.Podio ?? 0;
 
                     return new
                     {
@@ -589,7 +597,7 @@ namespace WorldCup.Api.Controllers
                             UsuarioId = m.UsuarioId,
                             Usuario = m.Usuario,
                             ObservacionAdmin = m.ObservacionAdmin,
-                            Puntos = detalleUsuario.Sum(d => d.Total)
+                            Puntos = detalleUsuario.Sum(d => d.Total) - puntosPendientes
                         },
                         Exactos = detalleUsuario.Count(d => d.PuntosExacto > 0),
                         Ganadores = detalleUsuario.Count(d => d.PuntosGanador > 0),
@@ -597,11 +605,11 @@ namespace WorldCup.Api.Controllers
                         Diferencias = detalleUsuario.Count(d => d.PuntosDiferencia > 0),
                         ClasificacionGrupos = detalleUsuario
                             .Where(d => d.Fase == "Grupos")
-                            .Sum(d => d.PuntosClasificacion),
+                            .Sum(d => d.PuntosClasificacion) - clasificacionPendiente,
                         ClasificacionKo = detalleUsuario
                             .Where(d => d.Fase != "Grupos")
                             .Sum(d => d.PuntosClasificacion),
-                        Podio = detalleUsuario.Sum(d => d.PuntosPodio)
+                        Podio = detalleUsuario.Sum(d => d.PuntosPodio) - podioPendiente
                     };
                 })
                 .OrderByDescending(r => r.Ranking.Puntos)
@@ -654,6 +662,87 @@ namespace WorldCup.Api.Controllers
                 .ThenBy(x => OrdenFase(x.Fase))
                 .ThenBy(x => x.Local)
                 .ToList());
+        }
+
+        [HttpGet("{pollaId:int}/clasificacion-usuario/{usuarioId:int}")]
+        public async Task<IActionResult> GetClasificacionUsuario(
+            int pollaId,
+            int usuarioId,
+            [FromQuery] int? solicitanteId = null)
+        {
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var usuario = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (usuario == null)
+                return NotFound("El usuario no pertenece a esta polla.");
+
+            var predicciones = await _context.PrediccionesGrupo
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId)
+                .OrderBy(p => p.Grupo)
+                .ToListAsync();
+
+            var equipoIds = predicciones
+                .SelectMany(p => new[] { p.PrimeroId, p.SegundoId, p.TerceroId })
+                .Distinct()
+                .ToList();
+
+            var equipos = await _context.Equipos
+                .AsNoTracking()
+                .Where(e => equipoIds.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, e => e.Nombre);
+
+            static string NombreEquipo(Dictionary<int, string> equipos, int equipoId)
+            {
+                return equipos.TryGetValue(equipoId, out var nombre)
+                    ? nombre
+                    : $"Equipo {equipoId}";
+            }
+
+            var terceros = await _context.PrediccionesTerceros
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId)
+                .Select(p => p.Grupo.ToUpper())
+                .OrderBy(g => g)
+                .ToListAsync();
+
+            return Ok(new ClasificacionUsuarioDetalleDto
+            {
+                UsuarioId = usuario.UsuarioId,
+                Usuario = usuario.Nombre,
+                Clasificacion = predicciones
+                    .Select(p => new GrupoClasificacionUsuarioDto
+                    {
+                        Grupo = p.Grupo.ToUpperInvariant(),
+                        PrimeroId = p.PrimeroId,
+                        Primero = NombreEquipo(equipos, p.PrimeroId),
+                        SegundoId = p.SegundoId,
+                        Segundo = NombreEquipo(equipos, p.SegundoId),
+                        TerceroId = p.TerceroId,
+                        Tercero = NombreEquipo(equipos, p.TerceroId),
+                        Bloqueada = p.Bloqueada
+                    })
+                    .ToList(),
+                MejoresTerceros = terceros
+            });
         }
 
         private async Task<List<DetalleRankingDto>> ObtenerDetalleRanking(
@@ -748,11 +837,10 @@ namespace WorldCup.Api.Controllers
                     puedeVerTodo))
                 .ToList();
 
-            var partidosFinalizados = await _context.Partidos
+            var partidosDetalle = await _context.Partidos
                 .AsNoTracking()
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
-                .Where(p => p.Finalizado)
                 .ToListAsync();
             var prediccionesExistentes = predicciones
                 .Select(p => (p.UsuarioId, p.PartidoId))
@@ -760,10 +848,18 @@ namespace WorldCup.Api.Controllers
 
             foreach (var miembro in miembros)
             {
-                foreach (var partido in partidosFinalizados)
+                foreach (var partido in partidosDetalle)
                 {
                     if (prediccionesExistentes.Contains(
                         (miembro.UsuarioId, partido.Id)))
+                    {
+                        continue;
+                    }
+
+                    var puedeMostrarSinPronostico = puedeVerTodo ||
+                        solicitanteId == miembro.UsuarioId ||
+                        PartidoCerradoParaVisibilidad(partido);
+                    if (!puedeMostrarSinPronostico)
                     {
                         continue;
                     }
@@ -780,7 +876,7 @@ namespace WorldCup.Api.Controllers
                         Visitante = partido.Visitante.Nombre,
                         PronosticoLocal = null,
                         PronosticoVisitante = null,
-                        PronosticoVisible = true,
+                        PronosticoVisible = puedeMostrarSinPronostico,
                         ResultadoLocal = partido.GolesLocal,
                         ResultadoVisitante = partido.GolesVisitante,
                         Total = 0
@@ -789,6 +885,44 @@ namespace WorldCup.Api.Controllers
             }
 
             return detalle;
+        }
+
+        private async Task<Dictionary<int, AjusteRankingPendiente>> ObtenerAjustesRankingPendientesAsync(int pollaId)
+        {
+            var ajustes = await (
+                from detalle in _context.RankingsPartidosAuditoriaDetalle.AsNoTracking()
+                join publicacion in _context.RankingsPartidosPublicacion.AsNoTracking()
+                    on detalle.PartidoId equals publicacion.PartidoId
+                where detalle.PollaId == pollaId && !publicacion.Publicado
+                select new
+                {
+                    detalle.UsuarioId,
+                    detalle.PuntosCambio,
+                    detalle.PuntosMarcadorCierre,
+                    detalle.PuntosClasificacionCierre,
+                    detalle.PuntosPodioCierre
+                })
+                .ToListAsync();
+
+            return ajustes
+                .GroupBy(a => a.UsuarioId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new AjusteRankingPendiente
+                    {
+                        Total = g.Sum(a => a.PuntosCambio),
+                        Marcador = g.Sum(a => a.PuntosMarcadorCierre),
+                        Clasificacion = g.Sum(a => a.PuntosClasificacionCierre),
+                        Podio = g.Sum(a => a.PuntosPodioCierre)
+                    });
+        }
+
+        private sealed class AjusteRankingPendiente
+        {
+            public int Total { get; set; }
+            public int Marcador { get; set; }
+            public int Clasificacion { get; set; }
+            public int Podio { get; set; }
         }
 
         private static DetalleRankingDto CrearDetalleRanking(
@@ -1210,12 +1344,13 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            return tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            return PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal ?? 0,
+                    p.GolesVisitante ?? 0)));
         }
 
         private static int OrdenFase(string fase) => fase switch
@@ -1302,8 +1437,7 @@ namespace WorldCup.Api.Controllers
             var miembrosIds = await _context.PollaMiembros
                 .Where(pm =>
                     pm.PollaId == pollaId &&
-                    pm.Usuario.Activo &&
-                    pm.UsuarioId != solicitanteId)
+                    pm.Usuario.Activo)
                 .Select(pm => pm.UsuarioId)
                 .Distinct()
                 .ToListAsync();
@@ -1384,8 +1518,7 @@ namespace WorldCup.Api.Controllers
                 .AsNoTracking()
                 .Where(pm =>
                     pm.PollaId == pollaId &&
-                    pm.Usuario.Activo &&
-                    pm.UsuarioId != solicitanteId)
+                    pm.Usuario.Activo)
                 .Select(pm => new
                 {
                     pm.UsuarioId,
@@ -1453,10 +1586,20 @@ namespace WorldCup.Api.Controllers
                 dto.SolicitanteId);
             await _context.SaveChangesAsync();
 
+            var correoEnviado = await EnviarCorreoRecordatorioAsync(
+                validacion.UsuarioEmail!,
+                validacion.UsuarioNombre!,
+                validacion.Polla!,
+                validacion.Partido!);
+
             return Ok(new ResultadoRecordatorioPollaDto
             {
-                Mensaje = $"Recordatorio enviado a {validacion.UsuarioNombre}.",
-                TotalEnviados = 1
+                Mensaje = correoEnviado
+                    ? $"Recordatorio y correo enviados a {validacion.UsuarioNombre}."
+                    : $"Recordatorio enviado a {validacion.UsuarioNombre}. No se pudo enviar el correo; revisa los logs SMTP.",
+                TotalEnviados = 1,
+                CorreosEnviados = correoEnviado ? 1 : 0,
+                CorreosFallidos = correoEnviado ? 0 : 1
             });
         }
 
@@ -1490,13 +1633,17 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Este partido ya no está abierto para enviar recordatorios.");
             }
 
-            var usuariosIds = await _context.PollaMiembros
+            var usuarios = await _context.PollaMiembros
                 .AsNoTracking()
                 .Where(pm =>
                     pm.PollaId == pollaId &&
-                    pm.Usuario.Activo &&
-                    pm.UsuarioId != dto.SolicitanteId)
-                .Select(pm => pm.UsuarioId)
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre,
+                    pm.Usuario.Email
+                })
                 .Distinct()
                 .ToListAsync();
 
@@ -1511,27 +1658,47 @@ namespace WorldCup.Api.Controllers
                 .Distinct()
                 .ToListAsync();
 
-            var pendientes = usuariosIds
-                .Where(id => !completos.Contains(id))
+            var pendientes = usuarios
+                .Where(u => !completos.Contains(u.UsuarioId))
                 .ToList();
 
-            foreach (var usuarioId in pendientes)
+            foreach (var usuario in pendientes)
             {
                 await CrearOActualizarRecordatorioAsync(
                     polla,
                     partido,
-                    usuarioId,
+                    usuario.UsuarioId,
                     dto.SolicitanteId);
             }
 
             await _context.SaveChangesAsync();
 
+            var correosEnviados = 0;
+            var correosFallidos = 0;
+            foreach (var usuario in pendientes)
+            {
+                if (await EnviarCorreoRecordatorioAsync(
+                    usuario.Email,
+                    usuario.Nombre,
+                    polla,
+                    partido))
+                {
+                    correosEnviados++;
+                }
+                else
+                {
+                    correosFallidos++;
+                }
+            }
+
             return Ok(new ResultadoRecordatorioPollaDto
             {
                 Mensaje = pendientes.Count == 0
                     ? "Todos los participantes ya tienen este marcador."
-                    : $"Se enviaron {pendientes.Count} recordatorios.",
-                TotalEnviados = pendientes.Count
+                    : $"Se enviaron {pendientes.Count} recordatorios. Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
+                TotalEnviados = pendientes.Count,
+                CorreosEnviados = correosEnviados,
+                CorreosFallidos = correosFallidos
             });
         }
 
@@ -1715,9 +1882,14 @@ namespace WorldCup.Api.Controllers
             miembro.PagoNotificadoEn = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            var correoEnviado = await EnviarCorreoPagoPendienteAsync(miembro, pago);
+
             return Ok(new
             {
-                mensaje = $"Aviso enviado a {miembro.Usuario.Nombre}. Saldo pendiente: {FormatoMoneda(pago.SaldoPendiente)}"
+                mensaje = correoEnviado
+                    ? $"Aviso y correo enviados a {miembro.Usuario.Nombre}. Saldo pendiente: {FormatoMoneda(pago.SaldoPendiente)}"
+                    : $"Aviso enviado a {miembro.Usuario.Nombre}. No se pudo enviar el correo; revisa los logs SMTP. Saldo pendiente: {FormatoMoneda(pago.SaldoPendiente)}",
+                correoEnviado
             });
         }
 
@@ -2211,10 +2383,10 @@ namespace WorldCup.Api.Controllers
             if (polla == null)
                 return NotFound("La polla no existe");
 
-            var usuarioActivo = await _context.Usuarios
-                .AnyAsync(u => u.Id == dto.UsuarioId && u.Activo);
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == dto.UsuarioId && u.Activo);
 
-            if (!usuarioActivo)
+            if (usuario == null)
                 return BadRequest("El usuario no existe o está inactivo");
 
             // ¿Ya es miembro?
@@ -2262,7 +2434,9 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { ingreso = "solicitud" });
+            var correoEnviado = await EnviarCorreoSolicitudIngresoAsync(polla, usuario);
+
+            return Ok(new { ingreso = "solicitud", correoEnviado });
         }
 
         // ================= SOLICITUDES DEL CREADOR =================
@@ -2369,26 +2543,31 @@ namespace WorldCup.Api.Controllers
                 Mensaje = $"{i.Remitente.Nombre} te invitó a la polla {i.Polla.Nombre}"
             }));
 
-            var alertasPendientes = await _context.AlertasUsuario
+            var alertasUsuario = await _context.AlertasUsuario
                 .Include(a => a.Polla)
                 .Include(a => a.AdminUsuario)
-                .Where(a => a.UsuarioId == usuarioId && a.Estado == "Pendiente")
+                .Where(a =>
+                    a.UsuarioId == usuarioId &&
+                    a.Estado != "Eliminada" &&
+                    a.Estado != "Reemplazada")
                 .OrderByDescending(a => a.FechaCreacion)
                 .ToListAsync();
 
-            notificaciones.AddRange(alertasPendientes.Select(a => new NotificacionDto
+            notificaciones.AddRange(alertasUsuario.Select(a => new NotificacionDto
             {
                 Id = a.Id,
-                Tipo = a.TipoDestino == "SolicitudCupos"
-                    ? "AlertaSolicitudCupos"
-                    : "AlertaPendientes",
+                Tipo = a.TipoDestino == "ComunicadoAdmin"
+                    ? "ComunicadoAdmin"
+                    : a.TipoDestino == "SolicitudCupos"
+                        ? "AlertaSolicitudCupos"
+                        : "AlertaPendientes",
                 PollaId = a.PollaId,
-                PollaNombre = a.Polla?.Nombre ?? "Solicitud de ampliación de cupos",
+                PollaNombre = NombreContextoAlerta(a),
                 UsuarioId = a.AdminUsuarioId,
                 UsuarioNombre = a.AdminUsuario?.Nombre ?? "Administrador",
-                Estado = a.Estado,
+                Estado = EstadoVisibleAlerta(a.Estado),
                 FechaSolicitud = ColombiaClock.ToColombia(a.FechaCreacion),
-                RequiereAccion = true,
+                RequiereAccion = a.Estado == "Pendiente",
                 Link = a.Link,
                 Mensaje = a.Mensaje
             }));
@@ -2518,7 +2697,7 @@ namespace WorldCup.Api.Controllers
                     a.Id,
                     a.UsuarioId,
                     a.PollaId,
-                    PollaNombre = a.Polla?.Nombre ?? "Solicitud de ampliación de cupos",
+                    PollaNombre = NombreContextoAlerta(a),
                     a.Titulo,
                     a.Mensaje,
                     a.TipoDestino,
@@ -2528,6 +2707,25 @@ namespace WorldCup.Api.Controllers
                     FechaCreacion = ColombiaClock.ToColombia(a.FechaCreacion)
                 })
                 .ToList());
+        }
+
+        private static string NombreContextoAlerta(AlertaUsuario alerta)
+        {
+            if (alerta.Polla != null)
+            {
+                return alerta.Polla.Nombre;
+            }
+
+            return alerta.TipoDestino == "ComunicadoAdmin"
+                ? "Comunicado general"
+                : "Solicitud de ampliacion de cupos";
+        }
+
+        private static string EstadoVisibleAlerta(string estado)
+        {
+            return estado == "Cerrada"
+                ? "Leida"
+                : estado;
         }
 
         [HttpPost("alertas/{alertaId:int}/cerrar")]
@@ -2541,19 +2739,45 @@ namespace WorldCup.Api.Controllers
             if (alerta == null)
                 return NotFound("Alerta no encontrada");
 
-            if (alerta.Estado != "Cerrada")
+            if (alerta.Estado != "Eliminada" &&
+                alerta.Estado != "Leida")
             {
                 var ahoraUtc = DateTime.UtcNow;
-                alerta.Estado = "Cerrada";
+                alerta.Estado = "Leida";
                 alerta.FechaVista ??= ahoraUtc;
-                alerta.FechaCierre = ahoraUtc;
 
                 await _context.SaveChangesAsync();
             }
 
             return Ok(new
             {
-                mensaje = "Alerta cerrada."
+                mensaje = "Alerta marcada como leida."
+            });
+        }
+
+        [HttpDelete("alertas/{alertaId:int}")]
+        public async Task<IActionResult> EliminarAlertaUsuario(
+            int alertaId,
+            [FromQuery] int usuarioId)
+        {
+            var alerta = await _context.AlertasUsuario
+                .FirstOrDefaultAsync(a => a.Id == alertaId && a.UsuarioId == usuarioId);
+
+            if (alerta == null)
+                return NotFound("Alerta no encontrada");
+
+            if (alerta.Estado != "Eliminada")
+            {
+                var ahoraUtc = DateTime.UtcNow;
+                alerta.Estado = "Eliminada";
+                alerta.FechaVista ??= ahoraUtc;
+                alerta.FechaCierre = ahoraUtc;
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new
+            {
+                mensaje = "Notificacion eliminada."
             });
         }
 
@@ -2778,12 +3002,12 @@ namespace WorldCup.Api.Controllers
                 .Where(pm =>
                     pm.PollaId == pollaId &&
                     pm.UsuarioId == usuarioId &&
-                    pm.Usuario.Activo &&
-                    pm.UsuarioId != creadorId)
+                    pm.Usuario.Activo)
                 .Select(pm => new
                 {
                     pm.UsuarioId,
-                    pm.Usuario.Nombre
+                    pm.Usuario.Nombre,
+                    pm.Usuario.Email
                 })
                 .FirstOrDefaultAsync();
 
@@ -2816,7 +3040,8 @@ namespace WorldCup.Api.Controllers
             {
                 Polla = polla,
                 Partido = partido,
-                UsuarioNombre = usuario.Nombre
+                UsuarioNombre = usuario.Nombre,
+                UsuarioEmail = usuario.Email
             };
         }
 
@@ -2860,12 +3085,97 @@ namespace WorldCup.Api.Controllers
             alerta.FechaCierre = null;
         }
 
+        private async Task<bool> EnviarCorreoRecordatorioAsync(
+            string email,
+            string nombre,
+            Polla polla,
+            Partido partido)
+        {
+            try
+            {
+                var fecha = ColombiaClock.ToColombia(partido.Fecha);
+                await _emailService.EnviarNotificacionPlataformaAsync(
+                    email,
+                    nombre,
+                    "Tienes un marcador pendiente",
+                    $"El administrador de {polla.Nombre} te recuerda completar {partido.Local.Nombre} vs {partido.Visitante.Nombre}. El partido comienza el {fecha:dd/MM/yyyy} a las {fecha:HH:mm}.",
+                    $"Polla: {polla.Nombre}",
+                    "Ir a predicciones",
+                    "/predicciones",
+                    "recordatorio-partido");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de recordatorio de partido {PartidoId} al correo {Email}",
+                    partido.Id,
+                    email);
+                return false;
+            }
+        }
+
+        private async Task<bool> EnviarCorreoPagoPendienteAsync(
+            PollaMiembro miembro,
+            PollaPagoParticipanteDto pago)
+        {
+            try
+            {
+                await _emailService.EnviarAvisoPagoPendienteAsync(
+                    miembro.Usuario.Email,
+                    miembro.Usuario.Nombre,
+                    miembro.Polla.Nombre,
+                    pago.SaldoPendiente,
+                    pago.ValorAPagar,
+                    pago.AbonoPagado,
+                    $"/polla/{miembro.PollaId}");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de pago pendiente al usuario {UsuarioId} en polla {PollaId}",
+                    miembro.UsuarioId,
+                    miembro.PollaId);
+                return false;
+            }
+        }
+
+        private async Task<bool> EnviarCorreoSolicitudIngresoAsync(Polla polla, Usuario usuario)
+        {
+            try
+            {
+                await _emailService.EnviarSolicitudIngresoPollaAsync(
+                    polla.Creador.Email,
+                    polla.Creador.Nombre,
+                    usuario.Nombre,
+                    polla.Nombre,
+                    "/notificaciones");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de solicitud de ingreso a la polla {PollaId} para el usuario {UsuarioId}",
+                    polla.Id,
+                    usuario.Id);
+                return false;
+            }
+        }
+
         private sealed class ValidacionRecordatorio
         {
             public IActionResult? Error { get; set; }
             public Polla? Polla { get; set; }
             public Partido? Partido { get; set; }
             public string UsuarioNombre { get; set; } = "";
+            public string UsuarioEmail { get; set; } = "";
         }
 
         private static string NormalizarTipoFormatoManual(string? tipo)
@@ -3055,3 +3365,5 @@ namespace WorldCup.Api.Controllers
 
     }
 }
+
+

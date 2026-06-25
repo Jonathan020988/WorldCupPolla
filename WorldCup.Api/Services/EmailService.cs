@@ -115,16 +115,108 @@ namespace WorldCup.Api.Services
             string etiquetaAccion,
             string link)
         {
+            await EnviarNotificacionPlataformaAsync(
+                destino,
+                nombre,
+                titulo,
+                mensaje,
+                $"Polla: {pollaNombre}",
+                etiquetaAccion,
+                link,
+                "alerta-pendientes");
+        }
+
+        public async Task EnviarNotificacionPlataformaAsync(
+            string destino,
+            string nombre,
+            string titulo,
+            string mensaje,
+            string contexto,
+            string etiquetaAccion,
+            string link,
+            string logReferencia = "notificacion")
+        {
             var url = ConstruirUrlPublica(link);
             var asunto = $"{titulo} - WorldCup Polla";
+            var contextoTexto = string.IsNullOrWhiteSpace(contexto)
+                ? ""
+                : $"{contexto.Trim()}\n";
+            var etiqueta = string.IsNullOrWhiteSpace(etiquetaAccion)
+                ? "Abrir plataforma"
+                : etiquetaAccion.Trim();
+
             var cuerpo =
                 $"Hola {nombre},\n\n" +
                 $"{mensaje}\n\n" +
-                $"Polla: {pollaNombre}\n" +
-                $"{etiquetaAccion}: {url}\n\n" +
-                "Este recordatorio tambien te aparecera al iniciar sesion en la plataforma.";
+                contextoTexto +
+                $"{etiqueta}: {url}\n\n" +
+                "Este mensaje tambien queda disponible en tus notificaciones de la plataforma.";
 
-            await EnviarCorreoAsync(destino, asunto, cuerpo, "alerta-pendientes");
+            await EnviarCorreoAsync(destino, asunto, cuerpo, logReferencia);
+        }
+
+        public async Task EnviarAvisoPagoPendienteAsync(
+            string destino,
+            string nombre,
+            string pollaNombre,
+            decimal saldoPendiente,
+            decimal valorTotal,
+            decimal abonoPagado,
+            string link)
+        {
+            var saldo = saldoPendiente.ToString("C0", CultureInfo.GetCultureInfo("es-CO"));
+            var valor = valorTotal.ToString("C0", CultureInfo.GetCultureInfo("es-CO"));
+            var abono = abonoPagado.ToString("C0", CultureInfo.GetCultureInfo("es-CO"));
+
+            await EnviarNotificacionPlataformaAsync(
+                destino,
+                nombre,
+                "Pago pendiente",
+                $"Tienes pendiente por pagar {saldo} en la polla {pollaNombre}. Valor total: {valor}. Abonado: {abono}.",
+                $"Polla: {pollaNombre}",
+                "Ver detalle de pago",
+                link,
+                "pago-pendiente");
+        }
+
+        public async Task EnviarSolicitudIngresoPollaAsync(
+            string destino,
+            string nombreCreador,
+            string nombreSolicitante,
+            string pollaNombre,
+            string link)
+        {
+            await EnviarNotificacionPlataformaAsync(
+                destino,
+                nombreCreador,
+                "Solicitud de ingreso",
+                $"{nombreSolicitante} quiere unirse a la polla {pollaNombre}.",
+                $"Polla: {pollaNombre}",
+                "Revisar solicitud",
+                link,
+                "solicitud-ingreso-polla");
+        }
+
+        public async Task EnviarCodigoCuposAsync(
+            string destino,
+            string nombre,
+            string codigo,
+            int maximoMiembros,
+            string link)
+        {
+            var cupos = maximoMiembros >= 100000
+                ? "cupos ilimitados"
+                : $"hasta {maximoMiembros} usuarios por polla";
+
+            await EnviarNotificacionPlataformaAsync(
+                destino,
+                nombre,
+                "Codigo de ampliacion de cupos",
+                $"Tu codigo de ampliacion es {codigo}. Al activarlo quedaras habilitado para {cupos}.",
+                "Solicitud de ampliacion de cupos",
+                "Activar codigo",
+                link,
+                "codigo-ampliacion-cupos");
         }
 
         private async Task EnviarCorreoAsync(
@@ -133,24 +225,30 @@ namespace WorldCup.Api.Services
             string cuerpo,
             string logReferencia)
         {
+            destino = (destino ?? "").Trim();
+            asunto = (asunto ?? "").Trim();
+
             var smtp = _configuration.GetSection("SmtpSettings");
             var host = smtp["Host"];
-            var user = smtp["User"];
+            var user = (smtp["User"] ?? "").Trim();
             var password = smtp["Password"];
             var fromEmail = string.IsNullOrWhiteSpace(smtp["FromEmail"])
                 ? user
-                : smtp["FromEmail"];
+                : smtp["FromEmail"]!.Trim();
 
             if (string.IsNullOrWhiteSpace(host) ||
                 string.IsNullOrWhiteSpace(user) ||
                 string.IsNullOrWhiteSpace(password) ||
-                string.IsNullOrWhiteSpace(fromEmail))
+                string.IsNullOrWhiteSpace(fromEmail) ||
+                string.IsNullOrWhiteSpace(destino))
             {
+                var mensaje = "SMTP no configurado completamente. Configura SmtpSettings:Host, User, Password y FromEmail.";
                 _logger.LogWarning(
-                    "SMTP no configurado completamente. Correo para {Email}: {Referencia}",
+                    "{Mensaje} Correo para {Email}: {Referencia}",
+                    mensaje,
                     destino,
                     logReferencia);
-                return;
+                throw new InvalidOperationException(mensaje);
             }
 
             var port = int.TryParse(smtp["Port"], out var configuredPort)

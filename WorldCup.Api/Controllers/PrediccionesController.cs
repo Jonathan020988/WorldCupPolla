@@ -882,12 +882,13 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            return tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            return PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal!.Value,
+                    p.GolesVisitante!.Value)));
         }
 
         private int CalcularPuntosGrupo(
@@ -1008,12 +1009,13 @@ namespace WorldCup.Api.Controllers
             }
 
             // 5️⃣ Orden FIFA
-            var ordenada = tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            var ordenada = PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                predicciones.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.Partido.LocalId,
+                    p.Partido.VisitanteId,
+                    p.GolesLocal!.Value,
+                    p.GolesVisitante!.Value)));
 
             return Ok(ordenada);
         }
@@ -1109,12 +1111,15 @@ namespace WorldCup.Api.Controllers
             }
 
             // 5️⃣ Orden FIFA
-            var ordenada = tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            var ordenada = PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                predicciones
+                    .Where(p => p.GolesLocal.HasValue && p.GolesVisitante.HasValue)
+                    .Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                        p.Partido.LocalId,
+                        p.Partido.VisitanteId,
+                        p.GolesLocal!.Value,
+                        p.GolesVisitante!.Value)));
 
             return Ok(ordenada);
         }

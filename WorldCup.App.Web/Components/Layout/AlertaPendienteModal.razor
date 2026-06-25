@@ -13,19 +13,28 @@
     <div class="pending-alert-backdrop" role="dialog" aria-modal="true" aria-labelledby="pendingAlertTitle">
         <div class="pending-alert-modal">
             <div class="pending-alert-accent"></div>
+            <button class="pending-alert-close"
+                    type="button"
+                    disabled="@procesando"
+                    aria-label="Cerrar aviso"
+                    @onclick="() => CerrarAlerta(alertaActual)">
+                Cerrar
+            </button>
             <div class="pending-alert-header">
                 <div class="pending-alert-mark">!</div>
                 <div>
-                    <span class="pending-alert-kicker">Recordatorio de la polla</span>
+                    <span class="pending-alert-kicker">@KickerAlerta(alertaActual)</span>
                     <h2 id="pendingAlertTitle">@alertaActual.Titulo</h2>
                 </div>
             </div>
 
-            <div class="pending-alert-polla">
-                @alertaActual.PollaNombre
-            </div>
+            <div class="pending-alert-body">
+                <div class="pending-alert-polla">
+                    @alertaActual.PollaNombre
+                </div>
 
-            <p class="pending-alert-message">@alertaActual.Mensaje</p>
+                <p class="pending-alert-message">@alertaActual.Mensaje</p>
+            </div>
 
             <div class="pending-alert-actions">
                 <button class="btn btn-primary"
@@ -36,7 +45,7 @@
                 <button class="btn btn-outline-secondary"
                         disabled="@procesando"
                         @onclick="() => CerrarAlerta(alertaActual)">
-                    Salir por ahora
+                    Marcar como leida
                 </button>
             </div>
         </div>
@@ -167,6 +176,13 @@
             : "Ir a predicciones";
     }
 
+    private static string KickerAlerta(AlertaUsuarioDto alerta)
+    {
+        return alerta.TipoDestino == "ComunicadoAdmin"
+            ? "Comunicado del administrador"
+            : "Recordatorio de la polla";
+    }
+
     public void Dispose()
     {
         Sesion.OnChange -= OnSesionChanged;
@@ -182,6 +198,7 @@
         align-items: center;
         justify-content: center;
         padding: 18px;
+        overflow-y: auto;
         background: rgba(15, 23, 42, .58);
         backdrop-filter: blur(8px);
     }
@@ -189,6 +206,9 @@
     .pending-alert-modal {
         position: relative;
         width: min(560px, 100%);
+        max-height: min(720px, calc(100dvh - 36px));
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
         border: 1px solid rgba(15, 23, 42, .12);
         border-radius: 8px;
@@ -201,11 +221,27 @@
         background: linear-gradient(90deg, #0ea5e9, #10b981, #f59e0b);
     }
 
+    .pending-alert-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        z-index: 2;
+        border: 1px solid rgba(15, 23, 42, .18);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, .94);
+        color: #334155;
+        padding: 6px 10px;
+        font-size: .82rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
     .pending-alert-header {
         display: flex;
         gap: 14px;
         align-items: center;
-        padding: 22px 24px 10px;
+        padding: 22px 86px 10px 24px;
+        flex: 0 0 auto;
     }
 
     .pending-alert-mark {
@@ -238,9 +274,16 @@
         line-height: 1.15;
     }
 
+    .pending-alert-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 0 24px;
+    }
+
     .pending-alert-polla {
         display: inline-flex;
-        margin: 4px 24px 0;
+        margin: 4px 0 0;
         border: 1px solid #bae6fd;
         border-radius: 999px;
         background: #f0f9ff;
@@ -251,7 +294,7 @@
     }
 
     .pending-alert-message {
-        margin: 16px 24px 0;
+        margin: 16px 0 0;
         color: #334155;
         font-size: .98rem;
         line-height: 1.55;
@@ -263,27 +306,75 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 20px 24px 24px;
+        flex: 0 0 auto;
+        background: #ffffff;
     }
 
     @@media (max-width: 520px) {
-        .pending-alert-header {
+        .pending-alert-backdrop {
             align-items: flex-start;
-            padding: 18px 18px 8px;
+            padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
         }
 
-        .pending-alert-polla,
+        .pending-alert-modal {
+            width: 100%;
+            max-height: calc(100dvh - 20px);
+        }
+
+        .pending-alert-close {
+            top: 12px;
+            right: 12px;
+            min-height: 34px;
+        }
+
+        .pending-alert-header {
+            align-items: flex-start;
+            gap: 10px;
+            padding: 16px 80px 8px 14px;
+        }
+
+        .pending-alert-mark {
+            width: 36px;
+            height: 36px;
+            font-size: 1.25rem;
+        }
+
+        .pending-alert-kicker {
+            font-size: .68rem;
+        }
+
+        .pending-alert-header h2 {
+            font-size: 1.05rem;
+            line-height: 1.2;
+        }
+
+        .pending-alert-body {
+            padding: 0 14px;
+        }
+
+        .pending-alert-polla {
+            max-width: 100%;
+            white-space: normal;
+            border-radius: 6px;
+            font-size: .75rem;
+        }
+
         .pending-alert-message {
-            margin-left: 18px;
-            margin-right: 18px;
+            margin-top: 12px;
+            font-size: .9rem;
+            line-height: 1.45;
         }
 
         .pending-alert-actions {
             flex-direction: column;
-            padding: 18px;
+            gap: 8px;
+            padding: 12px 14px 14px;
         }
 
         .pending-alert-actions .btn {
             width: 100%;
+            min-height: 40px;
+            white-space: normal;
         }
     }
 </style>

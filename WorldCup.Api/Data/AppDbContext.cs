@@ -35,6 +35,8 @@ namespace WorldCup.Api.Data
         public DbSet<SolicitudAmpliacionCupos> SolicitudesAmpliacionCupos { get; set; }
         public DbSet<AlertaUsuario> AlertasUsuario { get; set; }
         public DbSet<VisualizacionPrediccion> VisualizacionesPrediccion { get; set; }
+        public DbSet<RankingPartidoPublicacion> RankingsPartidosPublicacion { get; set; }
+        public DbSet<RankingPartidoAuditoriaDetalle> RankingsPartidosAuditoriaDetalle { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -220,6 +222,38 @@ namespace WorldCup.Api.Data
                     v.PartidoId,
                     v.FechaVisualizacion
                 });
+
+            modelBuilder.Entity<RankingPartidoPublicacion>()
+                .HasOne(r => r.Partido)
+                .WithMany()
+                .HasForeignKey(r => r.PartidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RankingPartidoPublicacion>()
+                .HasIndex(r => r.PartidoId)
+                .IsUnique();
+
+            modelBuilder.Entity<RankingPartidoAuditoriaDetalle>()
+                .HasOne(r => r.Partido)
+                .WithMany()
+                .HasForeignKey(r => r.PartidoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RankingPartidoAuditoriaDetalle>()
+                .HasOne(r => r.Polla)
+                .WithMany()
+                .HasForeignKey(r => r.PollaId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RankingPartidoAuditoriaDetalle>()
+                .HasOne(r => r.Usuario)
+                .WithMany()
+                .HasForeignKey(r => r.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RankingPartidoAuditoriaDetalle>()
+                .HasIndex(r => new { r.PartidoId, r.PollaId, r.UsuarioId })
+                .IsUnique();
 
         }
     }

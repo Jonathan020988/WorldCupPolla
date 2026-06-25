@@ -29,40 +29,36 @@
 
         @if (Sesion.EstaLogueado)
         {
-            <div class="px-3 py-2 text-white">
-                👤 <strong>@Sesion.Nombre</strong>
-            </div>
+            <div class="px-3 py-2 text-white">                <strong>@Sesion.Nombre</strong>            </div>
         }
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                🏠 Home
-            </NavLink>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
         </div>
 
         @if (!Sesion.EstaLogueado)
         {
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/login">🔐 Login</NavLink>
+                <NavLink class="nav-link" href="/login">Login</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/registro">📝 Registro</NavLink>
+                <NavLink class="nav-link" href="/registro">Registro</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
+                <NavLink class="nav-link" href="/Unirse">Unirse a una polla</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
+                <NavLink class="nav-link" href="/partidos">Partidos</NavLink>
             </div>
         }
 
         @if (Sesion.EstaLogueado)
         {
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/dashboard">🏆 Mis Pollas</NavLink>
+                <NavLink class="nav-link" href="/dashboard">Mis Pollas</NavLink>
             </div>
 
             <div class="nav-item px-3">
@@ -74,8 +70,7 @@
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/notificaciones">
-                    🔔 Notificaciones
+                <NavLink class="nav-link" href="/notificaciones">                    Notificaciones
                     @if (solicitudesPendientes > 0)
                     {
                         <span class="badge bg-danger ms-2">
@@ -86,46 +81,42 @@
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/crear-polla">➕ Crear Polla</NavLink>
+                <NavLink class="nav-link" href="/crear-polla">Crear Polla</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/Unirse">🔗 Unirse a una polla</NavLink>
+                <NavLink class="nav-link" href="/Unirse">Unirse a una polla</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/predicciones">🎯 Predicciones</NavLink>
+                <NavLink class="nav-link" href="/predicciones">Predicciones</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/clasificacion-grupos">
-                    📊 Clasificación Grupos
-                </NavLink>
+                <NavLink class="nav-link" href="/clasificacion-grupos">                    Clasificacion Grupos                </NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/partidos">⚽ Partidos</NavLink>
+                <NavLink class="nav-link" href="/partidos">Partidos</NavLink>
             </div>
 
             @if (Sesion.EsAdmin)
             {
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin">🛠 Admin</NavLink>
+                    <NavLink class="nav-link" href="/admin">Admin</NavLink>
                 </div>
             }
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/simulador">📊 Simulador</NavLink>
+                <NavLink class="nav-link" href="/simulador">Simulador</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="/reglas">📘 Reglas</NavLink>
+                <NavLink class="nav-link" href="/reglas">Reglas</NavLink>
             </div>
 
             <div class="nav-item px-3">
-                <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">
-                    🚪 Cerrar sesión
-                </a>
+                <a class="nav-link" style="cursor:pointer" @onclick="CerrarSesion">                    Cerrar sesion                </a>
             </div>
         }
 
@@ -144,8 +135,8 @@
 </div>
 
 @code {
-    private const string AppVersion = "Version 26";
-    private const string AppVersionDate = "12/06/2026";
+    private const string AppVersion = "Version 36";
+    private const string AppVersionDate = "25/06/2026";
     private int solicitudesPendientes;
 
     protected override void OnInitialized()

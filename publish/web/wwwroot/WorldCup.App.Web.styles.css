@@ -1,4 +1,4 @@
-@import '_content/WorldCup.App.Shared/WorldCup.App.Shared.bpsbmqg7o0.bundle.scp.css';
+@import '_content/WorldCup.App.Shared/WorldCup.App.Shared.s62o0jz15t.bundle.scp.css';
 
 /* _content/WorldCup.App.Web/Components/Layout/MainLayout.razor.rz.scp.css */
 .page[b-p2xwt3s6tp] {
@@ -40,7 +40,21 @@ main[b-p2xwt3s6tp] {
         text-overflow: ellipsis;
     }
 
-@media (max-width: 640.98px) {
+@media (max-width: 991.98px) {
+    .sidebar[b-p2xwt3s6tp] {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 1050;
+        box-shadow: 0 8px 20px rgba(16, 24, 40, 0.16);
+    }
+
+    main[b-p2xwt3s6tp] {
+        padding-top: 4rem;
+    }
+
     article.content[b-p2xwt3s6tp] {
         padding-left: 0.75rem !important;
         padding-right: 0.75rem !important;
@@ -51,7 +65,7 @@ main[b-p2xwt3s6tp] {
     }
 }
 
-@media (min-width: 641px) {
+@media (min-width: 992px) {
     .page[b-p2xwt3s6tp] {
         flex-direction: row;
     }
@@ -219,6 +233,65 @@ main[b-p2xwt3s6tp] {
     color: white;
 }
 
+.legal-menu-block[b-3l9xws70h3] {
+    margin: 0.8rem 0.75rem 1rem;
+    padding: 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.045));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.legal-menu-title[b-3l9xws70h3] {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.55rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.legal-menu-icon[b-3l9xws70h3] {
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.18);
+    color: #bae6fd;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.legal-menu-links[b-3l9xws70h3] {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.legal-menu-links[b-3l9xws70h3]  .legal-menu-link {
+    display: flex;
+    align-items: center;
+    min-height: 2.15rem;
+    padding: 0.45rem 0.58rem;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.055);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 0.84rem;
+    line-height: 1.15;
+    text-decoration: none;
+}
+
+.legal-menu-links[b-3l9xws70h3]  .legal-menu-link:hover,
+.legal-menu-links[b-3l9xws70h3]  .legal-menu-link.active {
+    border-color: rgba(125, 211, 252, 0.34);
+    background: rgba(14, 165, 233, 0.18);
+    color: #ffffff;
+}
+
 .nav-scrollable[b-3l9xws70h3] {
     display: none;
 }
@@ -227,7 +300,7 @@ main[b-p2xwt3s6tp] {
     display: block;
 }
 
-@media (min-width: 641px) {
+@media (min-width: 992px) {
     .navbar-toggler[b-3l9xws70h3] {
         display: none;
     }
@@ -242,13 +315,20 @@ main[b-p2xwt3s6tp] {
     }
 }
 
-@media (max-width: 640.98px) {
+@media (max-width: 991.98px) {
     .top-row[b-3l9xws70h3] {
         min-height: 4rem;
     }
 
     .navbar-toggler[b-3l9xws70h3] {
         top: 0.75rem;
+    }
+
+    .navbar-toggler:checked ~ .nav-scrollable[b-3l9xws70h3] {
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
     }
 }
 /* _content/WorldCup.App.Web/Components/Pages/Registro.razor.rz.scp.css */
@@ -329,6 +409,42 @@ main[b-p2xwt3s6tp] {
     letter-spacing: 0.35rem;
 }
 
+.legal-register-box[b-lnexyeejkb] {
+    display: grid;
+    gap: .45rem;
+    margin: .9rem 0 1rem;
+    padding: .85rem;
+    border: 1px solid #d8e9df;
+    border-radius: 10px;
+    background: #f8fcfa;
+}
+
+.legal-register-box .form-check[b-lnexyeejkb] {
+    display: flex;
+    gap: .55rem;
+    align-items: flex-start;
+    margin: 0;
+}
+
+.legal-register-box .form-check-input[b-lnexyeejkb] {
+    flex: 0 0 auto;
+    margin-top: .25rem;
+}
+
+.legal-register-box .form-check-label[b-lnexyeejkb] {
+    color: #23352f;
+    line-height: 1.35;
+}
+
+.legal-register-box a[b-lnexyeejkb] {
+    font-weight: 700;
+}
+
+.legal-register-box small[b-lnexyeejkb] {
+    color: #66766f;
+    line-height: 1.3;
+}
+
 .registro-modal-backdrop[b-lnexyeejkb] {
     position: fixed;
     inset: 0;
@@ -377,5 +493,9 @@ main[b-p2xwt3s6tp] {
     .codigo-input[b-lnexyeejkb] {
         font-size: 1.25rem;
         letter-spacing: 0.22rem;
+    }
+
+    .legal-register-box[b-lnexyeejkb] {
+        padding: .75rem;
     }
 }

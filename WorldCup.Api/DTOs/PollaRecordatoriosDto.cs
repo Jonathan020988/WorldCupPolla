@@ -26,5 +26,7 @@ namespace WorldCup.App.Shared.DTOs
     {
         public string Mensaje { get; set; } = "";
         public int TotalEnviados { get; set; }
+        public int CorreosEnviados { get; set; }
+        public int CorreosFallidos { get; set; }
     }
 }

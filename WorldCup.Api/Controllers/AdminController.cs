@@ -60,9 +60,21 @@ namespace WorldCup.Api.Controllers
             if (string.IsNullOrWhiteSpace(destino))
                 return BadRequest("Debes indicar un correo destino");
 
-            await _emailService.EnviarCorreoPruebaAsync(destino);
-
-            return Ok("Correo de prueba enviado. Si SMTP no está completo, revisa los logs de la API.");
+            try
+            {
+                await _emailService.EnviarCorreoPruebaAsync(destino);
+                return Ok("Correo de prueba enviado. Revisa la bandeja de entrada y spam.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de prueba a {Destino}",
+                    destino);
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    $"No se pudo enviar el correo de prueba: {ex.Message}");
+            }
         }
 
         [HttpGet("cupos/solicitudes")]
@@ -126,10 +138,15 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
+            var correoEnviado = await EnviarCorreoCodigoCuposAsync(solicitud);
+
             return Ok(new
             {
-                mensaje = $"Código generado para {solicitud.Usuario.Nombre}: {codigo}",
-                codigo
+                mensaje = correoEnviado
+                    ? $"Codigo generado para {solicitud.Usuario.Nombre}: {codigo}. Tambien fue enviado al correo del usuario."
+                    : $"Codigo generado para {solicitud.Usuario.Nombre}: {codigo}. No se pudo enviar el correo; revisa los logs SMTP.",
+                codigo,
+                correoEnviado
             });
         }
 
@@ -208,10 +225,22 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
+            var correoEnviado = await EnviarCorreoNotificacionAsync(
+                solicitud.Usuario,
+                alerta.Titulo,
+                alerta.Mensaje,
+                "Solicitud de ampliacion de cupos",
+                alerta.EtiquetaAccion,
+                alerta.Link,
+                "alerta-contacto-cupos");
+
             return Ok(new
             {
-                mensaje = $"Alerta enviada a {solicitud.Usuario.Nombre}. Le aparecera al iniciar sesion y tambien en notificaciones.",
-                alertaId = alerta.Id
+                mensaje = correoEnviado
+                    ? $"Alerta y correo enviados a {solicitud.Usuario.Nombre}. Le aparecera al iniciar sesion y tambien en notificaciones."
+                    : $"Alerta enviada a {solicitud.Usuario.Nombre}. No se pudo enviar el correo; revisa los logs SMTP.",
+                alertaId = alerta.Id,
+                correoEnviado
             });
         }
 
@@ -621,7 +650,8 @@ namespace WorldCup.Api.Controllers
                 {
                     a.Id,
                     a.PollaId,
-                    PollaNombre = a.Polla?.Nombre ?? "",
+                    PollaNombre = a.Polla?.Nombre ??
+                        (a.TipoDestino == "ComunicadoAdmin" ? "Comunicado general" : ""),
                     AdminUsuarioId = a.AdminUsuarioId,
                     AdminNombre = a.AdminUsuario?.Nombre ?? "Administrador",
                     a.Titulo,
@@ -800,23 +830,130 @@ namespace WorldCup.Api.Controllers
 
             var correosEnviados = 0;
             var correosFallidos = 0;
-            if (dto.EnviarCorreo)
+            foreach (var pendiente in correosPendientes)
             {
-                foreach (var pendiente in correosPendientes)
-                {
-                    if (await EnviarCorreoAlertaAsync(pendiente.Usuario, pendiente.Polla, pendiente.Alerta))
-                        correosEnviados++;
-                    else
-                        correosFallidos++;
-                }
+                if (await EnviarCorreoAlertaAsync(pendiente.Usuario, pendiente.Polla, pendiente.Alerta))
+                    correosEnviados++;
+                else
+                    correosFallidos++;
             }
 
             return Ok(new
             {
-                mensaje = dto.EnviarCorreo
-                    ? $"Alerta masiva enviada a {correosPendientes.Count} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}."
-                    : $"Alerta masiva enviada a {correosPendientes.Count} usuario(s). No se enviaron correos por configuracion de esta accion.",
+                mensaje = $"Alerta masiva enviada a {correosPendientes.Count} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
                 usuariosAlertados = correosPendientes.Count,
+                correosEnviados,
+                correosFallidos
+            });
+        }
+
+        [HttpPost("notificaciones/globales")]
+        public async Task<IActionResult> EnviarNotificacionGlobal(
+            [FromBody] AdminEnviarNotificacionGlobalDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            var titulo = string.IsNullOrWhiteSpace(dto.Titulo)
+                ? "Comunicado del administrador"
+                : dto.Titulo.Trim();
+            var mensaje = (dto.Mensaje ?? "").Trim();
+
+            if (titulo.Length > 120)
+                return BadRequest("El titulo no puede superar 120 caracteres.");
+
+            if (mensaje.Length < 5)
+                return BadRequest("Escribe el texto de la notificacion.");
+
+            if (mensaje.Length > 1200)
+                return BadRequest("El texto no puede superar 1200 caracteres.");
+
+            List<Usuario> usuarios;
+            if (dto.UsuarioId.HasValue)
+            {
+                var usuario = await _context.Usuarios
+                    .Where(u => u.Id == dto.UsuarioId.Value && u.Activo)
+                    .FirstOrDefaultAsync();
+
+                if (usuario == null)
+                    return BadRequest("No se encontro un usuario activo con ese identificador.");
+
+                usuarios = new List<Usuario> { usuario };
+            }
+            else
+            {
+                usuarios = await _context.Usuarios
+                    .Where(u => u.Activo)
+                    .OrderBy(u => u.Nombre)
+                    .ToListAsync();
+            }
+
+            if (!usuarios.Any())
+                return BadRequest("No hay usuarios activos para notificar.");
+
+            var correosEnviados = 0;
+            var correosFallidos = 0;
+            var usuariosConCorreo = new List<Usuario>();
+            foreach (var usuario in usuarios)
+            {
+                if (await EnviarCorreoNotificacionAsync(
+                    usuario,
+                    titulo,
+                    mensaje,
+                    "Comunicado general",
+                    "Ver notificaciones",
+                    "/notificaciones",
+                    "comunicado-admin"))
+                {
+                    correosEnviados++;
+                    usuariosConCorreo.Add(usuario);
+                }
+                else
+                {
+                    correosFallidos++;
+                }
+            }
+
+            if (!usuariosConCorreo.Any())
+            {
+                var destino = dto.UsuarioId.HasValue
+                    ? $" a {usuarios[0].Nombre}"
+                    : "";
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    $"No se envio el comunicado{destino}: el correo fallo y no se guardo la notificacion interna.");
+            }
+
+            var ahoraUtc = DateTime.UtcNow;
+            foreach (var usuario in usuariosConCorreo)
+            {
+                _context.AlertasUsuario.Add(new AlertaUsuario
+                {
+                    UsuarioId = usuario.Id,
+                    AdminUsuarioId = dto.AdminUsuarioId,
+                    PollaId = null,
+                    Titulo = titulo,
+                    Mensaje = mensaje,
+                    TipoDestino = "ComunicadoAdmin",
+                    Link = "/notificaciones",
+                    EtiquetaAccion = "Ver notificaciones",
+                    Estado = "Pendiente",
+                    FechaCreacion = ahoraUtc,
+                    FechaVista = null,
+                    FechaCierre = null
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = dto.UsuarioId.HasValue
+                    ? correosEnviados == 1
+                        ? $"Notificacion y correo enviados a {usuarios[0].Nombre}."
+                        : $"Notificacion enviada a {usuarios[0].Nombre}, pero no se pudo enviar el correo. Revisa la configuracion SMTP."
+                    : $"Comunicado enviado a {usuariosConCorreo.Count} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
+                usuariosNotificados = usuariosConCorreo.Count,
                 correosEnviados,
                 correosFallidos
             });
@@ -1653,6 +1790,64 @@ namespace WorldCup.Api.Controllers
             }
         }
 
+        private async Task<bool> EnviarCorreoNotificacionAsync(
+            Usuario usuario,
+            string titulo,
+            string mensaje,
+            string contexto,
+            string etiquetaAccion,
+            string link,
+            string logReferencia)
+        {
+            try
+            {
+                await _emailService.EnviarNotificacionPlataformaAsync(
+                    usuario.Email,
+                    usuario.Nombre,
+                    titulo,
+                    mensaje,
+                    contexto,
+                    etiquetaAccion,
+                    link,
+                    logReferencia);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de notificacion {Referencia} al usuario {UsuarioId}",
+                    logReferencia,
+                    usuario.Id);
+                return false;
+            }
+        }
+
+        private async Task<bool> EnviarCorreoCodigoCuposAsync(SolicitudAmpliacionCupos solicitud)
+        {
+            try
+            {
+                await _emailService.EnviarCodigoCuposAsync(
+                    solicitud.Usuario.Email,
+                    solicitud.Usuario.Nombre,
+                    solicitud.CodigoHabilitacion ?? "",
+                    solicitud.MaximoMiembrosAutorizado ?? solicitud.CantidadUsuariosSolicitada,
+                    "/crear-polla");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar el codigo de cupos de la solicitud {SolicitudId} al usuario {UsuarioId}",
+                    solicitud.Id,
+                    solicitud.UsuarioId);
+                return false;
+            }
+        }
+
         private async Task<AlertaPendientesConstruida?> ConstruirAlertaPartidoPendienteAsync(
             int usuarioId,
             int pollaId,
@@ -2238,12 +2433,13 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            return tabla
-                .OrderByDescending(t => t.Puntos)
-                .ThenByDescending(t => t.DG)
-                .ThenByDescending(t => t.GF)
-                .ThenBy(t => t.Equipo)
-                .ToList();
+            return PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                tabla,
+                partidos.Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                    p.LocalId,
+                    p.VisitanteId,
+                    p.GolesLocal!.Value,
+                    p.GolesVisitante!.Value)));
         }
 
         private static int OrdenFaseHistorial(string fase) => fase switch

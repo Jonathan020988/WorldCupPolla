@@ -308,8 +308,9 @@
             <span class="section-kicker">Clasificacion de grupos</span>
             <h2>Primeros, segundos y mejores terceros</h2>
             <p>
-                Antes del inicio del Mundial se selecciona el orden de cada grupo. Estos puntos
-                son independientes de los marcadores de los partidos.
+                Antes del inicio del Mundial cada usuario selecciona el orden de cada grupo
+                y marca sus 8 grupos de mejores terceros. Estos puntos son independientes
+                de los marcadores de los partidos.
             </p>
         </div>
 
@@ -334,7 +335,7 @@
                         <td><span class="points points-soft">5</span></td>
                     </tr>
                     <tr>
-                        <td>3&deg; del grupo</td>
+                        <td>3&deg; del grupo marcado como mejor tercero</td>
                         <td><span class="points points-gold">5</span></td>
                         <td><span class="points points-soft">3</span></td>
                     </tr>
@@ -343,46 +344,115 @@
         </div>
 
         <div class="note-band">
+            <strong>Cuando se calculan estos puntos:</strong>
+            <ul>
+                <li>
+                    Al cerrar un grupo, el sistema puede asignar puntos por el 1&deg; y el
+                    2&deg; puesto, porque esos clasificados ya quedaron definidos.
+                </li>
+                <li>
+                    Los puntos definitivos de los terceros se completan cuando termina toda
+                    la fase de grupos, porque primero deben quedar definidos los 8 mejores
+                    terceros del Mundial.
+                </li>
+                <li>
+                    Para que se evalue la casilla de 3&deg;, el usuario debe haber marcado ese
+                    grupo dentro de sus 8 mejores terceros.
+                </li>
+                <li>
+                    Si un equipo fue puesto como 3&deg;, pero ya clasifico como 1&deg; o 2&deg;,
+                    puede aparecer un bono parcial de 3 puntos por clasificar en otra posicion.
+                    No es un error: es la regla de equipo correcto en otra posicion.
+                </li>
+            </ul>
+        </div>
+
+        <div class="note-band">
             El sistema muestra en el ranking el detalle de por que se ganaron los puntos de
-            clasificacion, por ejemplo: +15 por acertar el primero del grupo o +10 porque el
-            equipo clasifico aunque quedo en otra posicion.
+            clasificacion, por ejemplo: +15 por acertar el primero del grupo, +10 porque un
+            equipo marcado como primero clasifico en otra posicion, o +3 porque un equipo
+            marcado como tercero clasifico como primero o segundo.
+        </div>
+
+        <div class="note-band">
+            Si dos o mas equipos terminan empatados en puntos dentro de un grupo, la tabla se
+            ordena primero por los partidos directos entre esos equipos empatados: puntos,
+            diferencia y goles en esos duelos. Solo si siguen iguales se usa diferencia de goles
+            general y goles a favor generales. Los mejores terceros entre grupos se comparan por
+            puntos, diferencia y goles a favor, porque son equipos de grupos distintos.
         </div>
 
         <div class="classification-examples">
             <article>
-                <h3>Ejemplo 1: orden exacto y tercer clasificado</h3>
+                <h3>Ejemplo 1: primero y segundo exactos</h3>
                 <p>
-                    Real: Brasil 1°, Alemania 2° y Canada 3°; el grupo queda dentro de los
-                    8 mejores terceros. Si el usuario marco ese grupo como mejor tercero y puso
-                    Brasil, Alemania y Canada en ese orden, suma 15 + 10 + 5 = 30 puntos.
+                    Real: Suiza 1&deg; y Canada 2&deg;. Si el usuario puso Suiza 1&deg;
+                    y Canada 2&deg;, suma 15 + 10 = 25 puntos. Estos puntos se pueden
+                    publicar cuando el grupo queda cerrado.
                 </p>
             </article>
 
             <article>
-                <h3>Ejemplo 2: pasan, pero en otro orden</h3>
+                <h3>Ejemplo 2: Canada puesto como tercero</h3>
                 <p>
-                    Con los mismos clasificados, si el usuario puso Canada 1°, Brasil 2° y
-                    Alemania 3°, los tres equipos pasaron, pero en orden incorrecto:
-                    suma 10 + 5 + 3 = 18 puntos.
+                    Si el usuario puso Canada 3&deg;, marco ese grupo dentro de sus mejores
+                    terceros, pero Canada termino 2&deg;, suma 3 puntos. Clasifico, aunque
+                    no en la posicion exacta que habia pronosticado.
                 </p>
             </article>
 
             <article>
-                <h3>Ejemplo 3: el tercero no entra</h3>
+                <h3>Ejemplo 3: equipo puesto de primero queda segundo</h3>
                 <p>
-                    Real: Espana 1°, Japon 2° y Marruecos 3°, pero ese tercer puesto no queda
-                    entre los 8 mejores terceros. Aunque el usuario haya puesto a Marruecos 3°,
-                    ese tercer puesto no suma; solo suman los equipos que realmente clasifican.
+                    Real: Suiza 1&deg; y Canada 2&deg;. Si el usuario puso Canada 1&deg;,
+                    Canada clasifico pero en otra posicion, asi que suma 10 puntos por
+                    ese pronostico. No suma 15 porque no fue primero exacto.
                 </p>
             </article>
 
             <article>
-                <h3>Ejemplo 4: grupo de tercero no seleccionado</h3>
+                <h3>Ejemplo 4: equipo puesto de segundo queda primero</h3>
                 <p>
-                    Si el usuario guarda el 3° de un grupo, pero no marca ese grupo dentro de
-                    sus 8 mejores terceros, ese tercer puesto no cuenta como clasificado en su
-                    prediccion. Para sumar por el tercero, debe estar marcado y debe clasificar
-                    realmente.
+                    Si el usuario puso Suiza 2&deg;, pero Suiza termino 1&deg;, suma 5 puntos.
+                    El equipo clasifico, pero fallo la posicion exacta de segundo.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 5: tercer exacto y mejor tercero</h3>
+                <p>
+                    Real: Marruecos 3&deg; y ese grupo queda entre los 8 mejores terceros.
+                    Si el usuario marco ese grupo como mejor tercero y puso Marruecos 3&deg;,
+                    suma 5 puntos. Este resultado solo queda definitivo al finalizar todos
+                    los grupos.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 6: el tercero no clasifica</h3>
+                <p>
+                    Real: Marruecos 3&deg;, pero ese grupo no entra entre los 8 mejores terceros.
+                    Aunque el usuario haya puesto Marruecos 3&deg;, ese pronostico suma 0 por
+                    tercero, porque ese equipo no avanzo a 16avos.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 7: grupo de tercero no seleccionado</h3>
+                <p>
+                    Para que se evalue el pronostico de 3&deg;, el usuario debe haber marcado
+                    ese grupo dentro de sus 8 mejores terceros. Si no lo marco, esa casilla
+                    de tercero no suma, aunque el equipo haya sido escrito en el grupo.
+                </p>
+            </article>
+
+            <article>
+                <h3>Ejemplo 8: puntos parciales antes del cierre total</h3>
+                <p>
+                    Puede pasar que un usuario vea +3 por un equipo que puso como 3&deg;
+                    mientras todavia faltan otros grupos por cerrar. Al terminar toda la fase
+                    de grupos, el sistema completa la revision de los mejores terceros y deja
+                    el puntaje definitivo.
                 </p>
             </article>
         </div>
@@ -682,6 +752,20 @@
     .note-band {
         margin-top: .9rem;
         border-radius: 8px;
+    }
+
+    .note-band strong {
+        display: block;
+        margin-bottom: .35rem;
+    }
+
+    .note-band ul {
+        margin: .55rem 0 0;
+        padding-left: 1.15rem;
+    }
+
+    .note-band li + li {
+        margin-top: .35rem;
     }
 
     .classification-examples {

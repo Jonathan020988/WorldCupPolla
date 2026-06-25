@@ -121,11 +121,25 @@ else
                         Ver mensaje
                     </button>
                 }
+                else if (notificacion.Tipo == "ComunicadoAdmin" && notificacion.Estado == "Pendiente")
+                {
+                    <button class="btn btn-outline-primary btn-sm mt-2"
+                            @onclick="() => MarcarAlertaComoLeida(notificacion)">
+                        Marcar como leida
+                    </button>
+                }
 
                 @if (notificacion.Tipo == "SolicitudIngreso")
                 {
                     <button class="btn btn-sm btn-outline-secondary mt-2"
                             @onclick="() => EliminarSolicitud(notificacion.Id)">
+                        Eliminar
+                    </button>
+                }
+                else if (EsAlertaPersistente(notificacion))
+                {
+                    <button class="btn btn-sm btn-outline-secondary mt-2 ms-2"
+                            @onclick="() => EliminarAlerta(notificacion)">
                         Eliminar
                     </button>
                 }
@@ -255,6 +269,27 @@ else
                 : notificacion.Link);
     }
 
+    private async Task MarcarAlertaComoLeida(NotificacionDto notificacion)
+    {
+        await PollasService.CerrarAlertaUsuarioAsync(
+            notificacion.Id,
+            Sesion.UsuarioId!.Value);
+
+        notificacion.Estado = "Leida";
+        notificacion.RequiereAccion = false;
+    }
+
+    private async Task EliminarAlerta(NotificacionDto notificacion)
+    {
+        await PollasService.EliminarAlertaUsuarioAsync(
+            notificacion.Id,
+            Sesion.UsuarioId!.Value);
+
+        notificaciones = notificaciones
+            .Where(x => x.Tipo != notificacion.Tipo || x.Id != notificacion.Id)
+            .ToList();
+    }
+
     private Task ActualizarEstadoLocal(int id, string estado, string tipo)
     {
         var notificacion = notificaciones.FirstOrDefault(x =>
@@ -279,6 +314,7 @@ else
             "SolicitudAmpliacionCupos" => "Solicitud de ampliacion",
             "AlertaPendientes" => "Alerta de registros pendientes",
             "AlertaSolicitudCupos" => "Mensaje del administrador",
+            "ComunicadoAdmin" => "Comunicado del administrador",
             _ => "Notificacion"
         };
 
@@ -292,6 +328,7 @@ else
             "SolicitudAmpliacionCupos" => "Cupos",
             "AlertaPendientes" => "Pendiente",
             "AlertaSolicitudCupos" => "Admin",
+            "ComunicadoAdmin" => "Comunicado",
             _ => "Aviso"
         };
 
@@ -305,6 +342,7 @@ else
             "SolicitudAmpliacionCupos" => "bg-info text-dark",
             "AlertaPendientes" => "bg-primary",
             "AlertaSolicitudCupos" => "bg-dark",
+            "ComunicadoAdmin" => "bg-dark",
             _ => "bg-secondary"
         };
 
@@ -314,6 +352,10 @@ else
             "Pendiente" => "bg-warning text-dark",
             "Aprobada" or "Aceptada" or "CodigoGenerado" => "bg-success",
             "Rechazada" => "bg-danger",
+            "Leida" or "Cerrada" => "bg-secondary",
             _ => "bg-secondary"
         };
+
+    private static bool EsAlertaPersistente(NotificacionDto notificacion) =>
+        notificacion.Tipo is "AlertaPendientes" or "AlertaSolicitudCupos" or "ComunicadoAdmin";
 }

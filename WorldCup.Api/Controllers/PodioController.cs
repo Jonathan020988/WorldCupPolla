@@ -323,7 +323,7 @@ namespace WorldCup.Api.Controllers
             }
 
             var clasificados = new List<(int EquipoId, int Orden)>();
-            var terceros = new List<TablaGrupoPodio>();
+            var terceros = new List<TablaPosicionDTO>();
             var grupos = await _context.Equipos
                 .Where(e => e.Grupo != null)
                 .Select(e => e.Grupo)
@@ -364,11 +364,11 @@ namespace WorldCup.Api.Controllers
             return equiposClasificados.Cast<object>().ToList();
         }
 
-        private async Task<List<TablaGrupoPodio>> ObtenerTablaGrupo(string grupo)
+        private async Task<List<TablaPosicionDTO>> ObtenerTablaGrupo(string grupo)
         {
             var equipos = await _context.Equipos
                 .Where(e => e.Grupo == grupo)
-                .Select(e => new TablaGrupoPodio
+                .Select(e => new TablaPosicionDTO
                 {
                     EquipoId = e.Id,
                     Equipo = e.Nombre
@@ -417,22 +417,15 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            return equipos
-                .OrderByDescending(e => e.Puntos)
-                .ThenByDescending(e => e.DG)
-                .ThenByDescending(e => e.GF)
-                .ThenBy(e => e.Equipo)
-                .ToList();
-        }
-
-        private sealed class TablaGrupoPodio
-        {
-            public int EquipoId { get; set; }
-            public string Equipo { get; set; } = "";
-            public int Puntos { get; set; }
-            public int GF { get; set; }
-            public int GC { get; set; }
-            public int DG => GF - GC;
+            return PuntajesClasificacionGrupos.OrdenarTablaGrupo(
+                equipos,
+                partidos
+                    .Where(p => p.GolesLocal.HasValue && p.GolesVisitante.HasValue)
+                    .Select(p => new PuntajesClasificacionGrupos.ResultadoGrupo(
+                        p.LocalId,
+                        p.VisitanteId,
+                        p.GolesLocal!.Value,
+                        p.GolesVisitante!.Value)));
         }
     }
 }

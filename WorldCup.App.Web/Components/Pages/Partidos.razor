@@ -70,6 +70,11 @@
         border-left: 6px solid #198754;
     }
 
+    .match-card.admin-priority-match {
+        border-left-color: #ffc107;
+        box-shadow: 0 0 0 3px rgba(255,193,7,.22), 0 10px 24px rgba(0,0,0,.16);
+    }
+
     .score {
         font-size: 1.25rem;
         font-weight: bold;
@@ -283,6 +288,21 @@
         color: #8a5f00;
     }
 
+    .admin-priority-banner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .35rem;
+        margin: .45rem 0 .75rem;
+        padding: .45rem .7rem;
+        border-radius: 8px;
+        background: #fff8e6;
+        color: #8a5f00;
+        font-size: .84rem;
+        font-weight: 900;
+    }
+
     .admin-test-tools {
         background: #fff;
         border: 1px solid #d9e5df;
@@ -302,6 +322,126 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: .5rem;
+    }
+
+    .ranking-audit-panel {
+        background: #fff;
+        border: 1px solid #d9e5df;
+        border-left: 5px solid #0f5132;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    }
+
+    .ranking-audit-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .9rem;
+    }
+
+    .ranking-audit-head h2 {
+        margin: 0;
+        color: #082f23;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .ranking-audit-meta {
+        color: #667085;
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .ranking-audit-controls {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto auto;
+        gap: .65rem;
+        align-items: end;
+        margin-bottom: .85rem;
+    }
+
+    .ranking-audit-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .6rem;
+        margin-bottom: .85rem;
+    }
+
+    .ranking-audit-stat {
+        border: 1px solid #d9e5df;
+        border-radius: 8px;
+        padding: .65rem .75rem;
+        background: #f8fbfa;
+    }
+
+    .ranking-audit-stat small {
+        display: block;
+        color: #667085;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ranking-audit-stat strong {
+        display: block;
+        color: #082f23;
+        font-size: 1.05rem;
+        line-height: 1.2;
+    }
+
+    .ranking-audit-table-wrap {
+        max-height: 420px;
+        overflow: auto;
+        border: 1px solid #d9e5df;
+        border-radius: 8px;
+    }
+
+    .ranking-audit-table {
+        min-width: 940px;
+    }
+
+    .ranking-audit-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #101820;
+        color: #fff;
+        border-color: #2d3748;
+        font-size: .78rem;
+        white-space: nowrap;
+    }
+
+    .ranking-audit-table tbody td {
+        font-weight: 700;
+        vertical-align: middle;
+    }
+
+    .ranking-audit-change {
+        background: #f0fdf4;
+    }
+
+    .ranking-audit-points {
+        display: inline-flex;
+        min-width: 44px;
+        justify-content: center;
+        border-radius: 7px;
+        padding: .18rem .4rem;
+        background: #e6f4ef;
+        color: #0f5132;
+        font-weight: 900;
+    }
+
+    .ranking-audit-points.zero {
+        background: #eef2f6;
+        color: #475467;
+    }
+
+    .ranking-audit-points.negative {
+        background: #fff1f3;
+        color: #b42318;
     }
 
     .partidos-phase-title {
@@ -406,6 +546,17 @@
             flex-direction: column;
         }
 
+        .ranking-audit-head,
+        .ranking-audit-controls {
+            align-items: stretch;
+            grid-template-columns: 1fr;
+            flex-direction: column;
+        }
+
+        .ranking-audit-summary {
+            grid-template-columns: 1fr 1fr;
+        }
+
         .partidos-phase-title {
             align-items: flex-start;
             flex-direction: column;
@@ -503,6 +654,161 @@
             </div>
         }
 
+        @if (Sesion.EsAdmin &&
+                (cargandoAuditoriaRanking ||
+                 auditoriaRankingPartido != null ||
+                 !string.IsNullOrWhiteSpace(mensajeAuditoriaRanking)))
+        {
+            var pollaAuditoria = PollaAuditoriaSeleccionada();
+
+            <section class="ranking-audit-panel">
+                <div class="ranking-audit-head">
+                    <div>
+                        <h2>Revision de ranking por partido</h2>
+                        @if (auditoriaRankingPartido != null)
+                        {
+                            <div class="ranking-audit-meta">
+                                @auditoriaRankingPartido.Partido · @auditoriaRankingPartido.Fase · Resultado @auditoriaRankingPartido.Resultado
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="ranking-audit-meta">
+                                Preparando el resumen del partido cerrado.
+                            </div>
+                        }
+                    </div>
+
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            @onclick="CerrarAuditoriaRanking">
+                        Cerrar
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(mensajeAuditoriaRanking))
+                {
+                    <div class="alert @(errorAuditoriaRanking ? "alert-danger" : "alert-success") py-2">
+                        @mensajeAuditoriaRanking
+                    </div>
+                }
+
+                @if (cargandoAuditoriaRanking)
+                {
+                    <div class="text-muted fw-bold">
+                        Cargando auditoria de rankings...
+                    </div>
+                }
+                else if (auditoriaRankingPartido != null)
+                {
+                    <div class="ranking-audit-controls">
+                        <div>
+                            <label class="form-label fw-bold mb-1">Polla para revisar</label>
+                            <select class="form-select"
+                                    value="@pollaAuditoriaSeleccionadaId"
+                                    @onchange="SeleccionarPollaAuditoria">
+                                @foreach (var polla in auditoriaRankingPartido.Pollas)
+                                {
+                                    <option value="@polla.PollaId">
+                                        @polla.Nombre (@polla.Participantes participantes)
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label fw-bold mb-1">Estado</label>
+                            <div>
+                                <span class="badge @(auditoriaRankingPartido.Publicado ? "bg-success" : "bg-warning text-dark")">
+                                    @(auditoriaRankingPartido.Publicado ? "Publicado" : "Pendiente")
+                                </span>
+                            </div>
+                        </div>
+
+                        <button type="button"
+                                class="btn btn-success"
+                                disabled="@(auditoriaRankingPartido.Publicado || publicandoAuditoriaRanking)"
+                                @onclick="PublicarAuditoriaRanking">
+                            @(publicandoAuditoriaRanking ? "Publicando..." : "Publicar revision")
+                        </button>
+                    </div>
+
+                    @if (pollaAuditoria != null)
+                    {
+                        <div class="ranking-audit-summary">
+                            <div class="ranking-audit-stat">
+                                <small>Polla</small>
+                                <strong>@pollaAuditoria.Nombre</strong>
+                            </div>
+                            <div class="ranking-audit-stat">
+                                <small>Participantes</small>
+                                <strong>@pollaAuditoria.Participantes</strong>
+                            </div>
+                            <div class="ranking-audit-stat">
+                                <small>Cambio neto</small>
+                                <strong>@PuntosConSigno(pollaAuditoria.PuntosOtorgados)</strong>
+                            </div>
+                            <div class="ranking-audit-stat">
+                                <small>Con cambio</small>
+                                <strong>@pollaAuditoria.ParticipantesConCambio</strong>
+                            </div>
+                        </div>
+
+                        @if (!pollaAuditoria.Filas.Any())
+                        {
+                            <div class="alert alert-warning py-2 mb-0">
+                                Esta polla no tiene participantes activos en la auditoria.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="ranking-audit-table-wrap">
+                                <table class="table table-sm ranking-audit-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Usuario</th>
+                                            <th>Pronostico</th>
+                                            <th>Antes</th>
+                                            <th>Cambio</th>
+                                            <th>Marcador</th>
+                                            <th>Clas.</th>
+                                            <th>Podio</th>
+                                            <th>Total ranking</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var fila in pollaAuditoria.Filas)
+                                        {
+                                            <tr class="@(fila.PuntosCambio != 0 ? "ranking-audit-change" : "")">
+                                                <td>@fila.Posicion</td>
+                                                <td>@fila.Usuario</td>
+                                                <td>
+                                                    <span class="badge @(fila.TienePrediccion ? "bg-primary" : "bg-secondary")">
+                                                        @fila.Pronostico
+                                                    </span>
+                                                </td>
+                                                <td>@fila.PuntosPrevios</td>
+                                                <td>
+                                                    <span class="@ClaseCambioPuntos(fila.PuntosCambio)">
+                                                        @PuntosConSigno(fila.PuntosCambio)
+                                                    </span>
+                                                </td>
+                                                <td>@PuntosConSigno(fila.PuntosMarcadorCierre)</td>
+                                                <td>@PuntosConSigno(fila.PuntosClasificacionCierre)</td>
+                                                <td>@PuntosConSigno(fila.PuntosPodioCierre)</td>
+                                                <td class="fw-bold">@fila.PuntosRanking</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                }
+            </section>
+        }
+
         @if (PartidosEnJuego().Any())
         {
             <section class="live-arena" aria-live="polite">
@@ -557,7 +863,9 @@
         {
             @foreach (var fase in partidosFiltrados
                     .GroupBy(p => p.Fase)
-                    .OrderBy(g => OrdenFase(g.Key)))
+                    .OrderBy(g => GrupoTienePartidosParaConsolidar(g) ? 0 : 1)
+                    .ThenBy(g => PrimeraFechaParaConsolidar(g))
+                    .ThenBy(g => OrdenFase(g.Key)))
             {
                 var faseNombre = fase.Key;
                 var faseFinalizada = FaseFinalizada(faseNombre);
@@ -587,10 +895,23 @@
                 }
                 else
                 {
-                    @foreach (var p in fase.OrderBy(p => p.Fecha).ThenBy(p => p.Id))
+                    @foreach (var p in fase
+                        .OrderBy(OrdenListadoPartido)
+                        .ThenBy(p => p.Fecha)
+                        .ThenBy(p => p.Id))
                     {
-                        <div class="match-card @(golEnVivo?.PartidoId == p.Id ? "goal-highlight" : "")">
+                        var listoParaConsolidar = PartidoListoParaConsolidar(p);
+
+                        <div class="match-card @(golEnVivo?.PartidoId == p.Id ? "goal-highlight" : "") @(listoParaConsolidar ? "admin-priority-match" : "")">
                             <span class="badge bg-success mb-2">@p.Fase</span>
+
+                            @if (listoParaConsolidar)
+                            {
+                                <div class="admin-priority-banner">
+                                    Listo para consolidar · cerrado desde
+                                    @p.Fecha.AddHours(-1).ToString("dd/MM/yyyy HH:mm", new CultureInfo("es-CO"))
+                                </div>
+                            }
 
                             <div class="row align-items-center text-center">
                                 <div class="col-5 fw-bold text-end">@p.Local</div>
@@ -796,6 +1117,12 @@
     private bool procesandoMasivo;
     private string? mensajeAdminMasivo;
     private bool errorAdminMasivo;
+    private AuditoriaRankingPartidoDto? auditoriaRankingPartido;
+    private int? pollaAuditoriaSeleccionadaId;
+    private bool cargandoAuditoriaRanking;
+    private bool publicandoAuditoriaRanking;
+    private string? mensajeAuditoriaRanking;
+    private bool errorAuditoriaRanking;
 
     private readonly List<string> fasesOrdenadas = new()
     {
@@ -932,6 +1259,81 @@
     private bool FaseMinimizada(string fase)
     {
         return FaseFinalizada(fase) && fasesMinimizadas.Contains(fase);
+    }
+
+    private bool GrupoTienePartidosParaConsolidar(IEnumerable<PartidoDto> fase)
+    {
+        return fase.Any(PartidoListoParaConsolidar);
+    }
+
+    private DateTime PrimeraFechaParaConsolidar(IEnumerable<PartidoDto> fase)
+    {
+        var fechas = fase
+            .Where(PartidoListoParaConsolidar)
+            .Select(p => p.Fecha)
+            .ToList();
+
+        return fechas.Any()
+            ? fechas.Min()
+            : DateTime.MaxValue;
+    }
+
+    private bool PartidoListoParaConsolidar(PartidoDto partido)
+    {
+        if (!Sesion.EsAdmin ||
+            partido.Finalizado ||
+            string.Equals(partido.Estado, "Finalizado", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(partido.Estado, "Postergado", StringComparison.OrdinalIgnoreCase) ||
+            partido.Fecha <= DateTime.MinValue.AddDays(1))
+        {
+            return false;
+        }
+
+        return HoraColombiaActual() >= partido.Fecha.AddHours(-1);
+    }
+
+    private int OrdenListadoPartido(PartidoDto partido)
+    {
+        if (PartidoListoParaConsolidar(partido))
+        {
+            return 0;
+        }
+
+        if (!partido.Finalizado &&
+            string.Equals(partido.Estado, "EnJuego", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (!partido.Finalizado &&
+            !string.Equals(partido.Estado, "Postergado", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        if (partido.Finalizado ||
+            string.Equals(partido.Estado, "Finalizado", StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        return 4;
+    }
+
+    private static DateTime HoraColombiaActual()
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time"));
+        }
+        catch
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById("America/Bogota"));
+        }
     }
 
     private void ToggleFaseMinimizada(string fase)
@@ -1356,6 +1758,15 @@
 
         resultadosEnEdicion.Remove(partido.Id);
         await CargarPartidosAsync(detectarGoles: true);
+
+        if (estado == "Finalizado")
+        {
+            await CargarAuditoriaRankingPartidoAsync(partido.Id);
+        }
+        else if (auditoriaRankingPartido?.PartidoId == partido.Id)
+        {
+            CerrarAuditoriaRanking();
+        }
     }
 
     private async Task EliminarMarcadorAdmin(PartidoDto partido)
@@ -1393,6 +1804,197 @@
 
         resultadosEnEdicion.Remove(partido.Id);
         await CargarPartidosAsync();
+
+        if (auditoriaRankingPartido?.PartidoId == partido.Id)
+        {
+            CerrarAuditoriaRanking();
+        }
+    }
+
+    private async Task CargarAuditoriaRankingPartidoAsync(int partidoId)
+    {
+        if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin)
+        {
+            return;
+        }
+
+        cargandoAuditoriaRanking = true;
+        mensajeAuditoriaRanking = null;
+        errorAuditoriaRanking = false;
+
+        try
+        {
+            var response = await Http.GetAsync(
+                $"api/Partidos/{partidoId}/ranking-auditoria?adminUsuarioId={Sesion.UsuarioId.Value}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                mensajeAuditoriaRanking = await response.Content.ReadAsStringAsync();
+                errorAuditoriaRanking = true;
+                return;
+            }
+
+            auditoriaRankingPartido =
+                await response.Content.ReadFromJsonAsync<AuditoriaRankingPartidoDto>();
+            pollaAuditoriaSeleccionadaId = auditoriaRankingPartido?.Pollas.FirstOrDefault()?.PollaId;
+        }
+        catch (Exception ex)
+        {
+            mensajeAuditoriaRanking = $"No se pudo cargar la revision de ranking: {ex.Message}";
+            errorAuditoriaRanking = true;
+        }
+        finally
+        {
+            cargandoAuditoriaRanking = false;
+        }
+    }
+
+    private async Task PublicarAuditoriaRanking()
+    {
+        if (!Sesion.UsuarioId.HasValue || !Sesion.EsAdmin || auditoriaRankingPartido == null)
+        {
+            return;
+        }
+
+        publicandoAuditoriaRanking = true;
+        mensajeAuditoriaRanking = null;
+        errorAuditoriaRanking = false;
+
+        var dto = new AdminPublicarRankingPartidoDto
+        {
+            AdminUsuarioId = Sesion.UsuarioId.Value,
+            PollaId = pollaAuditoriaSeleccionadaId
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                $"api/Partidos/{auditoriaRankingPartido.PartidoId}/ranking-publicacion",
+                dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                mensajeAuditoriaRanking = await response.Content.ReadAsStringAsync();
+                errorAuditoriaRanking = true;
+                return;
+            }
+
+            auditoriaRankingPartido =
+                await response.Content.ReadFromJsonAsync<AuditoriaRankingPartidoDto>();
+
+            if (pollaAuditoriaSeleccionadaId.HasValue &&
+                auditoriaRankingPartido?.Pollas.Any(p => p.PollaId == pollaAuditoriaSeleccionadaId.Value) != true)
+            {
+                pollaAuditoriaSeleccionadaId = auditoriaRankingPartido?.Pollas.FirstOrDefault()?.PollaId;
+            }
+
+            mensajeAuditoriaRanking = "Revision publicada para este partido.";
+            errorAuditoriaRanking = false;
+        }
+        catch (Exception ex)
+        {
+            mensajeAuditoriaRanking = $"No se pudo publicar la revision: {ex.Message}";
+            errorAuditoriaRanking = true;
+        }
+        finally
+        {
+            publicandoAuditoriaRanking = false;
+        }
+    }
+
+    private void SeleccionarPollaAuditoria(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var pollaId))
+        {
+            pollaAuditoriaSeleccionadaId = pollaId;
+        }
+    }
+
+    private AuditoriaRankingPollaDto? PollaAuditoriaSeleccionada()
+    {
+        return auditoriaRankingPartido?.Pollas
+            .FirstOrDefault(p => p.PollaId == pollaAuditoriaSeleccionadaId) ??
+            auditoriaRankingPartido?.Pollas.FirstOrDefault();
+    }
+
+    private void CerrarAuditoriaRanking()
+    {
+        var faseCrucesPendientes = FaseConCrucesPendientesDespuesAuditoria();
+
+        auditoriaRankingPartido = null;
+        pollaAuditoriaSeleccionadaId = null;
+        mensajeAuditoriaRanking = null;
+        errorAuditoriaRanking = false;
+        cargandoAuditoriaRanking = false;
+        publicandoAuditoriaRanking = false;
+
+        if (!string.IsNullOrWhiteSpace(faseCrucesPendientes))
+        {
+            Navigation.NavigateTo(
+                $"/admin?revisarCruces={Uri.EscapeDataString(faseCrucesPendientes)}");
+        }
+    }
+
+    private string? FaseConCrucesPendientesDespuesAuditoria()
+    {
+        if (!Sesion.EsAdmin ||
+            auditoriaRankingPartido?.Publicado != true)
+        {
+            return null;
+        }
+
+        var fase = auditoriaRankingPartido.Fase;
+        var siguiente = FaseSiguienteParaCruces(fase);
+        if (string.IsNullOrWhiteSpace(siguiente))
+        {
+            return null;
+        }
+
+        var partidosFase = partidos
+            .Where(p => string.Equals(p.Fase, fase, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (!partidosFase.Any() || partidosFase.Any(p => !p.Finalizado))
+        {
+            return null;
+        }
+
+        var siguienteGenerada = fase == "Semifinales"
+            ? partidos.Any(p => p.Fase == "Final") &&
+              partidos.Any(p => p.Fase == "TercerPuesto")
+            : partidos.Any(p => p.Fase == siguiente);
+
+        return siguienteGenerada ? null : fase;
+    }
+
+    private static string? FaseSiguienteParaCruces(string fase)
+    {
+        return fase switch
+        {
+            "Grupos" => "Dieciseisavos",
+            "Dieciseisavos" => "Octavos",
+            "Octavos" => "Cuartos",
+            "Cuartos" => "Semifinales",
+            "Semifinales" => "Final",
+            _ => null
+        };
+    }
+
+    private static string PuntosConSigno(int puntos)
+    {
+        return puntos > 0
+            ? $"+{puntos}"
+            : puntos.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ClaseCambioPuntos(int puntos)
+    {
+        return puntos switch
+        {
+            > 0 => "ranking-audit-points",
+            < 0 => "ranking-audit-points negative",
+            _ => "ranking-audit-points zero"
+        };
     }
 
     private async Task LlenarAleatorioVisible()
@@ -1530,6 +2132,49 @@
         public int? ClasificadoId { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
+    }
+
+    private class AdminPublicarRankingPartidoDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? PollaId { get; set; }
+    }
+
+    private class AuditoriaRankingPartidoDto
+    {
+        public int PartidoId { get; set; }
+        public string Partido { get; set; } = "";
+        public string Fase { get; set; } = "";
+        public string Resultado { get; set; } = "";
+        public bool Publicado { get; set; }
+        public DateTime? FechaCalculo { get; set; }
+        public DateTime? FechaPublicacion { get; set; }
+        public List<AuditoriaRankingPollaDto> Pollas { get; set; } = new();
+    }
+
+    private class AuditoriaRankingPollaDto
+    {
+        public int PollaId { get; set; }
+        public string Nombre { get; set; } = "";
+        public int Participantes { get; set; }
+        public int PuntosOtorgados { get; set; }
+        public int ParticipantesConCambio { get; set; }
+        public List<AuditoriaRankingFilaDto> Filas { get; set; } = new();
+    }
+
+    private class AuditoriaRankingFilaDto
+    {
+        public int Posicion { get; set; }
+        public int UsuarioId { get; set; }
+        public string Usuario { get; set; } = "";
+        public string Pronostico { get; set; } = "";
+        public bool TienePrediccion { get; set; }
+        public int PuntosPrevios { get; set; }
+        public int PuntosCambio { get; set; }
+        public int PuntosRanking { get; set; }
+        public int PuntosMarcadorCierre { get; set; }
+        public int PuntosClasificacionCierre { get; set; }
+        public int PuntosPodioCierre { get; set; }
     }
 
     private sealed class GolEnVivo

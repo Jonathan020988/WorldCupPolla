@@ -400,6 +400,14 @@ namespace WorldCup.App.Shared.Services
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task EliminarAlertaUsuarioAsync(int alertaId, int usuarioId)
+        {
+            var response = await _http.DeleteAsync(
+                $"api/Polla/alertas/{alertaId}?usuarioId={usuarioId}");
+
+            response.EnsureSuccessStatusCode();
+        }
+
         public async Task AprobarSolicitudAsync(int solicitudId)
         {
             var response = await _http.PostAsync(
@@ -463,6 +471,16 @@ namespace WorldCup.App.Shared.Services
         {
             return await LeerRespuestaAsync<List<DetalleRankingDto>>(
                 $"api/Polla/{pollaId}/ranking-detalle?solicitanteId={solicitanteId}"
+            ) ?? new();
+        }
+
+        public async Task<ClasificacionUsuarioDetalleDto> GetClasificacionUsuarioDetalleAsync(
+            int pollaId,
+            int solicitanteId,
+            int usuarioId)
+        {
+            return await LeerRespuestaAsync<ClasificacionUsuarioDetalleDto>(
+                $"api/Polla/{pollaId}/clasificacion-usuario/{usuarioId}?solicitanteId={solicitanteId}"
             ) ?? new();
         }
 

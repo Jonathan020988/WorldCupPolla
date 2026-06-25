@@ -28,6 +28,12 @@ namespace WorldCup.Api.DTOs
         public DateTime Fecha { get; set; }
     }
 
+    public class AdminPublicarRankingPartidoDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? PollaId { get; set; }
+    }
+
     public class AdminActualizarUsuarioEstadoDTO
     {
         public int AdminUsuarioId { get; set; }
@@ -37,6 +43,43 @@ namespace WorldCup.Api.DTOs
     public class AdminFaseTorneoDTO
     {
         public int AdminUsuarioId { get; set; }
+    }
+
+    public class AdminCrucesFaseDTO
+    {
+        public string FaseOrigen { get; set; } = "";
+        public string SiguienteFase { get; set; } = "";
+        public bool PuedePublicar { get; set; }
+        public bool YaGenerada { get; set; }
+        public string Mensaje { get; set; } = "";
+        public List<AdminCrucePartidoDTO> Cruces { get; set; } = new();
+        public List<AdminEquipoCruceDTO> EquiposDisponibles { get; set; } = new();
+    }
+
+    public class AdminCrucePartidoDTO
+    {
+        public int NumeroPartido { get; set; }
+        public string Fase { get; set; } = "";
+        public DateTime Fecha { get; set; }
+        public int LocalId { get; set; }
+        public string Local { get; set; } = "";
+        public int VisitanteId { get; set; }
+        public string Visitante { get; set; } = "";
+        public string OrigenLocal { get; set; } = "";
+        public string OrigenVisitante { get; set; } = "";
+    }
+
+    public class AdminEquipoCruceDTO
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+        public string Grupo { get; set; } = "";
+    }
+
+    public class AdminPublicarCrucesDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public List<AdminCrucePartidoDTO> Cruces { get; set; } = new();
     }
 
     public class AdminActualizarReaperturaDTO
@@ -71,6 +114,14 @@ namespace WorldCup.Api.DTOs
     public class AdminEnviarAlertaContactoCuposDTO
     {
         public int AdminUsuarioId { get; set; }
+        public string Mensaje { get; set; } = "";
+    }
+
+    public class AdminEnviarNotificacionGlobalDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? UsuarioId { get; set; }
+        public string Titulo { get; set; } = "";
         public string Mensaje { get; set; } = "";
     }
 }

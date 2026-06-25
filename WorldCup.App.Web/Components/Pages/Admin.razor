@@ -62,6 +62,7 @@ else
     }
 
     <nav class="admin-quick-nav" aria-label="Accesos rapidos del panel administrador">
+        <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-notificacion-global")'>Comunicado</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-alerta-masiva")'>Alerta masiva</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-cupos")'>Solicitudes cupos</button>
         <button type="button" class="admin-quick-link" @onclick='() => ScrollAdminSection("admin-fases")'>Fases torneo</button>
@@ -88,6 +89,83 @@ else
                         Enviar prueba
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4 admin-anchor" id="admin-notificacion-global">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span>Comunicado para usuarios</span>
+            <small class="text-muted">Se envia como notificacion, ventana emergente y correo</small>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrWhiteSpace(notificacionGlobalMensajeResultado))
+            {
+                <div class="alert @(notificacionGlobalError ? "alert-danger" : "alert-success")">
+                    @notificacionGlobalMensajeResultado
+                </div>
+            }
+
+            <div class="global-notification-grid">
+                <div>
+                    <label class="form-label">Titulo</label>
+                    <input class="form-control"
+                           maxlength="120"
+                           @bind="notificacionGlobalTitulo" />
+                </div>
+
+                <div>
+                    <label class="form-label">Destino</label>
+                    <select class="form-select"
+                            @bind="notificacionGlobalDestino">
+                        <option value="Todos">Todos los usuarios activos</option>
+                        <option value="Usuario">Usuario especifico</option>
+                    </select>
+                    @if (!NotificacionGlobalEsIndividual)
+                    {
+                        <small class="text-muted">
+                            Se enviara a @TotalUsuariosActivos usuario(s) activo(s) y tambien por correo.
+                        </small>
+                    }
+                </div>
+
+                @if (NotificacionGlobalEsIndividual)
+                {
+                    <div class="global-notification-wide">
+                        <label class="form-label">Usuario</label>
+                        <select class="form-select"
+                                @bind="notificacionGlobalUsuarioId">
+                            <option value="">Selecciona un usuario activo</option>
+                            @foreach (var usuario in UsuariosActivosParaNotificar)
+                            {
+                                <option value="@usuario.Id">
+                                    @usuario.Nombre (@usuario.Email)
+                                </option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <div class="global-notification-wide">
+                    <label class="form-label">Texto de la notificacion</label>
+                    <textarea class="form-control"
+                              rows="4"
+                              maxlength="1200"
+                              placeholder="Escribe el mensaje que vera el destinatario."
+                              @bind="notificacionGlobalMensaje"></textarea>
+                    <small class="text-muted">
+                        @notificacionGlobalMensaje.Length / 1200 caracteres
+                    </small>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+                <button type="button"
+                        class="btn btn-primary"
+                        disabled="@enviandoNotificacionGlobal"
+                        @onclick="EnviarNotificacionGlobal">
+                    @(enviandoNotificacionGlobal ? "Enviando..." : "Enviar comunicado")
+                </button>
             </div>
         </div>
     </div>
@@ -158,10 +236,9 @@ else
             </div>
 
             <div class="mass-alert-footer">
-                <label class="form-check mass-alert-check">
-                    <input class="form-check-input" type="checkbox" @bind="alertaMasiva.EnviarCorreo" />
-                    <span class="form-check-label">Enviar tambien correo electronico</span>
-                </label>
+                <span class="text-muted small">
+                    La alerta tambien se enviara por correo electronico.
+                </span>
 
                 <button type="button"
                         class="btn btn-primary"
@@ -372,17 +449,22 @@ else
                                     }
                                     else
                                     {
-                                        <span class="badge @(fase.SiguienteGenerada ? "bg-success" : "bg-light text-dark")">
-                                            @(fase.SiguienteGenerada ? "Generada" : "Pendiente")
+                                        <span class="badge @ClaseSiguienteFase(fase)">
+                                            @EstadoSiguienteFase(fase)
                                         </span>
                                         <small class="text-muted ms-1">@fase.SiguienteFase</small>
                                     }
                                 </td>
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-success me-1"
-                                            disabled="@(!fase.PuedeFinalizar || procesandoFase == fase.Fase)"
+                                            disabled="@(!fase.PuedeFinalizar || fase.Pendientes == 0 || procesandoFase == fase.Fase)"
                                             @onclick="() => FinalizarFase(fase)">
                                         Finalizar fase
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                            disabled="@(!fase.PuedeRevisarCruces || procesandoFase == fase.Fase || cargandoCrucesFase == fase.Fase)"
+                                            @onclick="() => CargarCrucesFase(fase.Fase)">
+                                        Revisar cruces
                                     </button>
                                     <button class="btn btn-sm btn-outline-danger"
                                             disabled="@(!fase.PuedeReiniciar || procesandoFase == fase.Fase)"
@@ -397,6 +479,137 @@ else
             </div>
         </div>
     </div>
+
+    @if (Sesion.EsAdmin &&
+            (crucesFase != null ||
+             !string.IsNullOrWhiteSpace(cargandoCrucesFase) ||
+             !string.IsNullOrWhiteSpace(mensajeCruces)))
+    {
+        <div class="card mb-4 bracket-review-panel">
+            <div class="card-header bracket-review-head">
+                <div>
+                    <h3>Revision de cruces</h3>
+                    @if (crucesFase != null)
+                    {
+                        <small>
+                            @NombreFase(crucesFase.FaseOrigen) -> @crucesFase.SiguienteFase
+                        </small>
+                    }
+                    else
+                    {
+                        <small>Preparando partidos sugeridos</small>
+                    }
+                </div>
+                <div class="bracket-review-actions">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            @onclick="CerrarCrucesFase">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrWhiteSpace(mensajeCruces))
+                {
+                    <div class="alert @(errorCruces ? "alert-danger" : "alert-success") py-2">
+                        @mensajeCruces
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(cargandoCrucesFase))
+                {
+                    <div class="text-muted fw-semibold">Cargando cruces...</div>
+                }
+                else if (crucesFase != null)
+                {
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div>
+                            <span class="badge @(crucesFase.YaGenerada ? "bg-success" : "bg-warning text-dark")">
+                                @(crucesFase.YaGenerada ? "Publicada" : "Pendiente de publicar")
+                            </span>
+                            <span class="text-muted ms-2">@crucesFase.Mensaje</span>
+                        </div>
+                        <button type="button"
+                                class="btn btn-primary"
+                                disabled="@(!crucesFase.PuedePublicar || publicandoCruces || CrucesConEquiposRepetidos())"
+                                @onclick="PublicarCrucesFase">
+                            @(publicandoCruces ? "Publicando..." : "Publicar cruces disponibles")
+                        </button>
+                    </div>
+
+                    @if (CrucesConEquiposRepetidos())
+                    {
+                        <div class="alert alert-warning py-2">
+                            Hay equipos repetidos. Corrige los cruces antes de publicar.
+                        </div>
+                    }
+
+                    @if (!crucesFase.Cruces.Any())
+                    {
+                        <div class="alert alert-light mb-0">
+                            No hay cruces disponibles para revisar.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle bracket-review-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Fase</th>
+                                        <th>Fecha Colombia</th>
+                                        <th>Local</th>
+                                        <th>Visitante</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var cruce in crucesFase.Cruces.OrderBy(c => c.NumeroPartido))
+                                    {
+                                        <tr class="@(CruceTieneEquipoRepetido(cruce) ? "table-warning" : "")">
+                                            <td class="fw-bold">@cruce.NumeroPartido</td>
+                                            <td>@NombreFase(cruce.Fase)</td>
+                                            <td>
+                                                <input type="datetime-local"
+                                                       class="form-control form-control-sm bracket-date-input"
+                                                       disabled="@crucesFase.YaGenerada"
+                                                       @bind="cruce.Fecha"
+                                                       @bind:format="yyyy-MM-ddTHH:mm" />
+                                            </td>
+                                            <td class="bracket-team-cell">
+                                                <select class="form-select form-select-sm"
+                                                        value="@cruce.LocalId"
+                                                        disabled="@crucesFase.YaGenerada"
+                                                        @onchange="e => CambiarEquipoCruce(cruce, true, e)">
+                                                    @foreach (var equipo in crucesFase.EquiposDisponibles)
+                                                    {
+                                                        <option value="@equipo.Id">@EtiquetaEquipoCruce(equipo)</option>
+                                                    }
+                                                </select>
+                                                <span class="bracket-origin">@cruce.OrigenLocal</span>
+                                            </td>
+                                            <td class="bracket-team-cell">
+                                                <select class="form-select form-select-sm"
+                                                        value="@cruce.VisitanteId"
+                                                        disabled="@crucesFase.YaGenerada"
+                                                        @onchange="e => CambiarEquipoCruce(cruce, false, e)">
+                                                    @foreach (var equipo in crucesFase.EquiposDisponibles)
+                                                    {
+                                                        <option value="@equipo.Id">@EtiquetaEquipoCruce(equipo)</option>
+                                                    }
+                                                </select>
+                                                <span class="bracket-origin">@cruce.OrigenVisitante</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
 
     <div class="card mb-4 calendario-admin admin-anchor" id="admin-calendario">
         <div class="card-header fw-bold d-flex justify-content-between align-items-center">
@@ -1654,6 +1867,59 @@ else
         vertical-align: middle;
     }
 
+    .bracket-review-panel {
+        border-left: 5px solid #0b7a53;
+        box-shadow: 0 10px 24px rgba(16, 24, 40, .08);
+    }
+
+    .bracket-review-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .bracket-review-head h3 {
+        margin: 0;
+        color: #173b2f;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .bracket-review-head small {
+        color: #667085;
+        font-weight: 700;
+    }
+
+    .bracket-review-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+
+    .bracket-review-table th {
+        color: #5f6b7a;
+        font-size: .78rem;
+        text-transform: uppercase;
+    }
+
+    .bracket-team-cell {
+        min-width: 230px;
+    }
+
+    .bracket-date-input {
+        min-width: 190px;
+    }
+
+    .bracket-origin {
+        display: block;
+        margin-top: .2rem;
+        color: #667085;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
     .calendario-admin th {
         color: #5f6b7a;
         font-size: .78rem;
@@ -1745,7 +2011,23 @@ else
         gap: .85rem;
     }
 
+    .global-notification-grid {
+        display: grid;
+        grid-template-columns: minmax(220px, .42fr) minmax(0, 1fr);
+        gap: .85rem;
+        align-items: start;
+    }
+
+    .global-notification-grid textarea {
+        resize: vertical;
+    }
+
+    .global-notification-wide {
+        grid-column: 1 / -1;
+    }
+
     .mass-alert-grid label,
+    .global-notification-grid label,
     .mass-alert-check {
         color: #475569;
         font-size: .82rem;
@@ -2736,6 +3018,10 @@ else
             grid-template-columns: 1fr;
         }
 
+        .global-notification-grid {
+            grid-template-columns: 1fr;
+        }
+
         .mass-alert-match {
             grid-column: auto;
         }
@@ -3105,6 +3391,7 @@ else
     private List<string> tercerosPrediccionesUsuario = new();
     private PodioPrediccionAdminDto? podioPrediccionesUsuario;
     private List<FaseAdminDto> fasesAdmin = new();
+    private AdminCrucesFaseDto? crucesFase;
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
     private List<PartidoCalendarioAdminDto> partidosCalendarioVista = new();
     private List<ReaperturaAdminDto> reaperturasUsuario = new();
@@ -3113,6 +3400,10 @@ else
     private PollaAdminDto? pollaSeleccionada;
     private MiembroAdminDto? usuarioPredicciones;
     private string? procesandoFase;
+    private string? cargandoCrucesFase;
+    private bool publicandoCruces;
+    private string? mensajeCruces;
+    private bool errorCruces;
     private int? procesandoPartidoFecha;
     private int? procesandoSolicitudCupos;
     private string? procesandoReapertura;
@@ -3131,6 +3422,13 @@ else
     private string filtroAvanceUsuarios = "Todos";
     private string filtroBusquedaUsuarios = "";
     private string correoPrueba = "";
+    private string notificacionGlobalTitulo = "Comunicado del administrador";
+    private string notificacionGlobalMensaje = "";
+    private string notificacionGlobalDestino = "Todos";
+    private string notificacionGlobalUsuarioId = "";
+    private string? notificacionGlobalMensajeResultado;
+    private bool notificacionGlobalError;
+    private bool enviandoNotificacionGlobal;
     private AlertaMasivaForm alertaMasiva = new();
     private string alertaMasivaPartidoId = "";
     private string? alertaMasivaMensaje;
@@ -3165,6 +3463,11 @@ else
 
     private int TotalUsuariosActivos => usuarios.Count(u => u.Activo);
     private int TotalUsuariosInactivos => usuarios.Count(u => !u.Activo);
+    private bool NotificacionGlobalEsIndividual => notificacionGlobalDestino == "Usuario";
+
+    private IEnumerable<UsuarioAdminDto> UsuariosActivosParaNotificar => usuarios
+        .Where(u => u.Activo)
+        .OrderBy(u => u.Nombre);
 
     private IEnumerable<UsuarioAdminDto> UsuariosPorEstado => filtroUsuarios switch
     {
@@ -3284,10 +3587,37 @@ else
         if (Sesion.EsAdmin)
         {
             await CargarPanel();
+
+            var faseCruces = ObtenerFaseCrucesDesdeUrl();
+            if (!string.IsNullOrWhiteSpace(faseCruces))
+            {
+                await CargarCrucesFase(faseCruces);
+            }
         }
 
         cargando = false;
         StateHasChanged();
+    }
+
+    private string? ObtenerFaseCrucesDesdeUrl()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = uri.Query.TrimStart('?');
+
+        foreach (var parte in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var piezas = parte.Split('=', 2);
+            if (piezas.Length == 2 &&
+                string.Equals(
+                    Uri.UnescapeDataString(piezas[0]),
+                    "revisarCruces",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(piezas[1]);
+            }
+        }
+
+        return null;
     }
 
     private async Task CargarPanel()
@@ -3554,6 +3884,83 @@ else
             : await response.Content.ReadAsStringAsync();
     }
 
+    private async Task EnviarNotificacionGlobal()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        notificacionGlobalMensajeResultado = null;
+        notificacionGlobalError = false;
+
+        if (string.IsNullOrWhiteSpace(notificacionGlobalMensaje))
+        {
+            notificacionGlobalMensajeResultado = "Escribe el texto de la notificacion.";
+            notificacionGlobalError = true;
+            return;
+        }
+
+        int? usuarioDestinoId = null;
+        string destinoConfirmacion = "todos los usuarios activos";
+        if (NotificacionGlobalEsIndividual)
+        {
+            if (!int.TryParse(notificacionGlobalUsuarioId, out var usuarioId))
+            {
+                notificacionGlobalMensajeResultado = "Selecciona el usuario que recibira el comunicado.";
+                notificacionGlobalError = true;
+                return;
+            }
+
+            usuarioDestinoId = usuarioId;
+            var usuarioDestino = UsuariosActivosParaNotificar
+                .FirstOrDefault(u => u.Id == usuarioId);
+            destinoConfirmacion = usuarioDestino == null
+                ? "el usuario seleccionado"
+                : $"{usuarioDestino.Nombre} ({usuarioDestino.Email})";
+        }
+
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"Vas a enviar este comunicado a {destinoConfirmacion}. Continuar?");
+        if (!confirmado)
+        {
+            return;
+        }
+
+        enviandoNotificacionGlobal = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "api/Admin/notificaciones/globales",
+                new AdminEnviarNotificacionGlobalRequest
+                {
+                    AdminUsuarioId = Sesion.UsuarioId.Value,
+                    UsuarioId = usuarioDestinoId,
+                    Titulo = notificacionGlobalTitulo,
+                    Mensaje = notificacionGlobalMensaje
+                });
+
+            notificacionGlobalMensajeResultado = await LeerMensajeRespuesta(response);
+            notificacionGlobalError = !response.IsSuccessStatusCode;
+
+            if (response.IsSuccessStatusCode)
+            {
+                notificacionGlobalMensaje = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            notificacionGlobalMensajeResultado = $"No se pudo enviar el comunicado: {ex.Message}";
+            notificacionGlobalError = true;
+        }
+        finally
+        {
+            enviandoNotificacionGlobal = false;
+        }
+    }
+
     private async Task EnviarAlertaMasiva()
     {
         if (!Sesion.UsuarioId.HasValue)
@@ -3586,8 +3993,7 @@ else
                 PartidoId = alertaMasiva.TipoAlerta == "Marcadores" &&
                     int.TryParse(alertaMasivaPartidoId, out var partidoId)
                         ? partidoId
-                        : null,
-                EnviarCorreo = alertaMasiva.EnviarCorreo
+                        : null
             };
 
             var response = await Http.PostAsJsonAsync(
@@ -3772,18 +4178,26 @@ else
 
     private async Task FinalizarFase(FaseAdminDto fase)
     {
-        await EjecutarAccionFase(fase, "finalizar");
+        var completada = await EjecutarAccionFase(fase, "finalizar");
+        if (completada && !string.IsNullOrWhiteSpace(fase.SiguienteFase))
+        {
+            await CargarCrucesFase(fase.Fase);
+        }
     }
 
     private async Task ReiniciarFase(FaseAdminDto fase)
     {
-        await EjecutarAccionFase(fase, "reiniciar");
+        var completada = await EjecutarAccionFase(fase, "reiniciar");
+        if (completada && crucesFase?.FaseOrigen == fase.Fase)
+        {
+            CerrarCrucesFase();
+        }
     }
 
-    private async Task EjecutarAccionFase(FaseAdminDto fase, string accion)
+    private async Task<bool> EjecutarAccionFase(FaseAdminDto fase, string accion)
     {
         if (!Sesion.UsuarioId.HasValue)
-            return;
+            return false;
 
         procesandoFase = fase.Fase;
 
@@ -3803,6 +4217,164 @@ else
         }
 
         procesandoFase = null;
+        return response.IsSuccessStatusCode;
+    }
+
+    private async Task CargarCrucesFase(string fase)
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        cargandoCrucesFase = fase;
+        crucesFase = null;
+        mensajeCruces = null;
+        errorCruces = false;
+
+        try
+        {
+            var response = await Http.GetAsync(
+                $"api/Partidos/admin-fases/{fase}/cruces?adminUsuarioId={Sesion.UsuarioId.Value}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                mensajeCruces = await response.Content.ReadAsStringAsync();
+                errorCruces = true;
+                return;
+            }
+
+            crucesFase = await response.Content.ReadFromJsonAsync<AdminCrucesFaseDto>();
+            mensajeCruces = crucesFase?.Mensaje;
+            errorCruces = crucesFase?.PuedePublicar == false &&
+                crucesFase?.YaGenerada == false;
+        }
+        catch (Exception ex)
+        {
+            mensajeCruces = $"No se pudieron cargar los cruces: {ex.Message}";
+            errorCruces = true;
+        }
+        finally
+        {
+            cargandoCrucesFase = null;
+        }
+    }
+
+    private async Task PublicarCrucesFase()
+    {
+        if (!Sesion.UsuarioId.HasValue || crucesFase == null)
+        {
+            return;
+        }
+
+        if (CrucesConEquiposRepetidos())
+        {
+            mensajeCruces = "Hay equipos repetidos. Corrige los cruces antes de publicar.";
+            errorCruces = true;
+            return;
+        }
+
+        publicandoCruces = true;
+        mensajeCruces = null;
+        errorCruces = false;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                $"api/Partidos/admin-fases/{crucesFase.FaseOrigen}/cruces/publicar",
+                new AdminPublicarCrucesRequestDto
+                {
+                    AdminUsuarioId = Sesion.UsuarioId.Value,
+                    Cruces = crucesFase.Cruces
+                });
+
+            mensaje = await LeerMensajeRespuesta(response);
+            mensajeCruces = mensaje;
+            errorCruces = !response.IsSuccessStatusCode;
+
+            if (response.IsSuccessStatusCode)
+            {
+                CerrarCrucesFase();
+                await CargarPanel();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensajeCruces = $"No se pudieron publicar los cruces: {ex.Message}";
+            errorCruces = true;
+        }
+        finally
+        {
+            publicandoCruces = false;
+        }
+    }
+
+    private void CambiarEquipoCruce(
+        AdminCrucePartidoDto cruce,
+        bool esLocal,
+        ChangeEventArgs e)
+    {
+        if (crucesFase == null ||
+            !int.TryParse(e.Value?.ToString(), out var equipoId))
+        {
+            return;
+        }
+
+        var equipo = crucesFase.EquiposDisponibles
+            .FirstOrDefault(x => x.Id == equipoId);
+
+        if (equipo == null)
+        {
+            return;
+        }
+
+        if (esLocal)
+        {
+            cruce.LocalId = equipo.Id;
+            cruce.Local = equipo.Nombre;
+        }
+        else
+        {
+            cruce.VisitanteId = equipo.Id;
+            cruce.Visitante = equipo.Nombre;
+        }
+    }
+
+    private bool CrucesConEquiposRepetidos()
+    {
+        if (crucesFase == null)
+        {
+            return false;
+        }
+
+        var equipos = crucesFase.Cruces
+            .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
+            .Where(id => id > 0)
+            .ToList();
+
+        return equipos.Count != equipos.Distinct().Count();
+    }
+
+    private bool CruceTieneEquipoRepetido(AdminCrucePartidoDto cruce)
+    {
+        if (crucesFase == null)
+        {
+            return false;
+        }
+
+        return crucesFase.Cruces
+            .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
+            .Count(id => id == cruce.LocalId || id == cruce.VisitanteId) > 2 ||
+            cruce.LocalId == cruce.VisitanteId;
+    }
+
+    private void CerrarCrucesFase()
+    {
+        crucesFase = null;
+        cargandoCrucesFase = null;
+        mensajeCruces = null;
+        errorCruces = false;
+        publicandoCruces = false;
     }
 
     private async Task<string> LeerMensajeRespuesta(HttpResponseMessage response)
@@ -3844,6 +4416,37 @@ else
             : fase;
     }
 
+    private static string EstadoSiguienteFase(FaseAdminDto fase)
+    {
+        if (fase.SiguienteGenerada)
+        {
+            return "Generada";
+        }
+
+        return fase.PartidosSiguienteFase > 0
+            ? $"Parcial {fase.PartidosSiguienteFase}/{fase.TotalCrucesSiguienteFase}"
+            : "Pendiente";
+    }
+
+    private static string ClaseSiguienteFase(FaseAdminDto fase)
+    {
+        if (fase.SiguienteGenerada)
+        {
+            return "bg-success";
+        }
+
+        return fase.PartidosSiguienteFase > 0
+            ? "bg-info text-dark"
+            : "bg-light text-dark";
+    }
+
+    private static string EtiquetaEquipoCruce(AdminEquipoCruceDto equipo)
+    {
+        return string.IsNullOrWhiteSpace(equipo.Grupo)
+            ? equipo.Nombre
+            : $"{equipo.Nombre} ({equipo.Grupo})";
+    }
+
     private static string TipoAlertaHistorial(string tipoDestino) => tipoDestino switch
     {
         "Marcadores" => "Marcadores pendientes",
@@ -3852,6 +4455,7 @@ else
         "Podio" => "Podio final",
         "PendientesClasificacion" => "Pendientes generales",
         "SolicitudCupos" => "Solicitud de cupos",
+        "ComunicadoAdmin" => "Comunicado del administrador",
         _ when tipoDestino.StartsWith("Marcadores:", StringComparison.OrdinalIgnoreCase) => "Marcadores por fase",
         _ when tipoDestino.StartsWith("MarcadoresPartido:", StringComparison.OrdinalIgnoreCase) => "Marcador de partido",
         _ => "Registros pendientes"
@@ -4348,6 +4952,12 @@ else
         public int AdminUsuarioId { get; set; }
     }
 
+    private class AdminPublicarCrucesRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public List<AdminCrucePartidoDto> Cruces { get; set; } = new();
+    }
+
     private class AdminFechaPartidoRequestDto
     {
         public int AdminUsuarioId { get; set; }
@@ -4380,7 +4990,14 @@ else
         public string TipoAlerta { get; set; } = "Todo";
         public string FaseMarcadores { get; set; } = "";
         public int? PartidoId { get; set; }
-        public bool EnviarCorreo { get; set; } = true;
+    }
+
+    private class AdminEnviarNotificacionGlobalRequest
+    {
+        public int AdminUsuarioId { get; set; }
+        public int? UsuarioId { get; set; }
+        public string Titulo { get; set; } = "";
+        public string Mensaje { get; set; } = "";
     }
 
     private class AlertaMasivaForm
@@ -4388,7 +5005,6 @@ else
         public string PollaId { get; set; } = "";
         public string TipoAlerta { get; set; } = "Todo";
         public string FaseMarcadores { get; set; } = "";
-        public bool EnviarCorreo { get; set; } = true;
     }
 
     private class AdminGenerarCodigoCuposRequestDto
@@ -4431,6 +5047,37 @@ else
         public string Local { get; set; } = "";
         public string Visitante { get; set; } = "";
         public string Estado { get; set; } = "Pendiente";
+    }
+
+    private class AdminCrucesFaseDto
+    {
+        public string FaseOrigen { get; set; } = "";
+        public string SiguienteFase { get; set; } = "";
+        public bool PuedePublicar { get; set; }
+        public bool YaGenerada { get; set; }
+        public string Mensaje { get; set; } = "";
+        public List<AdminCrucePartidoDto> Cruces { get; set; } = new();
+        public List<AdminEquipoCruceDto> EquiposDisponibles { get; set; } = new();
+    }
+
+    private class AdminCrucePartidoDto
+    {
+        public int NumeroPartido { get; set; }
+        public string Fase { get; set; } = "";
+        public DateTime Fecha { get; set; }
+        public int LocalId { get; set; }
+        public string Local { get; set; } = "";
+        public int VisitanteId { get; set; }
+        public string Visitante { get; set; } = "";
+        public string OrigenLocal { get; set; } = "";
+        public string OrigenVisitante { get; set; } = "";
+    }
+
+    private class AdminEquipoCruceDto
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+        public string Grupo { get; set; } = "";
     }
 
     private class TendenciasPronosticosAdminDto
@@ -4489,6 +5136,9 @@ else
         public bool PuedeReiniciar { get; set; }
         public string? SiguienteFase { get; set; }
         public bool SiguienteGenerada { get; set; }
+        public bool PuedeRevisarCruces { get; set; }
+        public int PartidosSiguienteFase { get; set; }
+        public int TotalCrucesSiguienteFase { get; set; }
         public int PartidosPosteriores { get; set; }
     }
 
