@@ -43,7 +43,7 @@ namespace WorldCup.Api.Controllers
                     Visitante = p.Visitante.Nombre,
                     p.GolesLocal,
                     p.GolesVisitante,
-                    NumeroPartidoFifa = mostrarMarcadoresEnVivo ? p.NumeroPartidoFifa : null,
+                    p.NumeroPartidoFifa,
                     MarcadorEnVivoLocal = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoLocal : null,
                     MarcadorEnVivoVisitante = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoVisitante : null,
                     EstadoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.EstadoMarcadorEnVivo : null,
@@ -86,7 +86,7 @@ namespace WorldCup.Api.Controllers
                 Grupo = p.Local?.Grupo,
                 GolesLocal = p.GolesLocal,
                 GolesVisitante = p.GolesVisitante,
-                NumeroPartidoFifa = mostrarMarcadoresEnVivo ? p.NumeroPartidoFifa : null,
+                NumeroPartidoFifa = p.NumeroPartidoFifa,
                 MarcadorEnVivoLocal = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoLocal : null,
                 MarcadorEnVivoVisitante = mostrarMarcadoresEnVivo ? p.MarcadorEnVivoVisitante : null,
                 EstadoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.EstadoMarcadorEnVivo : null,
@@ -117,7 +117,7 @@ namespace WorldCup.Api.Controllers
 
             var partido = new Partido
             {
-                Fecha = ColombiaClock.FromColombiaToUtc(dto.Fecha),
+                Fecha = GuardarComoHoraColombia(dto.Fecha),
                 Fase = dto.Fase,
                 LocalId = dto.LocalId,
                 VisitanteId = dto.VisitanteId
@@ -255,7 +255,7 @@ namespace WorldCup.Api.Controllers
             var estado = NormalizarEstadoPartido(dto.Estado);
             if (estado == null)
             {
-                return BadRequest("Estado inválido. Usa Pendiente, EnJuego, Postergado o Finalizado.");
+                return BadRequest("Estado inválido. Usa Pendiente, EnJuego, TiempoExtra, Penales, Postergado o Finalizado.");
             }
 
             var partido = await _context.Partidos
@@ -272,10 +272,15 @@ namespace WorldCup.Api.Controllers
             var esEliminatoria = partido.Fase != "Grupos";
             var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
             var tieneMarcadorCompleto = dto.GolesLocal.HasValue && dto.GolesVisitante.HasValue;
+            var estadoPermiteExtras =
+                estado == "EnJuego" ||
+                estado == "TiempoExtra" ||
+                estado == "Penales" ||
+                estado == "Finalizado";
 
             if (estado == "Pendiente" && tieneMarcadorCompleto)
             {
-                estado = "Finalizado";
+                return BadRequest("Para guardar un marcador selecciona En juego o Finalizado.");
             }
 
             if (estado == "Finalizado" && !tieneMarcadorCompleto)
@@ -285,24 +290,32 @@ namespace WorldCup.Api.Controllers
 
             int? clasificadoId = null;
 
-            if (estado == "Finalizado" &&
-                esEliminatoria &&
-                tienePenales)
+            if (esEliminatoria && tienePenales)
             {
                 if (!dto.PenalesLocal.HasValue || !dto.PenalesVisitante.HasValue)
                 {
                     return BadRequest("Debes ingresar ambos marcadores de penales.");
                 }
 
-                if (dto.PenalesLocal == dto.PenalesVisitante)
+                if (estado == "Finalizado" && dto.PenalesLocal == dto.PenalesVisitante)
                 {
                     return BadRequest("Los penales no pueden terminar empatados.");
+                }
+
+                if (!tieneMarcadorCompleto)
+                {
+                    return BadRequest("Para guardar penales debes ingresar el marcador del partido.");
                 }
 
                 if (dto.GolesLocal != dto.GolesVisitante)
                 {
                     return BadRequest("Los penales solo aplican cuando el marcador del partido quedó empatado.");
                 }
+            }
+
+            if (estado == "Penales" && !tienePenales)
+            {
+                dto.TiempoExtra = true;
             }
 
             if (estado == "Finalizado" && esEliminatoria)
@@ -374,18 +387,21 @@ namespace WorldCup.Api.Controllers
             partido.GolesVisitante = dto.GolesVisitante;
             partido.TiempoExtra =
                 esEliminatoria &&
-                estado == "Finalizado" &&
-                (dto.TiempoExtra || tienePenales);
+                estadoPermiteExtras &&
+                (dto.TiempoExtra ||
+                 tienePenales ||
+                 estado == "TiempoExtra" ||
+                 estado == "Penales");
             partido.ClasificadoId =
                 esEliminatoria && estado == "Finalizado"
                     ? clasificadoId
                     : null;
             partido.PenalesLocal =
-                esEliminatoria && estado == "Finalizado" && tienePenales
+                esEliminatoria && estadoPermiteExtras && tienePenales
                     ? dto.PenalesLocal
                     : null;
             partido.PenalesVisitante =
-                esEliminatoria && estado == "Finalizado" && tienePenales
+                esEliminatoria && estadoPermiteExtras && tienePenales
                     ? dto.PenalesVisitante
                     : null;
 
@@ -425,6 +441,8 @@ namespace WorldCup.Api.Controllers
                 partido.GolesVisitante,
                 partido.TiempoExtra,
                 partido.ClasificadoId,
+                partido.PenalesLocal,
+                partido.PenalesVisitante,
                 partido.Finalizado
             });
         }
@@ -493,7 +511,7 @@ namespace WorldCup.Api.Controllers
                 return NotFound("Partido no encontrado");
             }
 
-            partido.Fecha = ColombiaClock.FromColombiaToUtc(dto.Fecha);
+            partido.Fecha = GuardarComoHoraColombia(dto.Fecha);
             await _context.SaveChangesAsync();
 
             return Ok(new
@@ -556,10 +574,10 @@ namespace WorldCup.Api.Controllers
                 var puedeRevisarCruces = fase == "Grupos"
                     ? gruposTerminados > 0 && !siguienteGenerada
                     : total > 0 &&
-                        finalizados == total &&
-                        penalesInvalidos == 0 &&
                         siguienteFase != null &&
-                        !siguienteGenerada;
+                        !siguienteGenerada &&
+                        (partidosSiguienteFase > 0 ||
+                         await HayCruceEliminatoriaDisponibleAsync(fase));
 
                 fases.Add(new
                 {
@@ -762,21 +780,14 @@ namespace WorldCup.Api.Controllers
                 return BadRequest("Esta fase no genera una ronda posterior");
             }
 
-            if (faseNormalizada != "Grupos" &&
-                await _context.Partidos.AnyAsync(p => fasesDestino.Contains(p.Fase)))
-            {
-                return Conflict("La siguiente fase ya tiene partidos generados.");
-            }
+            var partidosPublicadosDestino = await _context.Partidos
+                .CountAsync(p => fasesDestino.Contains(p.Fase));
+            var esperadosDestino = ObtenerCantidadCrucesEsperada(faseNormalizada);
 
-            if (faseNormalizada == "Grupos")
+            if (esperadosDestino > 0 &&
+                partidosPublicadosDestino >= esperadosDestino)
             {
-                var dieciseisavosPublicados = await _context.Partidos
-                    .CountAsync(p => p.Fase == "Dieciseisavos");
-
-                if (dieciseisavosPublicados >= 16)
-                {
-                    return Conflict("Los dieciseisavos ya están completos.");
-                }
+                return Conflict($"La siguiente fase ya tiene sus {esperadosDestino} partido(s) publicados.");
             }
 
             var errorValidacion = await ValidarCrucesParaPublicarAsync(
@@ -793,7 +804,7 @@ namespace WorldCup.Api.Controllers
             {
                 _context.Partidos.Add(new Partido
                 {
-                    Fecha = ColombiaClock.FromColombiaToUtc(cruce.Fecha),
+                    Fecha = GuardarComoHoraColombia(cruce.Fecha),
                     NumeroPartidoFifa = cruce.NumeroPartido,
                     Fase = cruce.Fase,
                     LocalId = cruce.LocalId,
@@ -807,7 +818,7 @@ namespace WorldCup.Api.Controllers
 
             return Ok(new
             {
-                mensaje = $"Cruces de {string.Join(", ", fasesDestino.Select(NombreFaseAdmin))} publicados correctamente."
+                mensaje = $"{dto.Cruces.Count} cruce(s) publicado(s) correctamente."
             });
         }
 
@@ -1587,7 +1598,12 @@ namespace WorldCup.Api.Controllers
                 ? fecha
                 : ColombiaClock.Now();
 
-            return ColombiaClock.FromColombiaToUtc(fechaColombia);
+            return GuardarComoHoraColombia(fechaColombia);
+        }
+
+        private static DateTime GuardarComoHoraColombia(DateTime fechaColombia)
+        {
+            return DateTime.SpecifyKind(fechaColombia, DateTimeKind.Unspecified);
         }
 
         private static List<CruceIndices> ObtenerCrucesSiguienteFase(string faseAnterior, int cantidadPartidos)
@@ -1615,6 +1631,39 @@ namespace WorldCup.Api.Controllers
                 "Cuartos" => 97 + index,
                 "Semifinales" => 101 + index,
                 _ => 0
+            };
+        }
+
+        private static List<CruceNumeroDef> ObtenerDefinicionesCrucesPorNumero(
+            string faseOrigen)
+        {
+            return faseOrigen switch
+            {
+                "Dieciseisavos" => CrucesOctavosDesdeDieciseisavos
+                    .Select((c, index) => new CruceNumeroDef(
+                        89 + index,
+                        "Octavos",
+                        c[0],
+                        c[1]))
+                    .ToList(),
+                "Octavos" => CrucesCuartosDesdeOctavos
+                    .Select((c, index) => new CruceNumeroDef(
+                        97 + index,
+                        "Cuartos",
+                        c[0],
+                        c[1]))
+                    .ToList(),
+                "Cuartos" => new List<CruceNumeroDef>
+                {
+                    new(101, "Semifinales", 97, 98),
+                    new(102, "Semifinales", 99, 100)
+                },
+                "Semifinales" => new List<CruceNumeroDef>
+                {
+                    new(103, "TercerPuesto", 101, 102, true),
+                    new(104, "Final", 101, 102)
+                },
+                _ => new List<CruceNumeroDef>()
             };
         }
 
@@ -1677,6 +1726,29 @@ namespace WorldCup.Api.Controllers
 
             public int LocalIndex { get; }
             public int VisitanteIndex { get; }
+        }
+
+        private sealed class CruceNumeroDef
+        {
+            public CruceNumeroDef(
+                int numeroPartido,
+                string faseDestino,
+                int localOrigenNumero,
+                int visitanteOrigenNumero,
+                bool usarPerdedores = false)
+            {
+                NumeroPartido = numeroPartido;
+                FaseDestino = faseDestino;
+                LocalOrigenNumero = localOrigenNumero;
+                VisitanteOrigenNumero = visitanteOrigenNumero;
+                UsarPerdedores = usarPerdedores;
+            }
+
+            public int NumeroPartido { get; }
+            public string FaseDestino { get; }
+            public int LocalOrigenNumero { get; }
+            public int VisitanteOrigenNumero { get; }
+            public bool UsarPerdedores { get; }
         }
 
         //edpoint      
@@ -2264,10 +2336,10 @@ namespace WorldCup.Api.Controllers
             var cruces = yaGenerada
                 ? await ObtenerCrucesPublicadosAdminAsync(fasesDestino)
                 : await ConstruirCrucesSugeridosAdminAsync(faseOrigen);
-            var puedePublicar = !yaGenerada &&
-                (faseOrigen == "Grupos"
-                    ? cruces.Any()
-                    : cruces.Count == esperados);
+            var crucesPublicables = cruces
+                .Where(c => c.LocalId > 0 && c.VisitanteId > 0)
+                .ToList();
+            var puedePublicar = !yaGenerada && crucesPublicables.Any();
             var equiposDisponibles = await ObtenerEquiposDisponiblesCrucesAsync(
                 faseOrigen,
                 cruces);
@@ -2283,10 +2355,10 @@ namespace WorldCup.Api.Controllers
                     : puedePublicar
                         ? publicados > 0
                             ? $"Ya hay {publicados} cruce(s) publicado(s). Revisa los nuevos cruces disponibles antes de publicarlos."
-                            : "Revisa los cruces sugeridos. Puedes cambiar equipos antes de publicar."
+                            : "Revisa los cruces sugeridos. Marca solo los que quieres publicar."
                         : faseOrigen == "Grupos"
                             ? "Todavía no hay cruces nuevos con ambos equipos definidos."
-                            : "Todavía no se pueden construir todos los cruces de la siguiente fase.",
+                            : "Todavía no hay cruces completos para publicar en la siguiente fase.",
                 Cruces = cruces,
                 EquiposDisponibles = equiposDisponibles
             };
@@ -2391,6 +2463,11 @@ namespace WorldCup.Api.Controllers
                 }
 
                 var local = tablaLocal[definicion.LocalPosicion - 1];
+                if (!equiposPorId.TryGetValue(local.EquipoId, out var localEquipo))
+                {
+                    continue;
+                }
+
                 TablaPosicionDTO? visitante = null;
                 string etiquetaVisitante;
 
@@ -2402,6 +2479,20 @@ namespace WorldCup.Api.Controllers
                             definicion.NumeroPartido,
                             out var grupoTercero))
                     {
+                        cruces.Add(new AdminCrucePartidoDTO
+                        {
+                            NumeroPartido = definicion.NumeroPartido,
+                            Fase = "Dieciseisavos",
+                            Fecha = ColombiaClock.ToColombia(
+                                FechaProgramadaEliminatoria(definicion.NumeroPartido)),
+                            LocalId = localEquipo.Id,
+                            Local = localEquipo.Nombre,
+                            VisitanteId = 0,
+                            Visitante = "Selecciona tercero",
+                            OrigenLocal = $"{definicion.LocalPosicion}º Grupo {definicion.LocalGrupo}",
+                            OrigenVisitante =
+                                $"3º Grupo {string.Join("/", definicion.GruposTerceroPermitidos)}"
+                        });
                         continue;
                     }
 
@@ -2423,7 +2514,7 @@ namespace WorldCup.Api.Controllers
                         $"{definicion.VisitantePosicion}º Grupo {grupoVisitante}";
                 }
 
-                if (!equiposPorId.TryGetValue(local.EquipoId, out var localEquipo) ||
+                if (visitante == null ||
                     !equiposPorId.TryGetValue(visitante.EquipoId, out var visitanteEquipo))
                 {
                     continue;
@@ -2452,96 +2543,145 @@ namespace WorldCup.Api.Controllers
             string faseNueva,
             int cantidadEsperada)
         {
-            if (!await FaseListaParaGenerar(faseAnterior, cantidadEsperada))
+            _ = cantidadEsperada;
+
+            var definiciones = ObtenerDefinicionesCrucesPorNumero(faseAnterior)
+                .Where(c => c.FaseDestino == faseNueva)
+                .ToList();
+
+            return await ConstruirCrucesDesdeDefinicionesPreviewAdminAsync(
+                faseAnterior,
+                definiciones);
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesFinalesPreviewAdminAsync()
+        {
+            return await ConstruirCrucesDesdeDefinicionesPreviewAdminAsync(
+                "Semifinales",
+                ObtenerDefinicionesCrucesPorNumero("Semifinales"));
+        }
+
+        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesDesdeDefinicionesPreviewAdminAsync(
+            string faseOrigen,
+            IReadOnlyCollection<CruceNumeroDef> definiciones)
+        {
+            if (!definiciones.Any())
             {
                 return new List<AdminCrucePartidoDTO>();
             }
 
-            var partidosAnteriores = await _context.Partidos
-                .AsNoTracking()
-                .Include(p => p.Local)
-                .Include(p => p.Visitante)
-                .Where(p => p.Fase == faseAnterior)
-                .OrderBy(p => p.Id)
-                .ToListAsync();
-            var cruces = ObtenerCrucesSiguienteFase(
-                faseAnterior,
-                partidosAnteriores.Count);
+            var numerosOrigen = definiciones
+                .SelectMany(c => new[] { c.LocalOrigenNumero, c.VisitanteOrigenNumero })
+                .Distinct()
+                .ToList();
+            var fasesDestino = definiciones
+                .Select(c => c.FaseDestino)
+                .Distinct()
+                .ToArray();
+            var partidosOrigen = (await _context.Partidos
+                    .AsNoTracking()
+                    .Include(p => p.Local)
+                    .Include(p => p.Visitante)
+                    .Where(p =>
+                        p.Fase == faseOrigen &&
+                        p.NumeroPartidoFifa.HasValue &&
+                        numerosOrigen.Contains(p.NumeroPartidoFifa.Value))
+                    .ToListAsync())
+                .ToDictionary(p => p.NumeroPartidoFifa!.Value);
+            var numerosPublicados = (await _context.Partidos
+                    .AsNoTracking()
+                    .Where(p =>
+                        fasesDestino.Contains(p.Fase) &&
+                        p.NumeroPartidoFifa.HasValue)
+                    .Select(p => p.NumeroPartidoFifa!.Value)
+                    .ToListAsync())
+                .ToHashSet();
             var resultado = new List<AdminCrucePartidoDTO>();
 
-            for (var i = 0; i < cruces.Count; i++)
+            foreach (var definicion in definiciones.OrderBy(c => c.NumeroPartido))
             {
-                var cruce = cruces[i];
-                var partidoLocal = partidosAnteriores[cruce.LocalIndex];
-                var partidoVisitante = partidosAnteriores[cruce.VisitanteIndex];
-                var localId = ObtenerGanadorId(partidoLocal);
-                var visitanteId = ObtenerGanadorId(partidoVisitante);
+                if (numerosPublicados.Contains(definicion.NumeroPartido) ||
+                    !partidosOrigen.TryGetValue(
+                        definicion.LocalOrigenNumero,
+                        out var partidoLocal) ||
+                    !partidosOrigen.TryGetValue(
+                        definicion.VisitanteOrigenNumero,
+                        out var partidoVisitante) ||
+                    !PartidoListoParaCruce(partidoLocal) ||
+                    !PartidoListoParaCruce(partidoVisitante))
+                {
+                    continue;
+                }
 
-                var numeroPartido = ObtenerNumeroPartidoGenerado(faseNueva, i);
+                var localId = definicion.UsarPerdedores
+                    ? ObtenerPerdedorId(partidoLocal)
+                    : ObtenerGanadorId(partidoLocal);
+                var visitanteId = definicion.UsarPerdedores
+                    ? ObtenerPerdedorId(partidoVisitante)
+                    : ObtenerGanadorId(partidoVisitante);
+                var origen = definicion.UsarPerdedores ? "Perdedor" : "Ganador";
+
                 resultado.Add(new AdminCrucePartidoDTO
                 {
-                    NumeroPartido = numeroPartido,
-                    Fase = faseNueva,
+                    NumeroPartido = definicion.NumeroPartido,
+                    Fase = definicion.FaseDestino,
                     Fecha = ColombiaClock.ToColombia(
-                        FechaProgramadaEliminatoria(numeroPartido)),
+                        FechaProgramadaEliminatoria(definicion.NumeroPartido)),
                     LocalId = localId,
                     Local = NombreEquipoEnPartido(partidoLocal, localId),
                     VisitanteId = visitanteId,
                     Visitante = NombreEquipoEnPartido(partidoVisitante, visitanteId),
-                    OrigenLocal = $"Ganador {EtiquetaPartido(partidoLocal)}",
-                    OrigenVisitante = $"Ganador {EtiquetaPartido(partidoVisitante)}"
+                    OrigenLocal = $"{origen} {EtiquetaPartido(partidoLocal)}",
+                    OrigenVisitante = $"{origen} {EtiquetaPartido(partidoVisitante)}"
                 });
             }
 
             return resultado;
         }
 
-        private async Task<List<AdminCrucePartidoDTO>> ConstruirCrucesFinalesPreviewAdminAsync()
+        private async Task<bool> HayCruceEliminatoriaDisponibleAsync(string faseOrigen)
         {
-            if (!await FaseListaParaGenerar("Semifinales", 2))
+            var definiciones = ObtenerDefinicionesCrucesPorNumero(faseOrigen);
+            if (!definiciones.Any())
             {
-                return new List<AdminCrucePartidoDTO>();
+                return false;
             }
 
-            var semifinales = await _context.Partidos
-                .AsNoTracking()
-                .Include(p => p.Local)
-                .Include(p => p.Visitante)
-                .Where(p => p.Fase == "Semifinales")
-                .OrderBy(p => p.Id)
-                .ToListAsync();
-            var ganador1 = ObtenerGanadorId(semifinales[0]);
-            var ganador2 = ObtenerGanadorId(semifinales[1]);
-            var perdedor1 = ObtenerPerdedorId(semifinales[0]);
-            var perdedor2 = ObtenerPerdedorId(semifinales[1]);
+            var numerosOrigen = definiciones
+                .SelectMany(c => new[] { c.LocalOrigenNumero, c.VisitanteOrigenNumero })
+                .Distinct()
+                .ToList();
+            var fasesDestino = definiciones
+                .Select(c => c.FaseDestino)
+                .Distinct()
+                .ToArray();
+            var numerosPublicados = (await _context.Partidos
+                    .AsNoTracking()
+                    .Where(p =>
+                        fasesDestino.Contains(p.Fase) &&
+                        p.NumeroPartidoFifa.HasValue)
+                    .Select(p => p.NumeroPartidoFifa!.Value)
+                    .ToListAsync())
+                .ToHashSet();
+            var partidosOrigen = (await _context.Partidos
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Fase == faseOrigen &&
+                        p.NumeroPartidoFifa.HasValue &&
+                        numerosOrigen.Contains(p.NumeroPartidoFifa.Value))
+                    .ToListAsync())
+                .ToDictionary(p => p.NumeroPartidoFifa!.Value);
 
-            return new List<AdminCrucePartidoDTO>
-            {
-                new()
-                {
-                    NumeroPartido = 103,
-                    Fase = "TercerPuesto",
-                    Fecha = ColombiaClock.ToColombia(FechaProgramadaEliminatoria(103)),
-                    LocalId = perdedor1,
-                    Local = NombreEquipoEnPartido(semifinales[0], perdedor1),
-                    VisitanteId = perdedor2,
-                    Visitante = NombreEquipoEnPartido(semifinales[1], perdedor2),
-                    OrigenLocal = $"Perdedor {EtiquetaPartido(semifinales[0])}",
-                    OrigenVisitante = $"Perdedor {EtiquetaPartido(semifinales[1])}"
-                },
-                new()
-                {
-                    NumeroPartido = 104,
-                    Fase = "Final",
-                    Fecha = ColombiaClock.ToColombia(FechaProgramadaEliminatoria(104)),
-                    LocalId = ganador1,
-                    Local = NombreEquipoEnPartido(semifinales[0], ganador1),
-                    VisitanteId = ganador2,
-                    Visitante = NombreEquipoEnPartido(semifinales[1], ganador2),
-                    OrigenLocal = $"Ganador {EtiquetaPartido(semifinales[0])}",
-                    OrigenVisitante = $"Ganador {EtiquetaPartido(semifinales[1])}"
-                }
-            };
+            return definiciones.Any(definicion =>
+                !numerosPublicados.Contains(definicion.NumeroPartido) &&
+                partidosOrigen.TryGetValue(
+                    definicion.LocalOrigenNumero,
+                    out var partidoLocal) &&
+                partidosOrigen.TryGetValue(
+                    definicion.VisitanteOrigenNumero,
+                    out var partidoVisitante) &&
+                PartidoListoParaCruce(partidoLocal) &&
+                PartidoListoParaCruce(partidoVisitante));
         }
 
         private async Task<List<AdminCrucePartidoDTO>> ObtenerCrucesPublicadosAdminAsync(
@@ -2620,20 +2760,22 @@ namespace WorldCup.Api.Controllers
 
             if (!await FaseOrigenListaParaPublicarAsync(faseOrigen))
             {
-                return $"La fase {NombreFaseAdmin(faseOrigen)} todavía no está completa.";
+                return $"No hay partidos de {NombreFaseAdmin(faseOrigen)} creados para publicar cruces.";
             }
 
             var esperados = ObtenerCantidadCrucesEsperada(faseOrigen);
-            if (faseOrigen == "Grupos")
+            var publicadosDestino = await _context.Partidos
+                .CountAsync(p => fasesDestino.Contains(p.Fase));
+            var cuposDisponibles = esperados - publicadosDestino;
+
+            if (cuposDisponibles <= 0)
             {
-                if (cruces.Count > esperados)
-                {
-                    return $"No puedes publicar más de {esperados} cruce(s).";
-                }
+                return "La siguiente fase ya no tiene cupos disponibles.";
             }
-            else if (cruces.Count != esperados)
+
+            if (cruces.Count > cuposDisponibles)
             {
-                return $"Debes publicar exactamente {esperados} cruce(s).";
+                return $"Solo puedes publicar {cuposDisponibles} cruce(s) más en esta fase.";
             }
 
             foreach (var cruce in cruces)
@@ -2653,10 +2795,9 @@ namespace WorldCup.Api.Controllers
             }
 
             if (faseOrigen == "Semifinales" &&
-                (cruces.Count(c => c.Fase == "Final") != 1 ||
-                 cruces.Count(c => c.Fase == "TercerPuesto") != 1))
+                cruces.GroupBy(c => c.Fase).Any(g => g.Count() > 1))
             {
-                return "Desde semifinales debes publicar una final y un partido por el tercer puesto.";
+                return "Desde semifinales solo puedes publicar un cruce de final y uno de tercer puesto.";
             }
 
             if (cruces.GroupBy(c => c.NumeroPartido).Any(g => g.Count() > 1))
@@ -2737,10 +2878,11 @@ namespace WorldCup.Api.Controllers
             return faseOrigen switch
             {
                 "Grupos" => true,
-                "Dieciseisavos" => await FaseListaParaGenerar("Dieciseisavos", 16),
-                "Octavos" => await FaseListaParaGenerar("Octavos", 8),
-                "Cuartos" => await FaseListaParaGenerar("Cuartos", 4),
-                "Semifinales" => await FaseListaParaGenerar("Semifinales", 2),
+                "Dieciseisavos" or
+                "Octavos" or
+                "Cuartos" or
+                "Semifinales" => await _context.Partidos
+                    .AnyAsync(p => p.Fase == faseOrigen),
                 _ => false
             };
         }
@@ -2781,6 +2923,11 @@ namespace WorldCup.Api.Controllers
             return partido.VisitanteId == equipoId
                 ? partido.Visitante.Nombre
                 : $"Equipo {equipoId}";
+        }
+
+        private bool PartidoListoParaCruce(Partido partido)
+        {
+            return partido.Finalizado && ObtenerGanadorIdSeguro(partido).HasValue;
         }
 
         private static string EtiquetaPartido(Partido partido)
@@ -3086,6 +3233,10 @@ namespace WorldCup.Api.Controllers
                 "pendiente" => "Pendiente",
                 "enjuego" => "EnJuego",
                 "en juego" => "EnJuego",
+                "tiempoextra" => "TiempoExtra",
+                "tiempo extra" => "TiempoExtra",
+                "extra" => "TiempoExtra",
+                "penales" => "Penales",
                 "postergado" => "Postergado",
                 "finalizado" => "Finalizado",
                 _ => null
@@ -3329,6 +3480,12 @@ namespace WorldCup.Api.Controllers
                     d.PuntosPodioCierre
                 })
                 .ToListAsync();
+            var detallesClasificacion = string.Equals(
+                    partido.Fase,
+                    "Grupos",
+                    StringComparison.OrdinalIgnoreCase)
+                ? await ConstruirDetallesClasificacionRankingAsync()
+                : new Dictionary<(int PollaId, int UsuarioId), string>();
 
             var detallesPorPolla = detalles
                 .GroupBy(d => d.PollaId)
@@ -3358,7 +3515,12 @@ namespace WorldCup.Api.Controllers
                             f.PuntosRanking,
                             f.PuntosMarcadorCierre,
                             f.PuntosClasificacionCierre,
-                            f.PuntosPodioCierre
+                            f.PuntosPodioCierre,
+                            DetalleClasificacionCierre =
+                                f.PuntosClasificacionCierre != 0 &&
+                                detallesClasificacion.TryGetValue((p.Id, f.UsuarioId), out var detalleClasificacion)
+                                    ? detalleClasificacion
+                                    : ""
                         })
                         .ToList();
 
@@ -3393,6 +3555,91 @@ namespace WorldCup.Api.Controllers
                     : (DateTime?)null,
                 Pollas = pollasRespuesta
             });
+        }
+
+        private async Task<Dictionary<(int PollaId, int UsuarioId), string>> ConstruirDetallesClasificacionRankingAsync()
+        {
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var grupoMundial in PuntajesClasificacionGrupos.GruposMundial)
+            {
+                tablasGrupo[grupoMundial] = await ObtenerTablaGrupo(grupoMundial);
+            }
+
+            var todosLosGruposTerminados = !await _context.Partidos
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var gruposTercerosReales = todosLosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var tercerosPorUsuario = (await _context.PrediccionesTerceros
+                    .AsNoTracking()
+                    .Select(p => new
+                    {
+                        p.PollaId,
+                        p.UsuarioId,
+                        Grupo = p.Grupo.ToUpper()
+                    })
+                    .ToListAsync())
+                .GroupBy(p => (p.PollaId, p.UsuarioId))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .Select(p => p.Grupo)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            var prediccionesGrupo = await _context.PrediccionesGrupo
+                .AsNoTracking()
+                .OrderBy(p => p.PollaId)
+                .ThenBy(p => p.UsuarioId)
+                .ThenBy(p => p.Grupo)
+                .ToListAsync();
+            var detallesPorUsuario = new Dictionary<(int PollaId, int UsuarioId), List<string>>();
+
+            foreach (var prediccionGrupo in prediccionesGrupo)
+            {
+                var grupo = prediccionGrupo.Grupo.ToUpperInvariant();
+                if (!tablasGrupo.TryGetValue(grupo, out var tablaReal) ||
+                    tablaReal.Count < 3)
+                {
+                    continue;
+                }
+
+                tercerosPorUsuario.TryGetValue(
+                    (prediccionGrupo.PollaId, prediccionGrupo.UsuarioId),
+                    out var gruposTercerosPredichos);
+
+                var detalles = PuntajesClasificacionGrupos
+                    .Desglosar(
+                        prediccionGrupo,
+                        tablaReal,
+                        gruposTercerosReales,
+                        gruposTercerosPredichos ?? new HashSet<string>(
+                            StringComparer.OrdinalIgnoreCase))
+                    .Where(d => d.Puntos > 0)
+                    .ToList();
+
+                if (!detalles.Any())
+                {
+                    continue;
+                }
+
+                var key = (prediccionGrupo.PollaId, prediccionGrupo.UsuarioId);
+                if (!detallesPorUsuario.TryGetValue(key, out var textos))
+                {
+                    textos = new List<string>();
+                    detallesPorUsuario[key] = textos;
+                }
+
+                textos.Add(
+                    $"Grupo {grupo}: " +
+                    string.Join(", ", detalles.Select(d => $"+{d.Puntos} {d.Descripcion}")));
+            }
+
+            return detallesPorUsuario.ToDictionary(
+                kvp => kvp.Key,
+                kvp => string.Join(" | ", kvp.Value));
         }
 
         private sealed class PuntajesRankingSnapshot

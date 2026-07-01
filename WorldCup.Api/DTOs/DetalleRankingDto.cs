@@ -16,6 +16,10 @@
         public int? PronosticoLocal { get; set; }
         public int? PronosticoVisitante { get; set; }
         public bool PronosticoVisible { get; set; } = true;
+        public int? PrediceClasificadoId { get; set; }
+        public string PrediceClasificado { get; set; } = "";
+        public bool PrediceTiempoExtra { get; set; }
+        public bool PredicePenales { get; set; }
 
         // Resultado real
         public int? ResultadoLocal { get; set; }

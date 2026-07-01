@@ -891,41 +891,20 @@ namespace WorldCup.Api.Controllers
             if (!usuarios.Any())
                 return BadRequest("No hay usuarios activos para notificar.");
 
-            var correosEnviados = 0;
-            var correosFallidos = 0;
-            var usuariosConCorreo = new List<Usuario>();
-            foreach (var usuario in usuarios)
-            {
-                if (await EnviarCorreoNotificacionAsync(
-                    usuario,
-                    titulo,
-                    mensaje,
-                    "Comunicado general",
-                    "Ver notificaciones",
-                    "/notificaciones",
-                    "comunicado-admin"))
-                {
-                    correosEnviados++;
-                    usuariosConCorreo.Add(usuario);
-                }
-                else
-                {
-                    correosFallidos++;
-                }
-            }
-
-            if (!usuariosConCorreo.Any())
-            {
-                var destino = dto.UsuarioId.HasValue
-                    ? $" a {usuarios[0].Nombre}"
-                    : "";
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    $"No se envio el comunicado{destino}: el correo fallo y no se guardo la notificacion interna.");
-            }
-
             var ahoraUtc = DateTime.UtcNow;
-            foreach (var usuario in usuariosConCorreo)
+            var entregas = usuarios
+                .Select(usuario => new AdminComunicadoEntregaDTO
+                {
+                    UsuarioId = usuario.Id,
+                    UsuarioNombre = usuario.Nombre,
+                    UsuarioEmail = usuario.Email,
+                    NotificacionGuardada = true,
+                    CorreoEnviado = false,
+                    Detalle = "Correo pendiente de envio."
+                })
+                .ToList();
+
+            foreach (var usuario in usuarios)
             {
                 _context.AlertasUsuario.Add(new AlertaUsuario
                 {
@@ -946,16 +925,60 @@ namespace WorldCup.Api.Controllers
 
             await _context.SaveChangesAsync();
 
+            var entregasPorUsuario = entregas.ToDictionary(e => e.UsuarioId);
+            var maximoCorreosParalelos = Math.Clamp(
+                int.TryParse(HttpContext.RequestServices
+                    .GetRequiredService<IConfiguration>()["SmtpSettings:MaxParallelSends"], out var configurado)
+                    ? configurado
+                    : 3,
+                1,
+                6);
+
+            using var limiteCorreos = new SemaphoreSlim(maximoCorreosParalelos);
+            var tareasCorreo = usuarios.Select(async usuario =>
+            {
+                await limiteCorreos.WaitAsync();
+                try
+                {
+                    var resultadoCorreo = await EnviarCorreoNotificacionConDetalleAsync(
+                        usuario,
+                        titulo,
+                        mensaje,
+                        "Comunicado general",
+                        "Ver notificaciones",
+                        "/notificaciones",
+                        "comunicado-admin");
+
+                    var entrega = entregasPorUsuario[usuario.Id];
+                    entrega.CorreoEnviado = resultadoCorreo.Enviado;
+                    entrega.Detalle = resultadoCorreo.Detalle;
+                }
+                finally
+                {
+                    limiteCorreos.Release();
+                }
+            });
+
+            await Task.WhenAll(tareasCorreo);
+
+            var correosEnviados = entregas.Count(e => e.CorreoEnviado);
+            var correosFallidos = entregas.Count(e => !e.CorreoEnviado);
+            var notificacionesGuardadas = entregas.Count(e => e.NotificacionGuardada);
+
             return Ok(new
             {
                 mensaje = dto.UsuarioId.HasValue
                     ? correosEnviados == 1
                         ? $"Notificacion y correo enviados a {usuarios[0].Nombre}."
-                        : $"Notificacion enviada a {usuarios[0].Nombre}, pero no se pudo enviar el correo. Revisa la configuracion SMTP."
-                    : $"Comunicado enviado a {usuariosConCorreo.Count} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
-                usuariosNotificados = usuariosConCorreo.Count,
+                        : $"Notificacion guardada para {usuarios[0].Nombre}, pero no se pudo enviar el correo."
+                    : $"Comunicado guardado para {notificacionesGuardadas} usuario(s). Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
+                titulo,
+                texto = mensaje,
+                usuariosObjetivo = usuarios.Count,
+                usuariosNotificados = notificacionesGuardadas,
                 correosEnviados,
-                correosFallidos
+                correosFallidos,
+                entregas
             });
         }
 
@@ -1234,11 +1257,18 @@ namespace WorldCup.Api.Controllers
                         Id = prediccion?.Id ?? 0,
                         PartidoId = partido.Id,
                         Partido = partido.Local.Nombre + " vs " + partido.Visitante.Nombre,
+                        LocalId = partido.LocalId,
+                        Local = partido.Local.Nombre,
+                        VisitanteId = partido.VisitanteId,
+                        Visitante = partido.Visitante.Nombre,
                         partido.Fase,
                         Fecha = ColombiaClock.ToColombia(partido.Fecha),
                         TienePrediccion = prediccion != null,
                         GolesLocal = prediccion?.GolesLocal,
                         GolesVisitante = prediccion?.GolesVisitante,
+                        PrediceClasificadoId = prediccion?.PrediceClasificadoId,
+                        PrediceTiempoExtra = prediccion?.PrediceTiempoExtra ?? false,
+                        PredicePenales = prediccion?.PredicePenales ?? false,
                         ResultadoLocal = partido.GolesLocal,
                         ResultadoVisitante = partido.GolesVisitante,
                         PuntosMarcador = prediccion?.PuntosMarcador ?? 0,
@@ -1304,14 +1334,44 @@ namespace WorldCup.Api.Controllers
                 })
                 .FirstOrDefaultAsync();
 
+            var equiposEliminatoriaIds = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Fase != "Grupos")
+                .Select(p => new { p.LocalId, p.VisitanteId })
+                .ToListAsync();
+
+            var equiposPodioIds = equiposEliminatoriaIds
+                .SelectMany(p => new[] { p.LocalId, p.VisitanteId })
+                .Distinct()
+                .ToList();
+
+            var equiposPodioQuery = _context.Equipos.AsNoTracking();
+            if (equiposPodioIds.Any())
+            {
+                equiposPodioQuery = equiposPodioQuery.Where(e => equiposPodioIds.Contains(e.Id));
+            }
+
+            var equiposPodio = await equiposPodioQuery
+                .OrderBy(e => e.Nombre)
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre
+                })
+                .ToListAsync();
+
             return Ok(new
             {
                 clasificacion = clasificacionDto,
                 mejoresTerceros = terceros,
+                equiposPodio,
                 podio = podio == null
                     ? new
                     {
                         guardado = false,
+                        campeonId = 0,
+                        subcampeonId = 0,
+                        terceroId = 0,
                         campeon = "",
                         subcampeon = "",
                         tercero = ""
@@ -1319,10 +1379,109 @@ namespace WorldCup.Api.Controllers
                     : new
                     {
                         guardado = true,
+                        campeonId = podio.CampeonId,
+                        subcampeonId = podio.SubcampeonId,
+                        terceroId = podio.TerceroId,
                         campeon = equipos.TryGetValue(podio.CampeonId, out var campeon) ? campeon : $"Equipo {podio.CampeonId}",
                         subcampeon = equipos.TryGetValue(podio.SubcampeonId, out var subcampeon) ? subcampeon : $"Equipo {podio.SubcampeonId}",
                         tercero = equipos.TryGetValue(podio.TerceroId, out var tercero) ? tercero : $"Equipo {podio.TerceroId}"
                     }
+            });
+        }
+
+        [HttpPut("predicciones/podio")]
+        public async Task<IActionResult> ActualizarPodioUsuario(
+            [FromBody] AdminGuardarPodioUsuarioDTO dto)
+        {
+            if (!await EsAdmin(dto.AdminUsuarioId))
+                return Forbid();
+
+            if (dto.PollaId <= 0 || dto.UsuarioId <= 0)
+                return BadRequest("Selecciona una polla y un usuario validos.");
+
+            var equiposSeleccionadosIds = new[]
+            {
+                dto.CampeonId,
+                dto.SubcampeonId,
+                dto.TerceroId
+            };
+
+            if (equiposSeleccionadosIds.Any(id => id <= 0))
+                return BadRequest("Debes seleccionar campeon, subcampeon y tercer puesto.");
+
+            if (equiposSeleccionadosIds.Distinct().Count() != 3)
+                return BadRequest("El campeon, subcampeon y tercer puesto deben ser equipos diferentes.");
+
+            if (!await UsuarioPerteneceAPollaAsync(dto.PollaId, dto.UsuarioId))
+                return BadRequest("El usuario no pertenece a la polla seleccionada.");
+
+            var equiposSeleccionados = await _context.Equipos
+                .Where(e => equiposSeleccionadosIds.Contains(e.Id))
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre
+                })
+                .ToListAsync();
+
+            if (equiposSeleccionados.Count != 3)
+                return BadRequest("Uno de los equipos seleccionados no existe.");
+
+            var equiposEliminatoria = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Fase != "Grupos")
+                .Select(p => new { p.LocalId, p.VisitanteId })
+                .ToListAsync();
+
+            var equiposEliminatoriaIds = equiposEliminatoria
+                .SelectMany(p => new[] { p.LocalId, p.VisitanteId })
+                .Distinct()
+                .ToHashSet();
+
+            if (equiposEliminatoriaIds.Any() &&
+                equiposSeleccionadosIds.Any(id => !equiposEliminatoriaIds.Contains(id)))
+            {
+                return BadRequest("El podio solo puede guardarse con equipos disponibles en fases eliminatorias.");
+            }
+
+            var podio = await _context.PrediccionesPodio
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == dto.PollaId &&
+                    p.UsuarioId == dto.UsuarioId);
+
+            if (podio == null)
+            {
+                podio = new PrediccionPodio
+                {
+                    PollaId = dto.PollaId,
+                    UsuarioId = dto.UsuarioId
+                };
+                _context.PrediccionesPodio.Add(podio);
+            }
+
+            podio.CampeonId = dto.CampeonId;
+            podio.SubcampeonId = dto.SubcampeonId;
+            podio.TerceroId = dto.TerceroId;
+            podio.Bloqueada = false;
+
+            await _context.SaveChangesAsync();
+
+            string NombreEquipo(int id) =>
+                equiposSeleccionados.First(e => e.Id == id).Nombre;
+
+            return Ok(new
+            {
+                mensaje = "Podio del usuario guardado correctamente.",
+                podio = new
+                {
+                    guardado = true,
+                    campeonId = dto.CampeonId,
+                    subcampeonId = dto.SubcampeonId,
+                    terceroId = dto.TerceroId,
+                    campeon = NombreEquipo(dto.CampeonId),
+                    subcampeon = NombreEquipo(dto.SubcampeonId),
+                    tercero = NombreEquipo(dto.TerceroId)
+                }
             });
         }
 
@@ -1679,6 +1838,41 @@ namespace WorldCup.Api.Controllers
             prediccion.GolesLocal = dto.GolesLocal;
             prediccion.GolesVisitante = dto.GolesVisitante;
 
+            if (prediccion.Partido.Fase == "Grupos" ||
+                !dto.GolesLocal.HasValue ||
+                !dto.GolesVisitante.HasValue)
+            {
+                prediccion.PrediceClasificadoId = null;
+                prediccion.PrediceTiempoExtra = false;
+                prediccion.PredicePenales = false;
+            }
+            else if (dto.GolesLocal != dto.GolesVisitante)
+            {
+                prediccion.PrediceClasificadoId =
+                    dto.GolesLocal > dto.GolesVisitante
+                        ? prediccion.Partido.LocalId
+                        : prediccion.Partido.VisitanteId;
+                prediccion.PrediceTiempoExtra = false;
+                prediccion.PredicePenales = false;
+            }
+            else
+            {
+                if (dto.PrediceClasificadoId != prediccion.Partido.LocalId &&
+                    dto.PrediceClasificadoId != prediccion.Partido.VisitanteId)
+                {
+                    return BadRequest("Selecciona el equipo que clasifica en este empate.");
+                }
+
+                if (!dto.PrediceTiempoExtra && !dto.PredicePenales)
+                {
+                    return BadRequest("En empate de eliminatoria debes indicar si pasa por tiempo extra o por penales.");
+                }
+
+                prediccion.PrediceClasificadoId = dto.PrediceClasificadoId;
+                prediccion.PrediceTiempoExtra = true;
+                prediccion.PredicePenales = dto.PredicePenales;
+            }
+
             if (prediccion.Partido.Finalizado &&
                 prediccion.Partido.GolesLocal.HasValue &&
                 prediccion.Partido.GolesVisitante.HasValue &&
@@ -1821,6 +2015,41 @@ namespace WorldCup.Api.Controllers
                     logReferencia,
                     usuario.Id);
                 return false;
+            }
+        }
+
+        private async Task<(bool Enviado, string Detalle)> EnviarCorreoNotificacionConDetalleAsync(
+            Usuario usuario,
+            string titulo,
+            string mensaje,
+            string contexto,
+            string etiquetaAccion,
+            string link,
+            string logReferencia)
+        {
+            try
+            {
+                await _emailService.EnviarNotificacionPlataformaAsync(
+                    usuario.Email,
+                    usuario.Nombre,
+                    titulo,
+                    mensaje,
+                    contexto,
+                    etiquetaAccion,
+                    link,
+                    logReferencia);
+
+                return (true, "Correo enviado.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de notificacion {Referencia} al usuario {UsuarioId}",
+                    logReferencia,
+                    usuario.Id);
+
+                return (false, "No se pudo enviar el correo. Puedes reenviarlo individualmente.");
             }
         }
 

@@ -193,6 +193,8 @@
             <p>
                 En las rondas finales los puntos de marcador aumentan: se duplican los valores
                 de la fase de grupos, excepto el resultado correcto, que vale 10 puntos.
+                El marcador oficial que se evalua es el de los 90 minutos: los goles de
+                tiempo extra o penales no cambian el marcador exacto.
                 Ademas se mantienen bonos pequeños por la definicion y el equipo que avanza.
             </p>
         </div>
@@ -212,7 +214,8 @@
                 <h3>Equipo que avanza</h3>
                 <p>
                     Si aciertas el equipo que pasa a la siguiente ronda, ganas 3 puntos extra.
-                    Aplica en dieciseisavos, octavos, cuartos, semifinales, tercer puesto y final.
+                    Si tu marcador tiene ganador, ese equipo queda como clasificado de forma
+                    implicita. Si pronosticas empate, debes elegir quien clasifica.
                 </p>
             </article>
 
@@ -229,6 +232,8 @@
             <h3>Ejemplos claros en fases eliminatorias</h3>
             <p>
                 El marcador exacto reemplaza los otros puntos de marcador. Cuando no es exacto,
+                los puntajes totales posibles son: 0, 3, 4, 7, 13, 14, 15,
+                16, 17, 21, 22, 23, 24 y 25.
                 sí se pueden combinar resultado con goles o diferencia, además de los bonos.
             </p>
             <div class="score-table-wrap">
@@ -244,25 +249,46 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Exacto completo</td>
-                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
-                            <td>1-1; extras, penales y Brasil clasifica</td>
-                            <td><span class="points points-green">25</span></td>
-                            <td>20 exacto + 1 tiempo extra + 1 penales + 3 clasificado.</td>
+                            <td>No suma</td>
+                            <td>Brasil 1-0 Argentina; Brasil clasifica</td>
+                            <td>Brasil 0-2 Argentina; Argentina clasifica</td>
+                            <td><span class="points points-red">0</span></td>
+                            <td>No acierta marcador, resultado, goles, diferencia ni clasificado.</td>
                         </tr>
                         <tr>
-                            <td>Empate no exacto completo</td>
-                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
-                            <td>2-2; extras, penales y Brasil clasifica</td>
-                            <td><span class="points points-blue">17</span></td>
-                            <td>10 empate + 2 diferencia + 1 tiempo extra + 1 penales + 3 clasificado.</td>
+                            <td>Solo clasificado</td>
+                            <td>Sudafrica 0-0 Canada en 90 minutos; Canada clasifica en extra tiempo</td>
+                            <td>Sudafrica 1-2 Canada; Canada clasifica</td>
+                            <td><span class="points points-soft">3</span></td>
+                            <td>0 marcador + 3 clasificado.</td>
                         </tr>
                         <tr>
-                            <td>Resultado + gol + clasificado</td>
+                            <td>Solo gol</td>
                             <td>Brasil 2-1 Argentina; Brasil clasifica</td>
-                            <td>Brasil 3-1 Argentina; Brasil clasifica</td>
-                            <td><span class="points points-indigo">17</span></td>
-                            <td>10 ganador + 4 por el gol de Argentina + 3 clasificado.</td>
+                            <td>Brasil 1-1 Argentina; Argentina clasifica por penales</td>
+                            <td><span class="points points-indigo">4</span></td>
+                            <td>4 por acertar un gol. Falla resultado, diferencia y clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Gol + clasificado</td>
+                            <td>Sudafrica 0-0 Canada en 90 minutos; Canada clasifica en extra tiempo</td>
+                            <td>Sudafrica 0-2 Canada; Canada clasifica</td>
+                            <td><span class="points points-soft">7</span></td>
+                            <td>4 por el gol 0 de Sudafrica + 3 clasificado. El 2-0 del extra tiempo no cuenta como marcador.</td>
+                        </tr>
+                        <tr>
+                            <td>Resultado + clasificado</td>
+                            <td>Brasil 2-1 Argentina; Brasil clasifica</td>
+                            <td>Brasil 4-0 Argentina; Brasil clasifica</td>
+                            <td><span class="points points-soft">13</span></td>
+                            <td>10 ganador + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Empate + diferencia + penales</td>
+                            <td>Brasil 1-1 Argentina; penales y Brasil clasifica</td>
+                            <td>2-2; penales y Argentina clasifica</td>
+                            <td><span class="points points-blue">14</span></td>
+                            <td>10 empate + 2 diferencia + 1 tiempo extra + 1 penales. Falla clasificado.</td>
                         </tr>
                         <tr>
                             <td>Resultado + diferencia + clasificado</td>
@@ -272,25 +298,60 @@
                             <td>10 ganador + 2 diferencia de dos goles + 3 clasificado.</td>
                         </tr>
                         <tr>
-                            <td>Gol + clasificado</td>
-                            <td>Brasil 1-1 Argentina; extras, penales y Brasil clasifica</td>
-                            <td>Brasil 2-1 Argentina; Brasil clasifica sin extras</td>
-                            <td><span class="points points-soft">7</span></td>
-                            <td>4 por el gol de Argentina + 3 clasificado. Falla empate y definicion.</td>
+                            <td>Empate + diferencia + extra + clasificado</td>
+                            <td>Brasil 1-1 Argentina; Brasil clasifica en extra tiempo</td>
+                            <td>2-2; extra tiempo y Brasil clasifica</td>
+                            <td><span class="points points-soft">16</span></td>
+                            <td>10 empate + 2 diferencia + 1 tiempo extra + 3 clasificado.</td>
                         </tr>
                         <tr>
-                            <td>Empate + diferencia</td>
-                            <td>Brasil 1-1 Argentina; Brasil clasifica</td>
-                            <td>Brasil 3-3 Argentina; Argentina clasifica</td>
-                            <td><span class="points points-soft">12</span></td>
-                            <td>10 por empate + 2 por diferencia 0. Falla el clasificado.</td>
+                            <td>Resultado + gol + clasificado</td>
+                            <td>Brasil 2-1 Argentina; Brasil clasifica</td>
+                            <td>Brasil 3-1 Argentina; Brasil clasifica</td>
+                            <td><span class="points points-indigo">17</span></td>
+                            <td>10 ganador + 4 por el gol de Argentina + 3 clasificado.</td>
                         </tr>
                         <tr>
-                            <td>No suma</td>
-                            <td>Brasil 1-1 Argentina; Brasil clasifica</td>
-                            <td>Brasil 0-2 Argentina; Argentina clasifica</td>
-                            <td><span class="points points-red">0</span></td>
-                            <td>No acierta marcador, resultado, goles, diferencia ni clasificado.</td>
+                            <td>Empate no exacto completo</td>
+                            <td>Brasil 1-1 Argentina; penales y Brasil clasifica</td>
+                            <td>2-2; penales y Brasil clasifica</td>
+                            <td><span class="points points-blue">17</span></td>
+                            <td>10 empate + 2 diferencia + 1 tiempo extra + 1 penales + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Exacto + extra</td>
+                            <td>Brasil 0-0 Argentina; Brasil clasifica en extra tiempo</td>
+                            <td>0-0; extra tiempo y Argentina clasifica</td>
+                            <td><span class="points points-soft">21</span></td>
+                            <td>20 exacto + 1 tiempo extra. Falla clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Exacto + penales</td>
+                            <td>Brasil 0-0 Argentina; penales y Brasil clasifica</td>
+                            <td>0-0; penales y Argentina clasifica</td>
+                            <td><span class="points points-soft">22</span></td>
+                            <td>20 exacto + 1 tiempo extra + 1 penales. Falla clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Exacto + clasificado</td>
+                            <td>Brasil 2-0 Argentina; Brasil clasifica</td>
+                            <td>Brasil 2-0 Argentina; Brasil clasifica</td>
+                            <td><span class="points points-green">23</span></td>
+                            <td>20 exacto + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Exacto + extra + clasificado</td>
+                            <td>Brasil 1-1 Argentina; Brasil clasifica en extra tiempo</td>
+                            <td>1-1; extra tiempo y Brasil clasifica</td>
+                            <td><span class="points points-green">24</span></td>
+                            <td>20 exacto + 1 tiempo extra + 3 clasificado.</td>
+                        </tr>
+                        <tr>
+                            <td>Exacto completo</td>
+                            <td>Brasil 1-1 Argentina; penales y Brasil clasifica</td>
+                            <td>1-1; penales y Brasil clasifica</td>
+                            <td><span class="points points-green">25</span></td>
+                            <td>20 exacto + 1 tiempo extra + 1 penales + 3 clasificado.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -300,6 +361,13 @@
         <div class="note-band">
             En eliminatorias el marcador exacto no acumula tambien puntos de resultado,
             goles o diferencia. El maximo posible por partido es 25 puntos.
+        </div>
+
+        <div class="note-band">
+            <strong>Regla de 90 minutos:</strong> si un partido termina 0-0 en el tiempo
+            reglamentario y luego un equipo gana 2-0 en tiempo extra, el marcador para la
+            polla sigue siendo 0-0. El equipo que avanza se premia aparte con el bono de
+            clasificado.
         </div>
     </div>
 
@@ -463,8 +531,9 @@
             <span class="rule-number">03</span>
             <h3>Podio final</h3>
             <p>
-                Cuando este disponible la fase final, cada usuario elige campeon, subcampeon
-                y tercer puesto antes del cierre correspondiente.
+                Se habilita en Predicciones cuando termina toda la fase de grupos. Cada usuario
+                elige campeon, subcampeon y tercer puesto. El cierre sera el lunes 29 de junio
+                de 2026 a las 11:00 a. m., una hora antes del primer partido de ese dia.
             </p>
             <div class="podium-rules">
                 <span>Campeon <strong>40 pts</strong></span>

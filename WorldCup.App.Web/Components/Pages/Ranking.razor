@@ -467,6 +467,19 @@
     var tercerosModal = clasificacionModal?.MejoresTerceros
         .OrderBy(x => x)
         .ToList() ?? new List<string>();
+    var tercerosDetalleModal = clasificacionModal?.TercerosDetalle
+        .OrderBy(x => x.Grupo)
+        .ToList() ?? new List<TerceroClasificacionUsuarioDto>();
+    var tercerosRealesModal = tercerosDetalleModal
+        .Where(x => x.GrupoRealClasificoComoMejorTercero)
+        .Select(x => x.Grupo)
+        .OrderBy(x => x)
+        .ToList();
+    var puntosTercerosModal = tercerosDetalleModal.Sum(x => x.Puntos);
+    var podioModal = clasificacionModal?.Podio ?? new PodioClasificacionUsuarioDto();
+    var exactosUsuarioModal = rankingDetalle.Count(x =>
+        x.Usuario == usuarioDetalleModal &&
+        x.PuntosExacto > 0);
 
     <div class="detail-modal-backdrop" @onclick="CerrarDetalleUsuario">
         <div class="detail-modal" @onclick:stopPropagation="true">
@@ -482,7 +495,13 @@
                     <span>Detalle de participante</span>
                     <h3>@usuarioDetalleModal</h3>
                 </div>
-                <strong>@PuntajeSobrePosibles(ranking.FirstOrDefault(r => r.Usuario == usuarioDetalleModal)?.Puntos ?? 0)</strong>
+                <div class="detail-head-stats">
+                    <strong>@PuntajeSobrePosibles(ranking.FirstOrDefault(r => r.Usuario == usuarioDetalleModal)?.Puntos ?? 0)</strong>
+                    <em>
+                        <span>Exactos</span>
+                        <b>@exactosUsuarioModal</b>
+                    </em>
+                </div>
             </div>
 
             <div class="detail-modal-body">
@@ -492,76 +511,174 @@
                             <strong>Clasificacion de grupos guardada</strong>
                             <span>Visible para todos los participantes de la polla.</span>
                         </div>
-                        <span class="classification-count">@gruposModal.Count / 12 grupos</span>
+                        <div class="classification-head-actions">
+                            <span class="classification-count">@gruposModal.Count / 12 grupos</span>
+                            <button type="button"
+                                    class="classification-toggle"
+                                    @onclick="ToggleClasificacionDetalle">
+                                @(mostrarClasificacionDetalle ? "Ocultar clasificacion" : "Ver clasificacion")
+                            </button>
+                        </div>
                     </div>
 
-                    @if (cargandoClasificacionDetalle)
+                    @if (mostrarClasificacionDetalle)
                     {
-                        <div class="classification-state">Cargando clasificacion...</div>
-                    }
-                    else if (!string.IsNullOrWhiteSpace(errorClasificacionDetalle))
-                    {
-                        <div class="classification-state warning">@errorClasificacionDetalle</div>
-                    }
-                    else if (!gruposModal.Any())
-                    {
-                        <div class="classification-state">Este usuario no tiene clasificacion guardada.</div>
-                    }
-                    else
-                    {
-                        <div class="classification-groups-grid">
-                            @foreach (var grupoPrediccion in gruposModal)
-                            {
-                                var terceroClasifica = tercerosModal.Contains(
-                                    grupoPrediccion.Grupo,
-                                    StringComparer.OrdinalIgnoreCase);
+                        @if (cargandoClasificacionDetalle)
+                        {
+                            <div class="classification-state">Cargando clasificacion...</div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(errorClasificacionDetalle))
+                        {
+                            <div class="classification-state warning">@errorClasificacionDetalle</div>
+                        }
+                        else if (!gruposModal.Any())
+                        {
+                            <div class="classification-state">Este usuario no tiene clasificacion guardada.</div>
+                        }
+                        else
+                        {
+                            <div class="classification-groups-grid">
+                                @foreach (var grupoPrediccion in gruposModal)
+                                {
+                                    var terceroClasifica = tercerosModal.Contains(
+                                        grupoPrediccion.Grupo,
+                                        StringComparer.OrdinalIgnoreCase);
 
-                                <article class="classification-group-card">
-                                    <header>
-                                        <strong>Grupo @grupoPrediccion.Grupo</strong>
-                                        @if (grupoPrediccion.Bloqueada)
-                                        {
-                                            <span>Bloqueada</span>
-                                        }
-                                    </header>
-                                    <ol>
-                                        <li>
-                                            <span>1</span>
-                                            <strong>@grupoPrediccion.Primero</strong>
-                                        </li>
-                                        <li>
-                                            <span>2</span>
-                                            <strong>@grupoPrediccion.Segundo</strong>
-                                        </li>
-                                        <li class="@(terceroClasifica ? "third-selected" : "")">
-                                            <span>3</span>
-                                            <strong>@grupoPrediccion.Tercero</strong>
-                                            @if (terceroClasifica)
+                                    <article class="classification-group-card">
+                                        <header>
+                                            <strong>Grupo @grupoPrediccion.Grupo</strong>
+                                            @if (grupoPrediccion.Bloqueada)
                                             {
-                                                <em>Mejor tercero</em>
+                                                <span>Bloqueada</span>
                                             }
-                                        </li>
-                                    </ol>
-                                </article>
-                            }
-                        </div>
+                                        </header>
+                                        <ol>
+                                            <li>
+                                                <span>1</span>
+                                                <strong>@grupoPrediccion.Primero</strong>
+                                            </li>
+                                            <li>
+                                                <span>2</span>
+                                                <strong>@grupoPrediccion.Segundo</strong>
+                                            </li>
+                                            <li class="@(terceroClasifica ? "third-selected" : "")">
+                                                <span>3</span>
+                                                <strong>@grupoPrediccion.Tercero</strong>
+                                                @if (terceroClasifica)
+                                                {
+                                                    <em>Mejor tercero</em>
+                                                }
+                                            </li>
+                                        </ol>
+                                    </article>
+                                }
+                            </div>
 
-                        <div class="thirds-summary">
-                            <span>Mejores terceros</span>
-                            <strong>
-                                @(tercerosModal.Any()
-                                    ? string.Join(", ", tercerosModal.Select(g => $"Grupo {g}"))
-                                    : "Sin seleccion")
-                            </strong>
-                        </div>
+                            <div class="thirds-summary">
+                                <span>Mejores terceros</span>
+                                <strong>
+                                    @(tercerosModal.Any()
+                                        ? string.Join(", ", tercerosModal.Select(g => $"Grupo {g}"))
+                                        : "Sin seleccion")
+                                </strong>
+                            </div>
+                        }
                     }
                 </section>
 
                 <section class="points-detail-panel">
                     <div class="detail-title">
-                        <strong>Detalle de puntos</strong>
-                        <span>@usuarioDetalleModal</span>
+                        <div>
+                            <strong>Detalle de puntos</strong>
+                            <span>@usuarioDetalleModal</span>
+                        </div>
+                        <div class="detail-actions">
+                            <button type="button"
+                                    class="points-detail-open"
+                                    @onclick="AbrirPuntuacionesDetalle">
+                                Ver puntuaciones
+                            </button>
+
+                            <button type="button"
+                                    class="podium-detail-open"
+                                    @onclick="AbrirPodioDetalle">
+                                Ver podio
+                            </button>
+
+                            <button type="button"
+                                    class="thirds-detail-toggle"
+                                    disabled="@cargandoClasificacionDetalle"
+                                    @onclick="AbrirDetalleTerceros">
+                                Ver terceros
+                            </button>
+                        </div>
                     </div>
+
+                    <section class="podium-detail-panel podium-main-panel">
+                        <div class="podium-detail-head">
+                            <div>
+                                <strong>Podio guardado</strong>
+                                <span>
+                                    @(podioModal.PodioVisible
+                                        ? "Visible para todos los participantes de la polla."
+                                        : "Oculto hasta que se cierre la edicion del podio.")
+                                </span>
+                            </div>
+                            @if (podioModal.PodioVisible)
+                            {
+                                <span class="points-pill points-red">+@podioModal.PuntosTotal</span>
+                            }
+                            else
+                            {
+                                <span class="points-pill points-red">Oculto</span>
+                            }
+                        </div>
+
+                        @if (!podioModal.PodioVisible && podioModal.OcultoPorPrivacidad)
+                        {
+                            <div class="classification-state warning">
+                                @(string.IsNullOrWhiteSpace(podioModal.MensajePrivacidad)
+                                    ? "El podio de este participante estara visible cuando se cierre la edicion del podio."
+                                    : podioModal.MensajePrivacidad)
+                            </div>
+                        }
+                        else if (!podioModal.TienePrediccion)
+                        {
+                            <div class="classification-state">Este usuario no tiene podio guardado.</div>
+                        }
+                        else
+                        {
+                            <div class="podium-detail-grid">
+                                <article>
+                                    <small>Campeon</small>
+                                    <strong>@podioModal.Campeon</strong>
+                                    <span>
+                                        Real:
+                                        @(podioModal.PodioRealDisponible ? podioModal.CampeonReal : "Pendiente")
+                                    </span>
+                                    @Puntos(podioModal.PuntosCampeon, "points-red")
+                                </article>
+                                <article>
+                                    <small>Subcampeon</small>
+                                    <strong>@podioModal.Subcampeon</strong>
+                                    <span>
+                                        Real:
+                                        @(podioModal.PodioRealDisponible ? podioModal.SubcampeonReal : "Pendiente")
+                                    </span>
+                                    @Puntos(podioModal.PuntosSubcampeon, "points-red")
+                                </article>
+                                <article>
+                                    <small>Tercer puesto</small>
+                                    <strong>@podioModal.Tercero</strong>
+                                    <span>
+                                        Real:
+                                        @(podioModal.PodioRealDisponible ? podioModal.TerceroReal : "Pendiente")
+                                    </span>
+                                    @Puntos(podioModal.PuntosTercero, "points-red")
+                                </article>
+                            </div>
+                        }
+                    </section>
 
                     <div class="detail-filters">
                         <div>
@@ -755,6 +872,410 @@
             </div>
         </div>
     </div>
+
+    @if (tercerosDetalleVisible)
+    {
+        <div class="thirds-modal-backdrop" @onclick="CerrarDetalleTerceros">
+            <div class="thirds-modal" @onclick:stopPropagation="true">
+                <button type="button"
+                        class="points-modal-close"
+                        aria-label="Cerrar"
+                        @onclick="CerrarDetalleTerceros">
+                    x
+                </button>
+
+                <div class="thirds-detail-panel modal-panel">
+                    <div class="thirds-detail-head">
+                        <div>
+                            <strong>Terceros seleccionados y puntos</strong>
+                            <span>@usuarioDetalleModal</span>
+                        </div>
+                        <span class="points-pill points-gold">+@puntosTercerosModal</span>
+                    </div>
+
+                    @if (cargandoClasificacionDetalle)
+                    {
+                        <div class="classification-state">Cargando terceros...</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(errorClasificacionDetalle))
+                    {
+                        <div class="classification-state warning">@errorClasificacionDetalle</div>
+                    }
+                    else if (!tercerosDetalleModal.Any())
+                    {
+                        <div class="classification-state">Este usuario no tiene terceros guardados.</div>
+                    }
+                    else
+                    {
+                        <div class="thirds-detail-summary-grid">
+                            <div>
+                                <small>Selecciono como mejores terceros</small>
+                                <strong>
+                                    @(tercerosModal.Any()
+                                        ? string.Join(", ", tercerosModal.Select(g => $"Grupo {g}"))
+                                        : "Sin seleccion")
+                                </strong>
+                            </div>
+                            <div>
+                                <small>Quedaron como mejores terceros</small>
+                                <strong>
+                                    @(tercerosRealesModal.Any()
+                                        ? string.Join(", ", tercerosRealesModal.Select(g => $"Grupo {g}"))
+                                        : "Pendiente")
+                                </strong>
+                            </div>
+                            <div>
+                                <small>Puntos por terceros</small>
+                                <strong>+@puntosTercerosModal</strong>
+                            </div>
+                        </div>
+
+                        <div class="thirds-detail-table-wrap modal-table">
+                            <table class="thirds-detail-table">
+                                <thead>
+                                    <tr>
+                                        <th>Grupo</th>
+                                        <th>Tercero usuario</th>
+                                        <th>Seleccionado</th>
+                                        <th>Tercero real</th>
+                                        <th>Clasifico real</th>
+                                        <th>Puntos</th>
+                                        <th>Detalle</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var tercero in tercerosDetalleModal)
+                                    {
+                                        <tr class="@(tercero.Puntos > 0 ? "thirds-row-score" : "")">
+                                            <td data-label="Grupo"><strong>Grupo @tercero.Grupo</strong></td>
+                                            <td data-label="Tercero usuario">@tercero.TerceroPredicho</td>
+                                            <td data-label="Seleccionado">
+                                                <span class="thirds-status @(tercero.SeleccionadoComoMejorTercero ? "selected" : "")">
+                                                    @(tercero.SeleccionadoComoMejorTercero ? "Si" : "No")
+                                                </span>
+                                            </td>
+                                            <td data-label="Tercero real">
+                                                @(tercero.ClasificacionRealDisponible
+                                                    ? tercero.TerceroReal
+                                                    : "Pendiente")
+                                            </td>
+                                            <td data-label="Clasifico real">
+                                                <span class="thirds-status @(tercero.GrupoRealClasificoComoMejorTercero ? "selected" : "")">
+                                                    @(tercero.ClasificacionRealDisponible
+                                                        ? (tercero.GrupoRealClasificoComoMejorTercero ? "Si" : "No")
+                                                        : "Pendiente")
+                                                </span>
+                                            </td>
+                                            <td data-label="Puntos">@Puntos(tercero.Puntos, "points-gold")</td>
+                                            <td data-label="Detalle">@tercero.Detalle</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (podioDetalleVisible)
+    {
+        <div class="podium-modal-backdrop" @onclick="CerrarPodioDetalle">
+            <div class="podium-modal" @onclick:stopPropagation="true">
+                <button type="button"
+                        class="points-modal-close"
+                        aria-label="Cerrar"
+                        @onclick="CerrarPodioDetalle">
+                    x
+                </button>
+
+                <section class="podium-detail-panel podium-modal-panel">
+                    <div class="podium-detail-head">
+                        <div>
+                            <strong>Podio guardado</strong>
+                            <span>@usuarioDetalleModal</span>
+                        </div>
+                        @if (podioModal.PodioVisible)
+                        {
+                            <span class="points-pill points-red">+@podioModal.PuntosTotal</span>
+                        }
+                        else
+                        {
+                            <span class="points-pill points-red">Oculto</span>
+                        }
+                    </div>
+
+                    @if (!podioModal.PodioVisible && podioModal.OcultoPorPrivacidad)
+                    {
+                        <div class="classification-state warning">
+                            @(string.IsNullOrWhiteSpace(podioModal.MensajePrivacidad)
+                                ? "El podio de este participante estara visible cuando se cierre la edicion del podio."
+                                : podioModal.MensajePrivacidad)
+                        </div>
+                    }
+                    else if (!podioModal.TienePrediccion)
+                    {
+                        <div class="classification-state">Este usuario no tiene podio guardado.</div>
+                    }
+                    else
+                    {
+                        <div class="podium-detail-grid">
+                            <article>
+                                <small>Campeon</small>
+                                <strong>@podioModal.Campeon</strong>
+                                <span>
+                                    Real:
+                                    @(podioModal.PodioRealDisponible ? podioModal.CampeonReal : "Pendiente")
+                                </span>
+                                @Puntos(podioModal.PuntosCampeon, "points-red")
+                            </article>
+                            <article>
+                                <small>Subcampeon</small>
+                                <strong>@podioModal.Subcampeon</strong>
+                                <span>
+                                    Real:
+                                    @(podioModal.PodioRealDisponible ? podioModal.SubcampeonReal : "Pendiente")
+                                </span>
+                                @Puntos(podioModal.PuntosSubcampeon, "points-red")
+                            </article>
+                            <article>
+                                <small>Tercer puesto</small>
+                                <strong>@podioModal.Tercero</strong>
+                                <span>
+                                    Real:
+                                    @(podioModal.PodioRealDisponible ? podioModal.TerceroReal : "Pendiente")
+                                </span>
+                                @Puntos(podioModal.PuntosTercero, "points-red")
+                            </article>
+                        </div>
+                    }
+                </section>
+            </div>
+        </div>
+    }
+
+    @if (puntuacionesDetalleVisible)
+    {
+        <div class="points-detail-window-backdrop" @onclick="CerrarPuntuacionesDetalle">
+            <div class="points-detail-window" @onclick:stopPropagation="true">
+                <button type="button"
+                        class="points-modal-close"
+                        aria-label="Cerrar"
+                        @onclick="CerrarPuntuacionesDetalle">
+                    x
+                </button>
+
+                <div class="points-detail-window-head">
+                    <div>
+                        <span>Puntuaciones del participante</span>
+                        <h3>@usuarioDetalleModal</h3>
+                    </div>
+                    <div class="detail-head-stats">
+                        <strong>@PuntajeSobrePosibles(ranking.FirstOrDefault(r => r.Usuario == usuarioDetalleModal)?.Puntos ?? 0)</strong>
+                        <em>
+                            <span>Exactos</span>
+                            <b>@exactosUsuarioModal</b>
+                        </em>
+                    </div>
+                </div>
+
+                <div class="points-detail-window-body">
+                    <div class="points-detail-help">
+                        <strong>Detalle completo</strong>
+                        <span>Toca los puntos resaltados para ver la explicacion exacta.</span>
+                    </div>
+
+                    <div class="detail-filters points-detail-window-filters">
+                        <div>
+                            <label>Equipo</label>
+                            <select @bind="detalleEquipoFiltro">
+                                <option value="">Todos</option>
+                                @foreach (var equipo in EquiposDetalleDisponibles(usuarioDetalleModal))
+                                {
+                                    <option value="@equipo">@equipo</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label>Grupo</label>
+                            <select @bind="detalleGrupoFiltro">
+                                <option value="">Todos</option>
+                                @foreach (var grupoFiltro in GruposDetalleDisponibles(usuarioDetalleModal))
+                                {
+                                    <option value="@grupoFiltro">Grupo @grupoFiltro</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label>Fecha</label>
+                            <input type="date" @bind="detalleFechaFiltro" />
+                        </div>
+                        <div>
+                            <label>Resumen por fase</label>
+                            <select @bind="detalleFaseResumenFiltro">
+                                <option value="">Ver partidos</option>
+                                @foreach (var faseFiltro in FasesDetalleDisponibles(usuarioDetalleModal))
+                                {
+                                    <option value="@faseFiltro">@NombreFase(faseFiltro)</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (HayFiltrosDetalle())
+                        {
+                            <button type="button"
+                                    class="clear-detail-filters"
+                                    @onclick="LimpiarFiltrosDetalle">
+                                Limpiar
+                            </button>
+                        }
+                    </div>
+
+                    <div class="points-detail-card-list">
+                        @if (!detallesFiltradosModal.Any())
+                        {
+                            <div class="classification-state">No hay registros con esos filtros.</div>
+                        }
+                        else if (resumenFaseActivoModal)
+                        {
+                            <article class="points-detail-card is-summary">
+                                <div class="points-detail-card-head">
+                                    <div>
+                                        <strong>Resumen de @NombreFase(detalleFaseResumenFiltro!)</strong>
+                                        <span>@detallesFiltradosModal.Count partido(s)</span>
+                                    </div>
+                                    <em>@detallesFiltradosModal.Sum(x => x.Total) puntos</em>
+                                </div>
+
+                                <div class="points-detail-breakdown">
+                                    <div><span>Exacto</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosExacto), "points-green")</div>
+                                    <div><span>Ganador</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosGanador), "points-blue")</div>
+                                    <div><span>Diferencia</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosDiferencia), "points-slate")</div>
+                                    <div><span>Goles</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosGoles), "points-indigo")</div>
+                                    <div><span>Clas.</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosClasificacion), "points-gold")</div>
+                                    <div><span>Extras</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosExtras), "points-dark")</div>
+                                    <div><span>Podio</span>@Puntos(detallesFiltradosModal.Sum(x => x.PuntosPodio), "points-red")</div>
+                                    <div><span>Total</span><strong>@detallesFiltradosModal.Sum(x => x.Total)</strong></div>
+                                </div>
+                            </article>
+                        }
+                        else
+                        {
+                            @foreach (var faseDetalle in detallesFiltradosModal
+                                .GroupBy(x => x.Fase)
+                                .OrderBy(g => OrdenFase(g.Key)))
+                            {
+                                var faseNombre = faseDetalle.Key;
+                                var faseMinimizada = FaseDetalleMinimizada(usuarioDetalleModal, faseNombre);
+
+                                <section class="points-detail-phase">
+                                    <div class="detail-phase-header">
+                                        <div>
+                                            <strong>@faseNombre</strong>
+                                            <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
+                                        </div>
+                                        <button type="button"
+                                                class="detail-phase-btn"
+                                                @onclick="() => ToggleFaseDetalle(usuarioDetalleModal, faseNombre)">
+                                            @(faseMinimizada ? "Mostrar" : "Minimizar")
+                                        </button>
+                                    </div>
+
+                                    @if (!faseMinimizada)
+                                    {
+                                        @foreach (var d in faseDetalle.OrderBy(x => x.Fecha).ThenBy(x => x.Local))
+                                        {
+                                            <article class="points-detail-card"
+                                                     data-track-prediction-view="@(DebeRegistrarVista(d) ? "true" : "false")"
+                                                     data-polla-id="@Sesion.PollaActivaId"
+                                                     data-owner-id="@d.UsuarioId"
+                                                     data-match-id="@d.PartidoId">
+                                                <div class="points-detail-card-head">
+                                                    <div>
+                                                        <strong>@d.Local vs @d.Visitante</strong>
+                                                        <span>@d.Fase</span>
+                                                    </div>
+                                                    <em>@d.Total puntos</em>
+                                                </div>
+
+                                                <div class="points-detail-scoreline">
+                                                    <div>
+                                                        <span>Pronostico</span>
+                                                        @MarcadorPronostico(d)
+                                                    </div>
+                                                    <div>
+                                                        <span>Resultado</span>
+                                                        @Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")
+                                                    </div>
+                                                </div>
+
+                                                <div class="points-detail-breakdown">
+                                                    <div><span>Exacto</span>@Puntos(d.PuntosExacto, "points-green")</div>
+                                                    <div><span>Ganador</span>@Puntos(d.PuntosGanador, "points-blue")</div>
+                                                    <div><span>Dif.</span>@Puntos(d.PuntosDiferencia, "points-slate")</div>
+                                                    <div><span>Goles</span>@Puntos(d.PuntosGoles, "points-indigo")</div>
+                                                    <div>
+                                                        <span>Clas.</span>
+                                                        @if (d.PuntosClasificacion > 0)
+                                                        {
+                                                            <button type="button"
+                                                                    class="points-pill points-button points-gold"
+                                                                    title="Ver detalle"
+                                                                    @onclick='() => AbrirDetallePuntos("Clasificacion", d.PuntosClasificacion, "points-gold", d.DetalleClasificacion, d)'>
+                                                                +@d.PuntosClasificacion
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <strong>0</strong>
+                                                        }
+                                                    </div>
+                                                    <div>
+                                                        <span>Extras</span>
+                                                        @if (d.PuntosExtras > 0)
+                                                        {
+                                                            <button type="button"
+                                                                    class="points-pill points-button points-dark"
+                                                                    title="Ver detalle"
+                                                                    @onclick='() => AbrirDetallePuntos("Extras", d.PuntosExtras, "points-dark", d.DetalleExtras, d)'>
+                                                                +@d.PuntosExtras
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <strong>0</strong>
+                                                        }
+                                                    </div>
+                                                    <div>
+                                                        <span>Podio</span>
+                                                        @if (d.PuntosPodio > 0)
+                                                        {
+                                                            <button type="button"
+                                                                    class="points-pill points-button points-red"
+                                                                    title="Ver detalle"
+                                                                    @onclick='() => AbrirDetallePuntos("Podio", d.PuntosPodio, "points-red", d.DetallePodio, d)'>
+                                                                +@d.PuntosPodio
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <strong>0</strong>
+                                                        }
+                                                    </div>
+                                                    <div><span>Total</span><strong>@d.Total</strong></div>
+                                                </div>
+                                            </article>
+                                        }
+                                    }
+                                </section>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @if (detallePuntosVisible)
@@ -1284,9 +1805,61 @@
 
     .detail-title {
         display: flex;
+        align-items: center;
         justify-content: space-between;
+        gap: .75rem;
         color: var(--muted);
         margin-bottom: .7rem;
+    }
+
+    .detail-title > div {
+        min-width: 0;
+    }
+
+    .detail-title strong,
+    .detail-title span {
+        display: block;
+    }
+
+    .detail-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+    .points-detail-open,
+    .podium-detail-open {
+        min-height: 36px;
+        border: 1px solid #0f766e;
+        border-radius: 6px;
+        background: #e8f7f3;
+        color: #0f4d45;
+        padding: .35rem .8rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .podium-detail-open {
+        border-color: #e3aaaa;
+        background: #fff1f1;
+        color: #8f1f1f;
+    }
+
+    .thirds-detail-toggle {
+        min-height: 36px;
+        border: 1px solid #d7a21a;
+        border-radius: 6px;
+        background: #fff5cf;
+        color: #7a5200;
+        padding: .35rem .8rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .thirds-detail-toggle:disabled {
+        opacity: .6;
     }
 
     .detail-filters {
@@ -1351,6 +1924,504 @@
         font-weight: 700;
     }
 
+    .thirds-detail-panel {
+        margin-bottom: .85rem;
+        border: 1px solid #e5d192;
+        border-radius: 8px;
+        background: #fffdf2;
+        overflow: hidden;
+    }
+
+    .thirds-detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: .7rem .85rem;
+        border-bottom: 1px solid #eadba9;
+        background: #fff8dd;
+    }
+
+    .thirds-detail-head strong,
+    .thirds-detail-head span,
+    .thirds-detail-summary-grid small,
+    .thirds-detail-summary-grid strong {
+        display: block;
+    }
+
+    .thirds-detail-head strong {
+        color: #5f370e;
+        font-weight: 950;
+    }
+
+    .thirds-detail-head span {
+        color: #7a5b12;
+        font-size: .82rem;
+        font-weight: 750;
+    }
+
+    .thirds-detail-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .55rem;
+        padding: .7rem .85rem;
+    }
+
+    .thirds-detail-summary-grid > div {
+        border: 1px solid #eadba9;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: .55rem .65rem;
+    }
+
+    .thirds-detail-summary-grid small {
+        color: var(--muted);
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .thirds-detail-summary-grid strong {
+        margin-top: .12rem;
+        color: #13201c;
+        font-size: .92rem;
+    }
+
+    .thirds-detail-table-wrap {
+        max-height: clamp(260px, 42dvh, 390px);
+        margin: 0 .85rem .85rem;
+        border: 1px solid #eadba9;
+        border-radius: 8px;
+        background: #ffffff;
+        overflow: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .thirds-detail-table {
+        width: 100%;
+        min-width: 920px;
+        border-collapse: collapse;
+    }
+
+    .thirds-detail-table th,
+    .thirds-detail-table td {
+        padding: .55rem .65rem;
+        border-bottom: 1px solid #f0e4bd;
+        vertical-align: top;
+    }
+
+    .thirds-detail-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #fff8dd;
+        color: #6a4a08;
+        font-size: .72rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .thirds-detail-table td {
+        font-size: .84rem;
+        font-weight: 700;
+    }
+
+    .thirds-row-score {
+        background: #f7fff6;
+    }
+
+    .thirds-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 58px;
+        border-radius: 999px;
+        background: #eef2f6;
+        color: #475467;
+        padding: .18rem .45rem;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .thirds-status.selected {
+        background: #fff0be;
+        color: #886103;
+    }
+
+    .podium-detail-panel {
+        margin-bottom: .85rem;
+        border: 1px solid #f0c6c6;
+        border-radius: 8px;
+        background: #fff8f8;
+        overflow: hidden;
+    }
+
+    .podium-detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: .65rem .8rem;
+        border-bottom: 1px solid #f0d4d4;
+        background: #fff1f1;
+    }
+
+    .podium-detail-head strong,
+    .podium-detail-head span,
+    .podium-detail-grid small,
+    .podium-detail-grid strong,
+    .podium-detail-grid span {
+        display: block;
+    }
+
+    .podium-detail-head strong {
+        color: #7f1d1d;
+        font-weight: 950;
+    }
+
+    .podium-detail-head span {
+        color: #8f4b4b;
+        font-size: .82rem;
+        font-weight: 750;
+    }
+
+    .podium-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .55rem;
+        padding: .7rem .8rem;
+    }
+
+    .podium-detail-grid article {
+        min-width: 0;
+        border: 1px solid #f0d4d4;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: .6rem .7rem;
+    }
+
+    .podium-detail-grid small {
+        color: #8f4b4b;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .podium-detail-grid strong {
+        margin-top: .1rem;
+        overflow: hidden;
+        color: #13201c;
+        font-size: .96rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .podium-detail-grid span {
+        margin: .2rem 0 .35rem;
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 750;
+    }
+
+    .thirds-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2100;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: rgba(13, 31, 24, .62);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .thirds-modal {
+        position: relative;
+        width: min(1120px, calc(100vw - 24px));
+        max-height: min(94dvh, 860px);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 26px 80px rgba(9, 31, 23, .34);
+        overflow: hidden;
+    }
+
+    .thirds-detail-panel.modal-panel {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        max-height: min(94dvh, 860px);
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .thirds-detail-table-wrap.modal-table {
+        max-height: none;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .podium-modal-backdrop,
+    .points-detail-window-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 2050;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: rgba(13, 31, 24, .62);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .podium-modal,
+    .points-detail-window {
+        position: relative;
+        width: min(1120px, calc(100vw - 24px));
+        max-height: min(94dvh, 860px);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 26px 80px rgba(9, 31, 23, .34);
+        overflow: hidden;
+    }
+
+    .podium-modal {
+        width: min(860px, calc(100vw - 24px));
+    }
+
+    .podium-modal-panel {
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .points-detail-window {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .points-detail-window-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 3.6rem 1rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: #f8fbfa;
+    }
+
+    .points-detail-window-head span {
+        display: block;
+        color: var(--muted);
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .points-detail-window-head h3 {
+        margin: .1rem 0 0;
+        color: var(--ink);
+        font-size: 1.18rem;
+        font-weight: 900;
+    }
+
+    .points-detail-window-head > strong {
+        border-radius: 6px;
+        background: #10251e;
+        color: #fff;
+        padding: .45rem .7rem;
+        white-space: nowrap;
+    }
+
+    .detail-head-stats {
+        display: flex;
+        align-items: stretch;
+        justify-content: flex-end;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-head-stats > strong,
+    .detail-head-stats em {
+        min-height: 38px;
+        border-radius: 6px;
+        padding: .42rem .7rem;
+        white-space: nowrap;
+    }
+
+    .detail-head-stats > strong {
+        display: grid;
+        place-items: center;
+        background: #10251e;
+        color: #fff;
+    }
+
+    .detail-head-stats em {
+        display: grid;
+        align-content: center;
+        min-width: 78px;
+        border: 1px solid #f0d982;
+        background: #fff7d6;
+        color: #6b5200;
+        font-style: normal;
+        text-align: center;
+    }
+
+    .detail-head-stats em span {
+        color: #7a6200;
+        font-size: .62rem;
+        line-height: 1;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .detail-head-stats em b {
+        color: #16251f;
+        font-size: 1.05rem;
+        line-height: 1.1;
+        font-weight: 950;
+    }
+
+    .points-detail-window-body {
+        display: grid;
+        align-content: start;
+        gap: .85rem;
+        padding: .9rem;
+        overflow: auto;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .points-detail-help {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f8fbfa;
+        padding: .75rem .85rem;
+    }
+
+    .points-detail-help strong,
+    .points-detail-help span {
+        display: block;
+    }
+
+    .points-detail-help strong {
+        color: var(--ink);
+        font-weight: 900;
+    }
+
+    .points-detail-help span {
+        color: var(--muted);
+        font-size: .85rem;
+        font-weight: 700;
+    }
+
+    .points-detail-window-filters {
+        margin: 0;
+    }
+
+    .points-detail-card-list,
+    .points-detail-phase {
+        display: grid;
+        gap: .7rem;
+    }
+
+    .points-detail-phase > .detail-phase-header {
+        border: 1px solid #dbe8e2;
+        border-radius: 8px;
+        background: #edf5f1;
+        padding: .7rem .8rem;
+    }
+
+    .points-detail-card {
+        border: 1px solid #dbe8e2;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, .06);
+        padding: .8rem;
+    }
+
+    .points-detail-card.is-summary {
+        border-color: #b9decd;
+        background: #f8fbfa;
+    }
+
+    .points-detail-card-head,
+    .points-detail-scoreline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .points-detail-card-head strong,
+    .points-detail-card-head span,
+    .points-detail-scoreline span {
+        display: block;
+    }
+
+    .points-detail-card-head strong {
+        color: var(--ink);
+        font-weight: 900;
+    }
+
+    .points-detail-card-head span,
+    .points-detail-scoreline span {
+        color: var(--muted);
+        font-size: .74rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .points-detail-card-head em {
+        border-radius: 999px;
+        background: #e8f7f3;
+        color: #0f4d45;
+        padding: .25rem .55rem;
+        font-style: normal;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .points-detail-scoreline {
+        margin-top: .55rem;
+        border-top: 1px dashed #dbe8e2;
+        padding-top: .55rem;
+    }
+
+    .points-detail-breakdown {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .55rem;
+        margin-top: .7rem;
+    }
+
+    .points-detail-breakdown > div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .45rem;
+        border: 1px solid #edf2f0;
+        border-radius: 8px;
+        background: #fbfdfc;
+        min-width: 0;
+        min-height: 42px;
+        padding: .45rem .55rem;
+    }
+
+    .points-detail-breakdown span {
+        color: var(--muted);
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .points-detail-breakdown strong {
+        color: var(--ink);
+        font-weight: 900;
+    }
+
     .phase-pill,
     .prediction-pill,
     .result-pill,
@@ -1390,9 +2461,27 @@
         white-space: nowrap;
     }
 
+    .prediction-ko-wrap {
+        display: inline-grid;
+        gap: .18rem;
+        justify-items: center;
+        max-width: 170px;
+        vertical-align: top;
+    }
+
+    .prediction-ko-wrap small {
+        color: #7c2d12;
+        font-size: .72rem;
+        font-weight: 850;
+        line-height: 1.15;
+        text-align: center;
+    }
+
     .result-pill {
-        background: #16251f;
-        color: white;
+        border: 1px solid #0f766e;
+        background: #e8f7f3;
+        color: #0f4d45;
+        font-weight: 950;
     }
 
     .points-green { background: #d9f4e8; color: #0d6b43; }
@@ -1423,6 +2512,8 @@
         place-items: center;
         padding: 1rem;
         background: rgba(13, 31, 24, .58);
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     .detail-modal {
@@ -1430,7 +2521,9 @@
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
         width: min(1260px, calc(100vw - 24px));
-        max-height: min(96vh, 980px);
+        height: min(96dvh, 980px);
+        max-height: min(96dvh, 980px);
+        min-height: 0;
         border: 1px solid var(--line);
         border-radius: 8px;
         background: #ffffff;
@@ -1489,13 +2582,19 @@
 
     .detail-modal-body {
         display: grid;
+        align-content: start;
         gap: .8rem;
+        min-height: 0;
         padding: .8rem;
-        overflow: auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
     }
 
     .classification-detail-panel,
     .points-detail-panel {
+        min-width: 0;
         border: 1px solid #dbe8e2;
         border-radius: 8px;
         background: #ffffff;
@@ -1511,11 +2610,18 @@
     }
 
     .points-detail-panel {
+        display: grid;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        min-height: 0;
         padding: 1rem;
     }
 
     .points-detail-panel .detail-scroll {
-        max-height: min(56vh, 620px);
+        max-height: clamp(320px, 52dvh, 560px);
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        -webkit-overflow-scrolling: touch;
     }
 
     .classification-detail-head {
@@ -1543,6 +2649,14 @@
         font-weight: 700;
     }
 
+    .classification-head-actions {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
     .classification-count {
         border-radius: 999px;
         background: #e8f5ee;
@@ -1550,6 +2664,17 @@
         padding: .32rem .65rem;
         font-size: .78rem !important;
         font-weight: 900 !important;
+        white-space: nowrap;
+    }
+
+    .classification-toggle {
+        min-height: 34px;
+        border: 1px solid #bfd4cb;
+        border-radius: 6px;
+        background: #ffffff;
+        color: var(--green);
+        padding: .32rem .7rem;
+        font-weight: 900;
         white-space: nowrap;
     }
 
@@ -1777,7 +2902,9 @@
         }
 
         .detail-modal {
-            max-height: 94vh;
+            width: min(1260px, calc(100vw - 1.1rem));
+            height: calc(100dvh - 1.1rem);
+            max-height: calc(100dvh - 1.1rem);
         }
 
         .detail-modal-head,
@@ -1788,8 +2915,14 @@
         }
 
         .detail-modal-head > strong,
+        .detail-head-stats,
         .thirds-summary strong {
             text-align: left;
+        }
+
+        .detail-head-stats {
+            justify-content: flex-start;
+            width: 100%;
         }
     }
 
@@ -1977,13 +3110,65 @@
             flex-direction: column;
         }
 
-        .detail-filters {
+        .detail-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .points-detail-open,
+        .podium-detail-open,
+        .thirds-detail-toggle {
+            min-height: 46px;
+            width: 100%;
+            font-size: .95rem;
+        }
+
+        .points-detail-panel > .podium-main-panel,
+        .points-detail-panel > .detail-filters,
+        .points-detail-panel > .detail-scroll {
+            display: none !important;
+        }
+
+        .points-detail-window-backdrop,
+        .podium-modal-backdrop {
+            align-items: stretch;
+            padding: .55rem;
+        }
+
+        .points-detail-window,
+        .podium-modal {
+            width: calc(100vw - 1.1rem);
+            max-height: calc(100dvh - 1.1rem);
+        }
+
+        .points-detail-window-head,
+        .points-detail-card-head,
+        .points-detail-scoreline {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .points-detail-window-head > strong {
+            text-align: left;
+        }
+
+        .points-detail-window-head .detail-head-stats {
+            justify-content: flex-start;
+            width: 100%;
+        }
+
+        .points-detail-breakdown {
+            grid-template-columns: 1fr;
+        }
+
+        .points-detail-window-filters {
             padding: .7rem;
         }
 
-        .detail-filters select,
-        .detail-filters input,
-        .clear-detail-filters {
+        .points-detail-window-filters select,
+        .points-detail-window-filters input,
+        .points-detail-window-filters .clear-detail-filters {
             min-height: 42px;
         }
 
@@ -1993,17 +3178,132 @@
         }
 
         .detail-modal-body {
+            min-height: 0;
             padding: .75rem;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .points-detail-panel {
+            display: grid;
+            grid-template-rows: auto auto auto minmax(0, 1fr);
+            min-height: 0;
             padding: .75rem;
             overflow: visible;
         }
 
         .points-detail-panel .detail-scroll {
+            max-height: calc(100dvh - 300px);
+            min-height: 260px;
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .thirds-detail-head {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .thirds-detail-summary-grid {
+            grid-template-columns: 1fr;
+            padding: .7rem;
+        }
+
+        .thirds-detail-table-wrap {
+            max-height: 360px;
+            margin: 0 .7rem .7rem;
+        }
+
+        .thirds-detail-table {
+            min-width: 0;
+        }
+
+        .thirds-detail-table,
+        .thirds-detail-table tbody,
+        .thirds-detail-table tr,
+        .thirds-detail-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .thirds-detail-table thead {
+            display: none;
+        }
+
+        .thirds-detail-table tbody {
+            display: grid;
+            gap: .55rem;
+            padding: .55rem;
+        }
+
+        .thirds-detail-table tr {
+            display: grid;
+            gap: .35rem;
+            border: 1px solid #eadba9;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: .6rem;
+        }
+
+        .thirds-detail-table td {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: .65rem;
+            padding: 0;
+            border: 0;
+            text-align: right;
+        }
+
+        .thirds-detail-table td::before {
+            content: attr(data-label);
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: .72rem;
+            font-weight: 900;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .thirds-modal-backdrop {
+            padding: .55rem;
+        }
+
+        .thirds-modal,
+        .thirds-detail-panel.modal-panel {
+            width: calc(100vw - 1.1rem);
+            max-height: calc(100dvh - 1.1rem);
+        }
+
+        .thirds-detail-table-wrap.modal-table {
             max-height: none;
-            overflow: visible;
+        }
+
+        .classification-head-actions,
+        .podium-detail-head {
+            align-items: flex-start;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .classification-toggle,
+        .classification-head-actions,
+        .classification-count {
+            width: 100%;
+        }
+
+        .classification-count {
+            text-align: center;
+        }
+
+        .podium-detail-grid {
+            grid-template-columns: 1fr;
+            padding: .7rem;
+        }
+
+        .podium-detail-grid strong {
+            white-space: normal;
         }
 
         .classification-groups-grid {
@@ -2106,11 +3406,15 @@
     private string? usuarioDetalleAbierto;
     private bool cargando = true;
     private bool detallePuntosVisible;
+    private bool puntuacionesDetalleVisible;
+    private bool podioDetalleVisible;
     private string detallePuntosTitulo = "";
     private string detallePuntosTexto = "";
     private string detallePuntosContexto = "";
     private string detallePuntosClase = "";
     private int detallePuntosValor;
+    private bool tercerosDetalleVisible;
+    private bool mostrarClasificacionDetalle;
     private HashSet<string> fasesDetalleMinimizadas = new(StringComparer.OrdinalIgnoreCase);
     private string? detalleEquipoFiltro;
     private string? detalleGrupoFiltro;
@@ -2281,6 +3585,11 @@
 
         LimpiarFiltrosDetalle();
         fasesDetalleMinimizadas.Clear();
+        AplicarFasesDetalleMinimizadasIniciales(usuario);
+        tercerosDetalleVisible = false;
+        puntuacionesDetalleVisible = false;
+        podioDetalleVisible = false;
+        mostrarClasificacionDetalle = false;
         usuarioDetalleAbierto = usuario;
         await CargarClasificacionDetalleUsuarioAsync(usuario);
     }
@@ -2291,8 +3600,47 @@
         clasificacionDetalleUsuario = null;
         cargandoClasificacionDetalle = false;
         errorClasificacionDetalle = null;
+        tercerosDetalleVisible = false;
+        puntuacionesDetalleVisible = false;
+        podioDetalleVisible = false;
+        mostrarClasificacionDetalle = false;
         LimpiarFiltrosDetalle();
         fasesDetalleMinimizadas.Clear();
+    }
+
+    private void AbrirDetalleTerceros()
+    {
+        tercerosDetalleVisible = true;
+    }
+
+    private void CerrarDetalleTerceros()
+    {
+        tercerosDetalleVisible = false;
+    }
+
+    private void AbrirPuntuacionesDetalle()
+    {
+        puntuacionesDetalleVisible = true;
+    }
+
+    private void CerrarPuntuacionesDetalle()
+    {
+        puntuacionesDetalleVisible = false;
+    }
+
+    private void AbrirPodioDetalle()
+    {
+        podioDetalleVisible = true;
+    }
+
+    private void CerrarPodioDetalle()
+    {
+        podioDetalleVisible = false;
+    }
+
+    private void ToggleClasificacionDetalle()
+    {
+        mostrarClasificacionDetalle = !mostrarClasificacionDetalle;
     }
 
     private async Task CargarClasificacionDetalleUsuarioAsync(string usuario)
@@ -2467,6 +3815,45 @@
         }
     }
 
+    private void AplicarFasesDetalleMinimizadasIniciales(string usuario)
+    {
+        var fasesUsuario = rankingDetalle
+            .Where(d => string.Equals(
+                d.Usuario,
+                usuario,
+                StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => d.Fase)
+            .OrderBy(g => OrdenFase(g.Key))
+            .ToList();
+
+        if (!fasesUsuario.Any())
+        {
+            return;
+        }
+
+        var faseActiva = fasesUsuario
+            .FirstOrDefault(g => g.Any(d =>
+                !d.ResultadoLocal.HasValue ||
+                !d.ResultadoVisitante.HasValue))
+            ?.Key;
+
+        if (string.IsNullOrWhiteSpace(faseActiva))
+        {
+            faseActiva = fasesUsuario
+                .OrderByDescending(g => OrdenFase(g.Key))
+                .First()
+                .Key;
+        }
+
+        var ordenFaseActiva = OrdenFase(faseActiva);
+        foreach (var fase in fasesUsuario
+            .Select(g => g.Key)
+            .Where(f => OrdenFase(f) < ordenFaseActiva))
+        {
+            fasesDetalleMinimizadas.Add(ClaveFaseDetalle(usuario, fase));
+        }
+    }
+
     private static string ClaveFaseDetalle(string usuario, string fase)
     {
         return $"{usuario}|{fase}";
@@ -2620,7 +4007,37 @@
             return new MarkupString("<span class=\"missing-prediction\">Sin marcador</span>");
         }
 
-        return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
+        var definicion = DefinicionEliminatoriaPronostico(detalle);
+        if (string.IsNullOrWhiteSpace(definicion))
+        {
+            return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
+        }
+
+        var marcador = $"{detalle.PronosticoLocal} - {detalle.PronosticoVisitante}";
+        return new MarkupString(
+            $"<span class=\"prediction-ko-wrap\"><span class=\"prediction-pill\">{marcador}</span><small>{definicion}</small></span>");
+    }
+
+    private static string DefinicionEliminatoriaPronostico(DetalleRankingDto detalle)
+    {
+        if (detalle.Fase == "Grupos" ||
+            !detalle.PronosticoLocal.HasValue ||
+            !detalle.PronosticoVisitante.HasValue ||
+            detalle.PronosticoLocal != detalle.PronosticoVisitante)
+        {
+            return "";
+        }
+
+        var clasificado = string.IsNullOrWhiteSpace(detalle.PrediceClasificado)
+            ? "clasificado no definido"
+            : $"clasifica {System.Net.WebUtility.HtmlEncode(detalle.PrediceClasificado)}";
+        var definicion = detalle.PredicePenales
+            ? "por penales"
+            : detalle.PrediceTiempoExtra
+                ? "en tiempo extra"
+                : "definicion no indicada";
+
+        return $"{clasificado} {definicion}";
     }
 
     private bool PuedeMostrarPronostico(DetalleRankingDto detalle)

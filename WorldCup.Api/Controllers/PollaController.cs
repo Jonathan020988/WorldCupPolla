@@ -698,8 +698,23 @@ namespace WorldCup.Api.Controllers
                 .OrderBy(p => p.Grupo)
                 .ToListAsync();
 
+            var podio = await _context.PrediccionesPodio
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId);
+
+            var final = await _context.Partidos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
+
+            var tercerPuesto = await _context.Partidos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+
             var equipoIds = predicciones
                 .SelectMany(p => new[] { p.PrimeroId, p.SegundoId, p.TerceroId })
+                .Concat(IdsPodio(podio, final, tercerPuesto))
                 .Distinct()
                 .ToList();
 
@@ -724,6 +739,26 @@ namespace WorldCup.Api.Controllers
                 .OrderBy(g => g)
                 .ToListAsync();
 
+            var tablasGrupo = new Dictionary<string, List<TablaPosicionDTO>>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var grupo in PuntajesClasificacionGrupos.GruposMundial)
+            {
+                tablasGrupo[grupo] = await ObtenerTablaGrupo(grupo);
+            }
+
+            var todosGruposTerminados = !await _context.Partidos
+                .AsNoTracking()
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+            var gruposTercerosReales = todosGruposTerminados
+                ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tercerosSeleccionados = terceros.ToHashSet(
+                StringComparer.OrdinalIgnoreCase);
+            var solicitantePuedeVerPodio = await PuedeVerPodioUsuarioAsync(
+                pollaId,
+                usuarioId,
+                solicitanteId!.Value);
+
             return Ok(new ClasificacionUsuarioDetalleDto
             {
                 UsuarioId = usuario.UsuarioId,
@@ -741,8 +776,232 @@ namespace WorldCup.Api.Controllers
                         Bloqueada = p.Bloqueada
                     })
                     .ToList(),
-                MejoresTerceros = terceros
+                MejoresTerceros = terceros,
+                TercerosDetalle = predicciones
+                    .OrderBy(p => p.Grupo)
+                    .Select(p => CrearDetalleTerceroUsuario(
+                        p,
+                        tercerosSeleccionados,
+                        tablasGrupo,
+                        gruposTercerosReales,
+                        todosGruposTerminados,
+                        NombreEquipo(equipos, p.TerceroId)))
+                    .ToList(),
+                Podio = CrearDetallePodioUsuario(
+                    podio,
+                    equipos,
+                    final,
+                    tercerPuesto,
+                    solicitantePuedeVerPodio)
             });
+        }
+
+        private static IEnumerable<int> IdsPodio(
+            PrediccionPodio? podio,
+            Partido? final,
+            Partido? tercerPuesto)
+        {
+            if (podio != null)
+            {
+                yield return podio.CampeonId;
+                yield return podio.SubcampeonId;
+                yield return podio.TerceroId;
+            }
+
+            if (final != null)
+            {
+                yield return final.LocalId;
+                yield return final.VisitanteId;
+            }
+
+            if (tercerPuesto != null)
+            {
+                yield return tercerPuesto.LocalId;
+                yield return tercerPuesto.VisitanteId;
+            }
+        }
+
+        private static PodioClasificacionUsuarioDto CrearDetallePodioUsuario(
+            PrediccionPodio? podio,
+            IReadOnlyDictionary<int, string> equipos,
+            Partido? final,
+            Partido? tercerPuesto,
+            bool visible)
+        {
+            static string NombreEquipo(
+                IReadOnlyDictionary<int, string> equipos,
+                int equipoId)
+            {
+                return equipos.TryGetValue(equipoId, out var nombre)
+                    ? nombre
+                    : $"Equipo {equipoId}";
+            }
+
+            if (podio == null)
+            {
+                return new PodioClasificacionUsuarioDto();
+            }
+
+            if (!visible)
+            {
+                return new PodioClasificacionUsuarioDto
+                {
+                    PodioVisible = false,
+                    OcultoPorPrivacidad = true,
+                    TienePrediccion = true,
+                    MensajePrivacidad =
+                        "El podio de este participante estara visible cuando se cierre la edicion del podio."
+                };
+            }
+
+            var detalle = new PodioClasificacionUsuarioDto
+            {
+                PodioVisible = true,
+                TienePrediccion = true,
+                CampeonId = podio.CampeonId,
+                Campeon = NombreEquipo(equipos, podio.CampeonId),
+                SubcampeonId = podio.SubcampeonId,
+                Subcampeon = NombreEquipo(equipos, podio.SubcampeonId),
+                TerceroId = podio.TerceroId,
+                Tercero = NombreEquipo(equipos, podio.TerceroId),
+                Bloqueada = podio.Bloqueada
+            };
+
+            if (final == null || tercerPuesto == null)
+            {
+                return detalle;
+            }
+
+            var campeonReal = ObtenerGanadorId(final);
+            var subcampeonReal = ObtenerPerdedorId(final);
+            var terceroReal = ObtenerGanadorId(tercerPuesto);
+
+            if (!campeonReal.HasValue ||
+                !subcampeonReal.HasValue ||
+                !terceroReal.HasValue)
+            {
+                return detalle;
+            }
+
+            detalle.PodioRealDisponible = true;
+            detalle.CampeonReal = NombreEquipo(equipos, campeonReal.Value);
+            detalle.SubcampeonReal = NombreEquipo(equipos, subcampeonReal.Value);
+            detalle.TerceroReal = NombreEquipo(equipos, terceroReal.Value);
+            detalle.PuntosCampeon = podio.CampeonId == campeonReal.Value
+                ? PuntajesPodio.Campeon
+                : 0;
+            detalle.PuntosSubcampeon = podio.SubcampeonId == subcampeonReal.Value
+                ? PuntajesPodio.Subcampeon
+                : 0;
+            detalle.PuntosTercero = podio.TerceroId == terceroReal.Value
+                ? PuntajesPodio.Tercero
+                : 0;
+            detalle.PuntosTotal =
+                detalle.PuntosCampeon +
+                detalle.PuntosSubcampeon +
+                detalle.PuntosTercero;
+
+            return detalle;
+        }
+
+        private async Task<bool> PuedeVerPodioUsuarioAsync(
+            int pollaId,
+            int usuarioId,
+            int solicitanteId)
+        {
+            if (usuarioId == solicitanteId)
+                return true;
+
+            if (await _adminAuthorization.EsAdminAsync(solicitanteId))
+                return true;
+
+            var esCreador = await _context.Pollas
+                .AnyAsync(p =>
+                    p.Id == pollaId &&
+                    p.CreadorId == solicitanteId);
+            if (esCreador)
+                return true;
+
+            var cierrePodio = await ObtenerCierrePodioColombiaRecordatorioAsync(pollaId);
+            return ColombiaClock.Now() >= cierrePodio;
+        }
+
+        private static TerceroClasificacionUsuarioDto CrearDetalleTerceroUsuario(
+            PrediccionGrupo prediccion,
+            ISet<string> tercerosSeleccionados,
+            IReadOnlyDictionary<string, List<TablaPosicionDTO>> tablasGrupo,
+            ISet<string> gruposTercerosReales,
+            bool clasificacionRealDisponible,
+            string terceroPredicho)
+        {
+            var grupo = prediccion.Grupo.ToUpperInvariant();
+            var seleccionado = tercerosSeleccionados.Contains(grupo);
+            var tieneTabla = tablasGrupo.TryGetValue(grupo, out var tabla) &&
+                tabla.Count >= 3;
+            var realDisponible = clasificacionRealDisponible && tieneTabla;
+            var terceroReal = realDisponible ? tabla![2] : null;
+            var grupoRealClasifico = realDisponible &&
+                gruposTercerosReales.Contains(grupo);
+            var puntos = 0;
+            var detalle = "";
+
+            if (!realDisponible || terceroReal == null)
+            {
+                detalle = "Pendiente: los terceros reales se muestran cuando finaliza toda la fase de grupos.";
+            }
+            else if (!seleccionado)
+            {
+                detalle = "No selecciono este grupo como mejor tercero; no suma puntos por el tercero de este grupo.";
+            }
+            else
+            {
+                var clasificados = new HashSet<int>
+                {
+                    tabla![0].EquipoId,
+                    tabla[1].EquipoId
+                };
+
+                if (grupoRealClasifico)
+                {
+                    clasificados.Add(terceroReal.EquipoId);
+                }
+
+                if (grupoRealClasifico &&
+                    prediccion.TerceroId == terceroReal.EquipoId)
+                {
+                    puntos = 5;
+                    detalle = $"+5: {terceroPredicho} quedo tercero y el grupo {grupo} clasifico como mejor tercero.";
+                }
+                else if (clasificados.Contains(prediccion.TerceroId))
+                {
+                    var posicionReal = tabla.FindIndex(t =>
+                        t.EquipoId == prediccion.TerceroId) + 1;
+                    puntos = 3;
+                    detalle = $"+3: {terceroPredicho} clasifico, aunque quedo en la posicion {posicionReal}.";
+                }
+                else if (!grupoRealClasifico)
+                {
+                    detalle = $"El grupo {grupo} no quedo entre los 8 mejores terceros y {terceroPredicho} no clasifico por otra posicion.";
+                }
+                else
+                {
+                    detalle = $"{terceroPredicho} no fue el tercero real clasificado ni clasifico por otra posicion.";
+                }
+            }
+
+            return new TerceroClasificacionUsuarioDto
+            {
+                Grupo = grupo,
+                TerceroPredichoId = prediccion.TerceroId,
+                TerceroPredicho = terceroPredicho,
+                SeleccionadoComoMejorTercero = seleccionado,
+                TerceroRealId = terceroReal?.EquipoId,
+                TerceroReal = terceroReal?.Equipo ?? "",
+                GrupoRealClasificoComoMejorTercero = grupoRealClasifico,
+                ClasificacionRealDisponible = realDisponible,
+                Puntos = puntos,
+                Detalle = detalle
+            };
         }
 
         private async Task<List<DetalleRankingDto>> ObtenerDetalleRanking(
@@ -963,6 +1222,14 @@ namespace WorldCup.Api.Controllers
                 PronosticoLocal = pronosticoVisible ? prediccion.GolesLocal : null,
                 PronosticoVisitante = pronosticoVisible ? prediccion.GolesVisitante : null,
                 PronosticoVisible = pronosticoVisible,
+                PrediceClasificadoId = pronosticoVisible ? prediccion.PrediceClasificadoId : null,
+                PrediceClasificado = pronosticoVisible
+                    ? NombreEquipoPartido(
+                        prediccion.PrediceClasificadoId,
+                        prediccion.Partido)
+                    : "",
+                PrediceTiempoExtra = pronosticoVisible && prediccion.PrediceTiempoExtra,
+                PredicePenales = pronosticoVisible && prediccion.PredicePenales,
                 ResultadoLocal = prediccion.Partido.GolesLocal,
                 ResultadoVisitante = prediccion.Partido.GolesVisitante,
                 PuntosMarcador = puntosMarcador.Total,
@@ -1122,6 +1389,20 @@ namespace WorldCup.Api.Controllers
             };
 
             return equipos.FirstOrDefault(e => e.Id == equipoId)?.Nombre ?? $"Equipo {equipoId}";
+        }
+
+        private static string NombreEquipoPartido(int? equipoId, Partido partido)
+        {
+            if (!equipoId.HasValue)
+                return "";
+
+            if (equipoId.Value == partido.LocalId)
+                return partido.Local.Nombre;
+
+            if (equipoId.Value == partido.VisitanteId)
+                return partido.Visitante.Nombre;
+
+            return $"Equipo {equipoId.Value}";
         }
 
         private async Task<bool> PuedeVerDetalleCompletoPollaAsync(
@@ -1699,6 +1980,276 @@ namespace WorldCup.Api.Controllers
                 TotalEnviados = pendientes.Count,
                 CorreosEnviados = correosEnviados,
                 CorreosFallidos = correosFallidos
+            });
+        }
+
+        // ================= RECORDATORIOS DE PODIO =================
+        [HttpGet("{pollaId:int}/recordatorios/podio")]
+        public async Task<IActionResult> GetPodioParaRecordatorio(
+            int pollaId,
+            [FromQuery] int solicitanteId)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            return Ok(await ConstruirRecordatorioPodioAsync(pollaId));
+        }
+
+        [HttpPost("{pollaId:int}/recordatorios/podio/usuarios/{usuarioId:int}")]
+        public async Task<IActionResult> EnviarRecordatorioPodio(
+            int pollaId,
+            int usuarioId,
+            [FromBody] EnviarRecordatorioPollaDto dto)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, dto.SolicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var estado = await ConstruirRecordatorioPodioAsync(pollaId);
+            var pendiente = estado.UsuariosPendientes
+                .FirstOrDefault(u => u.UsuarioId == usuarioId);
+
+            if (pendiente == null)
+                return BadRequest("El usuario ya tiene podio guardado o no pertenece a esta polla.");
+
+            if (!pendiente.PuedeResponder)
+                return BadRequest("El podio no está abierto para este usuario. No se puede enviar el recordatorio.");
+
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            var usuario = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre,
+                    pm.Usuario.Email
+                })
+                .FirstOrDefaultAsync();
+
+            if (polla == null || usuario == null)
+                return NotFound("No encontramos la polla o el usuario.");
+
+            await CrearOActualizarRecordatorioPodioAsync(
+                polla,
+                usuario.UsuarioId,
+                dto.SolicitanteId,
+                estado.CierreColombia);
+            await _context.SaveChangesAsync();
+
+            var correoEnviado = await EnviarCorreoRecordatorioPodioAsync(
+                usuario.Email,
+                usuario.Nombre,
+                polla,
+                estado.CierreColombia);
+
+            return Ok(new ResultadoRecordatorioPollaDto
+            {
+                Mensaje = correoEnviado
+                    ? $"Recordatorio de podio y correo enviados a {usuario.Nombre}."
+                    : $"Recordatorio de podio enviado a {usuario.Nombre}. No se pudo enviar el correo; revisa los logs SMTP.",
+                TotalEnviados = 1,
+                CorreosEnviados = correoEnviado ? 1 : 0,
+                CorreosFallidos = correoEnviado ? 0 : 1
+            });
+        }
+
+        [HttpPost("{pollaId:int}/recordatorios/podio/enviar-todos")]
+        public async Task<IActionResult> EnviarRecordatorioPodioATodos(
+            int pollaId,
+            [FromBody] EnviarRecordatorioPollaDto dto)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, dto.SolicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var estado = await ConstruirRecordatorioPodioAsync(pollaId);
+            var pendientesIds = estado.UsuariosPendientes
+                .Where(u => u.PuedeResponder)
+                .Select(u => u.UsuarioId)
+                .ToList();
+
+            var polla = await _context.Pollas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == pollaId);
+
+            if (polla == null)
+                return NotFound("La polla no existe.");
+
+            var usuarios = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pendientesIds.Contains(pm.UsuarioId) &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre,
+                    pm.Usuario.Email
+                })
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var usuario in usuarios)
+            {
+                await CrearOActualizarRecordatorioPodioAsync(
+                    polla,
+                    usuario.UsuarioId,
+                    dto.SolicitanteId,
+                    estado.CierreColombia);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var correosEnviados = 0;
+            var correosFallidos = 0;
+            foreach (var usuario in usuarios)
+            {
+                if (await EnviarCorreoRecordatorioPodioAsync(
+                    usuario.Email,
+                    usuario.Nombre,
+                    polla,
+                    estado.CierreColombia))
+                {
+                    correosEnviados++;
+                }
+                else
+                {
+                    correosFallidos++;
+                }
+            }
+
+            return Ok(new ResultadoRecordatorioPollaDto
+            {
+                Mensaje = usuarios.Count == 0
+                    ? "No hay participantes con podio pendiente y habilitado para responder."
+                    : $"Se enviaron {usuarios.Count} recordatorios de podio. Correos enviados: {correosEnviados}. Fallidos: {correosFallidos}.",
+                TotalEnviados = usuarios.Count,
+                CorreosEnviados = correosEnviados,
+                CorreosFallidos = correosFallidos
+            });
+        }
+
+        [HttpGet("{pollaId:int}/podio/equipos")]
+        public async Task<IActionResult> GetEquiposPodioPolla(
+            int pollaId,
+            [FromQuery] int solicitanteId)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var equiposDisponiblesIds = await ObtenerEquiposPodioDisponiblesIdsAsync();
+            var equiposQuery = _context.Equipos.AsNoTracking();
+
+            if (equiposDisponiblesIds.Any())
+            {
+                equiposQuery = equiposQuery.Where(e => equiposDisponiblesIds.Contains(e.Id));
+            }
+
+            var equipos = await equiposQuery
+                .OrderBy(e => e.Nombre)
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre
+                })
+                .ToListAsync();
+
+            return Ok(equipos);
+        }
+
+        [HttpPut("{pollaId:int}/participantes/{usuarioId:int}/podio")]
+        public async Task<IActionResult> GuardarPodioParticipante(
+            int pollaId,
+            int usuarioId,
+            [FromBody] PollaGuardarPodioParticipanteDTO dto)
+        {
+            var acceso = await ValidarCreadorPollaAsync(pollaId, dto.SolicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            var participante = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.UsuarioId == usuarioId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (participante == null)
+                return NotFound("El usuario no pertenece a esta polla o no esta activo.");
+
+            var equiposSeleccionadosIds = new[]
+            {
+                dto.CampeonId,
+                dto.SubcampeonId,
+                dto.TerceroId
+            };
+
+            if (equiposSeleccionadosIds.Any(id => id <= 0))
+                return BadRequest("Debes seleccionar campeon, subcampeon y tercer puesto.");
+
+            if (equiposSeleccionadosIds.Distinct().Count() != 3)
+                return BadRequest("El campeon, subcampeon y tercer puesto deben ser equipos diferentes.");
+
+            var equiposSeleccionados = await _context.Equipos
+                .Where(e => equiposSeleccionadosIds.Contains(e.Id))
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre
+                })
+                .ToListAsync();
+
+            if (equiposSeleccionados.Count != 3)
+                return BadRequest("Uno de los equipos seleccionados no existe.");
+
+            var equiposDisponiblesIds = await ObtenerEquiposPodioDisponiblesIdsAsync();
+            if (equiposDisponiblesIds.Any() &&
+                equiposSeleccionadosIds.Any(id => !equiposDisponiblesIds.Contains(id)))
+            {
+                return BadRequest("El podio solo puede guardarse con equipos disponibles en fases eliminatorias.");
+            }
+
+            var podio = await _context.PrediccionesPodio
+                .FirstOrDefaultAsync(p =>
+                    p.PollaId == pollaId &&
+                    p.UsuarioId == usuarioId);
+
+            if (podio == null)
+            {
+                podio = new PrediccionPodio
+                {
+                    PollaId = pollaId,
+                    UsuarioId = usuarioId
+                };
+                _context.PrediccionesPodio.Add(podio);
+            }
+
+            podio.CampeonId = dto.CampeonId;
+            podio.SubcampeonId = dto.SubcampeonId;
+            podio.TerceroId = dto.TerceroId;
+            podio.Bloqueada = false;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = $"Podio guardado para {participante.Nombre}."
             });
         }
 
@@ -2963,6 +3514,20 @@ namespace WorldCup.Api.Controllers
                     "Solo el creador puede administrar esta polla.");
         }
 
+        private async Task<HashSet<int>> ObtenerEquiposPodioDisponiblesIdsAsync()
+        {
+            var partidosEliminatoria = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Fase != "Grupos")
+                .Select(p => new { p.LocalId, p.VisitanteId })
+                .ToListAsync();
+
+            return partidosEliminatoria
+                .SelectMany(p => new[] { p.LocalId, p.VisitanteId })
+                .Distinct()
+                .ToHashSet();
+        }
+
         private async Task<ValidacionRecordatorio> ValidarDestinatarioRecordatorioAsync(
             int pollaId,
             int partidoId,
@@ -3045,6 +3610,110 @@ namespace WorldCup.Api.Controllers
             };
         }
 
+        private async Task<PollaRecordatorioPodioDto> ConstruirRecordatorioPodioAsync(
+            int pollaId)
+        {
+            var usuarios = await _context.PollaMiembros
+                .AsNoTracking()
+                .Where(pm =>
+                    pm.PollaId == pollaId &&
+                    pm.Usuario.Activo)
+                .Select(pm => new
+                {
+                    pm.UsuarioId,
+                    pm.Usuario.Nombre
+                })
+                .Distinct()
+                .OrderBy(u => u.Nombre)
+                .ToListAsync();
+
+            var usuariosIds = usuarios
+                .Select(u => u.UsuarioId)
+                .ToList();
+
+            var usuariosConPodio = await _context.PrediccionesPodio
+                .AsNoTracking()
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    usuariosIds.Contains(p.UsuarioId))
+                .Select(p => p.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var alertados = await _context.AlertasUsuario
+                .AsNoTracking()
+                .Where(a =>
+                    a.PollaId == pollaId &&
+                    a.TipoDestino == "Podio" &&
+                    a.Estado == "Pendiente")
+                .Select(a => a.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var reaperturasPodio = await _context.AdminReaperturasPrediccion
+                .AsNoTracking()
+                .Where(r =>
+                    r.PollaId == pollaId &&
+                    r.Fase == "Podio" &&
+                    r.Tipo == "Podio" &&
+                    r.Activa)
+                .Select(r => r.UsuarioId)
+                .Distinct()
+                .ToListAsync();
+
+            var gruposTerminados = await GruposTerminadosRecordatorioPodioAsync();
+            var cierrePodio = await ObtenerCierrePodioColombiaRecordatorioAsync(pollaId);
+            var podioAbierto = gruposTerminados && ColombiaClock.Now() < cierrePodio;
+
+            var mensajeCerrado = gruposTerminados
+                ? "El podio ya está cerrado para este usuario."
+                : "El podio aún no está habilitado.";
+
+            var usuariosPendientes = usuarios
+                .Where(u => !usuariosConPodio.Contains(u.UsuarioId))
+                .Select(u =>
+                {
+                    var tieneReapertura = reaperturasPodio.Contains(u.UsuarioId);
+                    var puedeResponder = podioAbierto || tieneReapertura;
+
+                    return new PollaRecordatorioUsuarioDto
+                    {
+                        UsuarioId = u.UsuarioId,
+                        Usuario = u.Nombre,
+                        AlertaPendiente = alertados.Contains(u.UsuarioId),
+                        PuedeResponder = puedeResponder,
+                        Motivo = puedeResponder
+                            ? (podioAbierto
+                                ? "Podio abierto"
+                                : "Reapertura activa")
+                            : mensajeCerrado
+                    };
+                })
+                .ToList();
+
+            var mensajeEstado = !gruposTerminados
+                ? "El podio todavía no está habilitado porque faltan partidos de grupos por finalizar."
+                : podioAbierto
+                    ? $"El podio está abierto hasta el {cierrePodio:dd/MM/yyyy HH:mm}."
+                    : reaperturasPodio.Any()
+                        ? "El podio general ya cerró; solo se puede avisar a usuarios con reapertura activa."
+                        : "El podio ya cerró. Puedes ver quiénes faltaron, pero no enviar recordatorios porque no podrán responder.";
+
+            return new PollaRecordatorioPodioDto
+            {
+                GruposTerminados = gruposTerminados,
+                PodioAbierto = podioAbierto,
+                CierreColombia = cierrePodio,
+                TotalParticipantes = usuarios.Count,
+                TotalConPodio = usuariosConPodio.Count,
+                TotalPendientes = usuariosPendientes.Count,
+                TotalDisponiblesParaRecordatorio =
+                    usuariosPendientes.Count(u => u.PuedeResponder),
+                MensajeEstado = mensajeEstado,
+                UsuariosPendientes = usuariosPendientes
+            };
+        }
+
         private async Task CrearOActualizarRecordatorioAsync(
             Polla polla,
             Partido partido,
@@ -3085,6 +3754,49 @@ namespace WorldCup.Api.Controllers
             alerta.FechaCierre = null;
         }
 
+        private async Task CrearOActualizarRecordatorioPodioAsync(
+            Polla polla,
+            int usuarioId,
+            int creadorId,
+            DateTime cierrePodio)
+        {
+            const string tipoDestino = "Podio";
+            var alerta = await _context.AlertasUsuario
+                .FirstOrDefaultAsync(a =>
+                    a.UsuarioId == usuarioId &&
+                    a.PollaId == polla.Id &&
+                    a.TipoDestino == tipoDestino &&
+                    a.Estado == "Pendiente");
+
+            if (alerta == null)
+            {
+                alerta = new AlertaUsuario
+                {
+                    UsuarioId = usuarioId,
+                    PollaId = polla.Id,
+                    TipoDestino = tipoDestino
+                };
+                _context.AlertasUsuario.Add(alerta);
+            }
+
+            var cierreTexto = ColombiaClock.Now() < cierrePodio
+                ? $"Puedes hacerlo hasta el {cierrePodio:dd/MM/yyyy} a las {cierrePodio:HH:mm}."
+                : "Tienes una reapertura activa para completarlo.";
+
+            alerta.AdminUsuarioId = creadorId;
+            alerta.Titulo = "Tienes el podio pendiente";
+            alerta.Mensaje =
+                $"El administrador de {polla.Nombre} te recuerda escoger " +
+                "campeón, subcampeón y tercer puesto. " +
+                cierreTexto;
+            alerta.Link = "/predicciones";
+            alerta.EtiquetaAccion = "Ir a predicciones";
+            alerta.Estado = "Pendiente";
+            alerta.FechaCreacion = DateTime.UtcNow;
+            alerta.FechaVista = null;
+            alerta.FechaCierre = null;
+        }
+
         private async Task<bool> EnviarCorreoRecordatorioAsync(
             string email,
             string nombre,
@@ -3115,6 +3827,93 @@ namespace WorldCup.Api.Controllers
                     email);
                 return false;
             }
+        }
+
+        private async Task<bool> EnviarCorreoRecordatorioPodioAsync(
+            string email,
+            string nombre,
+            Polla polla,
+            DateTime cierrePodio)
+        {
+            try
+            {
+                var cierreTexto = ColombiaClock.Now() < cierrePodio
+                    ? $"Puedes hacerlo hasta el {cierrePodio:dd/MM/yyyy} a las {cierrePodio:HH:mm}."
+                    : "Tienes una reapertura activa para completarlo.";
+
+                await _emailService.EnviarNotificacionPlataformaAsync(
+                    email,
+                    nombre,
+                    "Tienes el podio pendiente",
+                    $"El administrador de {polla.Nombre} te recuerda escoger campeón, subcampeón y tercer puesto. {cierreTexto}",
+                    $"Polla: {polla.Nombre}",
+                    "Ir a predicciones",
+                    "/predicciones",
+                    "recordatorio-podio");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo enviar correo de recordatorio de podio al correo {Email}",
+                    email);
+                return false;
+            }
+        }
+
+        private async Task<bool> GruposTerminadosRecordatorioPodioAsync()
+        {
+            return !await _context.Partidos
+                .AsNoTracking()
+                .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
+        }
+
+        private async Task<DateTime> ObtenerCierrePodioColombiaRecordatorioAsync(int? pollaId = null)
+        {
+            var fechaLunesPodio = new DateTime(2026, 6, 29);
+
+            var fechas = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Fase == "Dieciseisavos")
+                .Select(p => p.Fecha)
+                .ToListAsync();
+
+            var primerPartidoLunes = fechas
+                .Select(ColombiaClock.ToColombia)
+                .Where(f => f.Date == fechaLunesPodio)
+                .OrderBy(f => f)
+                .FirstOrDefault();
+
+            var cierreBase = primerPartidoLunes > DateTime.MinValue
+                ? primerPartidoLunes.AddHours(-1)
+                : new DateTime(2026, 6, 29, 11, 0, 0);
+
+            if (pollaId.HasValue &&
+                await EsPollaMundial2026Async(pollaId.Value))
+            {
+                var cierreExtendido = new DateTime(2026, 6, 29, 12, 0, 0);
+                return cierreExtendido > cierreBase
+                    ? cierreExtendido
+                    : cierreBase;
+            }
+
+            return cierreBase;
+        }
+
+        private async Task<bool> EsPollaMundial2026Async(int pollaId)
+        {
+            var nombre = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => p.Id == pollaId)
+                .Select(p => p.Nombre)
+                .FirstOrDefaultAsync();
+
+            return string.Equals(
+                (nombre ?? "").Trim(),
+                "Mundial 2026",
+                StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<bool> EnviarCorreoPagoPendienteAsync(

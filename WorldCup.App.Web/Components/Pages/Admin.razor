@@ -101,7 +101,7 @@ else
         <div class="card-body">
             @if (!string.IsNullOrWhiteSpace(notificacionGlobalMensajeResultado))
             {
-                <div class="alert @(notificacionGlobalError ? "alert-danger" : "alert-success")">
+                <div class="alert @ClaseAlertaComunicado">
                     @notificacionGlobalMensajeResultado
                 </div>
             }
@@ -167,6 +167,80 @@ else
                     @(enviandoNotificacionGlobal ? "Enviando..." : "Enviar comunicado")
                 </button>
             </div>
+
+            @if (notificacionGlobalResultado?.Entregas.Any() == true)
+            {
+                <div class="notification-delivery-report mt-3">
+                    <div class="delivery-report-head">
+                        <div>
+                            <strong>Reporte de entrega</strong>
+                            <small>
+                                Notificaciones: @notificacionGlobalResultado.UsuariosNotificados / @notificacionGlobalResultado.UsuariosObjetivo.
+                                Correos enviados: @notificacionGlobalResultado.CorreosEnviados.
+                                Fallidos: @notificacionGlobalResultado.CorreosFallidos.
+                            </small>
+                        </div>
+
+                        @if (notificacionGlobalResultado.CorreosFallidos > 0)
+                        {
+                            <span class="badge bg-warning text-dark">Revisar fallidos</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Completo</span>
+                        }
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle delivery-report-table">
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Email</th>
+                                    <th>Notificacion</th>
+                                    <th>Correo</th>
+                                    <th>Detalle</th>
+                                    <th>Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entrega in EntregasComunicadoOrdenadas)
+                                {
+                                    <tr class="@(!entrega.CorreoEnviado ? "table-warning" : "")">
+                                        <td>@entrega.UsuarioNombre</td>
+                                        <td>@entrega.UsuarioEmail</td>
+                                        <td>
+                                            <span class="badge @(entrega.NotificacionGuardada ? "bg-success" : "bg-danger")">
+                                                @(entrega.NotificacionGuardada ? "Guardada" : "Fallida")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(entrega.CorreoEnviado ? "bg-success" : "bg-danger")">
+                                                @(entrega.CorreoEnviado ? "Enviado" : "Fallido")
+                                            </span>
+                                        </td>
+                                        <td>@entrega.Detalle</td>
+                                        <td>
+                                            @if (!entrega.CorreoEnviado)
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-outline-primary btn-sm"
+                                                        @onclick="() => PrepararReenvioComunicado(entrega)">
+                                                    Preparar individual
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 
@@ -528,12 +602,18 @@ else
                                 @(crucesFase.YaGenerada ? "Publicada" : "Pendiente de publicar")
                             </span>
                             <span class="text-muted ms-2">@crucesFase.Mensaje</span>
+                            @if (!crucesFase.YaGenerada && crucesFase.Cruces.Any())
+                            {
+                                <span class="badge bg-light text-dark ms-2">
+                                    @CrucesSeleccionadosParaPublicar().Count seleccionados
+                                </span>
+                            }
                         </div>
                         <button type="button"
                                 class="btn btn-primary"
-                                disabled="@(!crucesFase.PuedePublicar || publicandoCruces || CrucesConEquiposRepetidos())"
+                                disabled="@(!crucesFase.PuedePublicar || publicandoCruces || CrucesConEquiposRepetidos() || !CrucesSeleccionadosParaPublicar().Any())"
                                 @onclick="PublicarCrucesFase">
-                            @(publicandoCruces ? "Publicando..." : "Publicar cruces disponibles")
+                            @(publicandoCruces ? "Publicando..." : "Publicar seleccionados")
                         </button>
                     </div>
 
@@ -556,6 +636,7 @@ else
                             <table class="table table-sm align-middle bracket-review-table mb-0">
                                 <thead>
                                     <tr>
+                                        <th>Publicar</th>
                                         <th>#</th>
                                         <th>Fase</th>
                                         <th>Fecha Colombia</th>
@@ -567,20 +648,29 @@ else
                                     @foreach (var cruce in crucesFase.Cruces.OrderBy(c => c.NumeroPartido))
                                     {
                                         <tr class="@(CruceTieneEquipoRepetido(cruce) ? "table-warning" : "")">
+                                            <td>
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@cruce.SeleccionadoParaPublicar"
+                                                       disabled="@(crucesFase.YaGenerada || !CruceCompleto(cruce))"
+                                                       title="Publicar este cruce"
+                                                       @onchange="e => CambiarSeleccionCruce(cruce, e)" />
+                                            </td>
                                             <td class="fw-bold">@cruce.NumeroPartido</td>
                                             <td>@NombreFase(cruce.Fase)</td>
                                             <td>
                                                 <input type="datetime-local"
-                                                       class="form-control form-control-sm bracket-date-input"
+                                                       class="form-control form-control-sm bracket-date-input @(cruce.FechaValida ? "" : "is-invalid")"
                                                        disabled="@crucesFase.YaGenerada"
-                                                       @bind="cruce.Fecha"
-                                                       @bind:format="yyyy-MM-ddTHH:mm" />
+                                                       value="@cruce.FechaEdicion"
+                                                       @onchange="e => CambiarFechaCruce(cruce, e)" />
                                             </td>
                                             <td class="bracket-team-cell">
                                                 <select class="form-select form-select-sm"
                                                         value="@cruce.LocalId"
                                                         disabled="@crucesFase.YaGenerada"
                                                         @onchange="e => CambiarEquipoCruce(cruce, true, e)">
+                                                    <option value="0">Selecciona equipo</option>
                                                     @foreach (var equipo in crucesFase.EquiposDisponibles)
                                                     {
                                                         <option value="@equipo.Id">@EtiquetaEquipoCruce(equipo)</option>
@@ -593,6 +683,7 @@ else
                                                         value="@cruce.VisitanteId"
                                                         disabled="@crucesFase.YaGenerada"
                                                         @onchange="e => CambiarEquipoCruce(cruce, false, e)">
+                                                    <option value="0">Selecciona equipo</option>
                                                     @foreach (var equipo in crucesFase.EquiposDisponibles)
                                                     {
                                                         <option value="@equipo.Id">@EtiquetaEquipoCruce(equipo)</option>
@@ -664,16 +755,16 @@ else
                                     <td class="fw-semibold">@partido.Local vs @partido.Visitante</td>
                                     <td>
                                         <input type="datetime-local"
-                                               class="form-control form-control-sm calendario-fecha"
-                                               @bind="partido.Fecha"
-                                               @bind:format="yyyy-MM-ddTHH:mm" />
+                                               class="form-control form-control-sm calendario-fecha @(partido.FechaValida ? "" : "is-invalid")"
+                                               value="@partido.FechaEdicion"
+                                               @onchange="e => CambiarFechaPartido(partido, e)" />
                                     </td>
                                     <td>
                                         <span class="badge bg-light text-dark">@partido.Estado</span>
                                     </td>
                                     <td class="text-end">
                                         <button class="btn btn-sm btn-primary"
-                                                disabled="@(procesandoPartidoFecha == partido.Id)"
+                                                disabled="@(procesandoPartidoFecha == partido.Id || !partido.FechaValida)"
                                                 @onclick="() => GuardarFechaPartido(partido)">
                                             Guardar fecha
                                         </button>
@@ -1302,6 +1393,60 @@ else
                         {
                             <small class="text-muted">Sin podio guardado.</small>
                         }
+
+                        <div class="admin-podium-editor mt-3">
+                            <label>
+                                Campeon
+                                <select class="form-select form-select-sm" @bind="podioUsuarioAdminForm.CampeonId">
+                                    <option value="0">Selecciona campeon</option>
+                                    @foreach (var equipo in equiposPodioAdmin)
+                                    {
+                                        <option value="@equipo.Id" disabled="@EquipoPodioUsadoEnOtroCampo(equipo.Id, 1)">
+                                            @equipo.Nombre
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+
+                            <label>
+                                Subcampeon
+                                <select class="form-select form-select-sm" @bind="podioUsuarioAdminForm.SubcampeonId">
+                                    <option value="0">Selecciona subcampeon</option>
+                                    @foreach (var equipo in equiposPodioAdmin)
+                                    {
+                                        <option value="@equipo.Id" disabled="@EquipoPodioUsadoEnOtroCampo(equipo.Id, 2)">
+                                            @equipo.Nombre
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+
+                            <label>
+                                Tercer puesto
+                                <select class="form-select form-select-sm" @bind="podioUsuarioAdminForm.TerceroId">
+                                    <option value="0">Selecciona tercero</option>
+                                    @foreach (var equipo in equiposPodioAdmin)
+                                    {
+                                        <option value="@equipo.Id" disabled="@EquipoPodioUsadoEnOtroCampo(equipo.Id, 3)">
+                                            @equipo.Nombre
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+
+                            <button class="btn btn-sm btn-primary"
+                                    disabled="@(guardandoPodioUsuario || !PodioUsuarioAdminCompleto)"
+                                    @onclick="GuardarPodioUsuarioAdmin">
+                                @(guardandoPodioUsuario ? "Guardando..." : "Guardar podio del usuario")
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(mensajePodioUsuarioAdmin))
+                        {
+                            <div class="alert mt-2 py-2 @(errorPodioUsuarioAdmin ? "alert-danger" : "alert-success")">
+                                @mensajePodioUsuarioAdmin
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -1341,6 +1486,12 @@ else
                                             Crear marcador
                                         </button>
                                     </div>
+                                    @if (DebeDefinirEliminatoriaAdmin(prediccion))
+                                    {
+                                        <div class="admin-ko-definition">
+                                            @ControlesDefinicionEliminatoriaAdmin(prediccion)
+                                        </div>
+                                    }
                                 </div>
                             }
                         </div>
@@ -1381,6 +1532,12 @@ else
                                            type="number"
                                            min="0"
                                            @bind="prediccion.GolesVisitante" />
+                                    @if (DebeDefinirEliminatoriaAdmin(prediccion))
+                                    {
+                                        <div class="admin-ko-definition mt-2">
+                                            @ControlesDefinicionEliminatoriaAdmin(prediccion)
+                                        </div>
+                                    }
                                 </td>
                                 <td>@prediccion.ResultadoLocal - @prediccion.ResultadoVisitante</td>
                                 <td>@prediccion.PuntosTotales</td>
@@ -1857,6 +2014,38 @@ else
         gap: .35rem;
     }
 
+    .admin-ko-definition {
+        grid-column: 1 / -1;
+    }
+
+    .admin-ko-definition-inner {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .45rem;
+        margin-top: .45rem;
+        padding: .5rem;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        background: #fff7ed;
+    }
+
+    .admin-ko-definition-inner select {
+        min-width: min(100%, 220px);
+        width: auto;
+    }
+
+    .admin-ko-option {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin: 0;
+        color: #7c2d12;
+        font-size: .82rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
     .phase-control th {
         color: #5f6b7a;
         font-size: .78rem;
@@ -2001,6 +2190,20 @@ else
         font-size: .86rem;
     }
 
+    .admin-podium-editor {
+        display: grid;
+        gap: .55rem;
+    }
+
+    .admin-podium-editor label {
+        color: #475467;
+        display: grid;
+        font-size: .78rem;
+        font-weight: 800;
+        gap: .25rem;
+        text-transform: uppercase;
+    }
+
     .alert-mass-card {
         border-color: #bfdbfe;
     }
@@ -2024,6 +2227,44 @@ else
 
     .global-notification-wide {
         grid-column: 1 / -1;
+    }
+
+    .notification-delivery-report {
+        border: 1px solid #dbeafe;
+        border-radius: 8px;
+        background: #f8fbff;
+        overflow: hidden;
+    }
+
+    .delivery-report-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: .8rem;
+        padding: .8rem .9rem;
+        border-bottom: 1px solid #dbeafe;
+        background: #eff6ff;
+    }
+
+    .delivery-report-head strong,
+    .delivery-report-head small {
+        display: block;
+    }
+
+    .delivery-report-head small {
+        color: #475569;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+    .delivery-report-table {
+        margin-bottom: 0;
+    }
+
+    .delivery-report-table th {
+        color: #475569;
+        font-size: .72rem;
+        text-transform: uppercase;
     }
 
     .mass-alert-grid label,
@@ -3390,6 +3631,11 @@ else
     private List<ClasificacionPrediccionAdminDto> clasificacionPrediccionesUsuario = new();
     private List<string> tercerosPrediccionesUsuario = new();
     private PodioPrediccionAdminDto? podioPrediccionesUsuario;
+    private List<EquipoPodioAdminDto> equiposPodioAdmin = new();
+    private AdminPodioUsuarioRequestDto podioUsuarioAdminForm = new();
+    private bool guardandoPodioUsuario;
+    private string? mensajePodioUsuarioAdmin;
+    private bool errorPodioUsuarioAdmin;
     private List<FaseAdminDto> fasesAdmin = new();
     private AdminCrucesFaseDto? crucesFase;
     private List<PartidoCalendarioAdminDto> partidosCalendario = new();
@@ -3427,6 +3673,7 @@ else
     private string notificacionGlobalDestino = "Todos";
     private string notificacionGlobalUsuarioId = "";
     private string? notificacionGlobalMensajeResultado;
+    private AdminNotificacionGlobalResultado? notificacionGlobalResultado;
     private bool notificacionGlobalError;
     private bool enviandoNotificacionGlobal;
     private AlertaMasivaForm alertaMasiva = new();
@@ -3450,6 +3697,13 @@ else
         "#7a5af8", "#0086c9", "#c11574", "#667085"
     };
 
+    private const string FormatoFechaInput = "yyyy-MM-ddTHH:mm";
+    private static readonly string[] FormatosFechaInput =
+    {
+        "yyyy-MM-ddTHH:mm",
+        "yyyy-MM-ddTHH:mm:ss"
+    };
+
     private readonly List<string> fasesCalendario = new()
     {
         "Grupos",
@@ -3464,6 +3718,18 @@ else
     private int TotalUsuariosActivos => usuarios.Count(u => u.Activo);
     private int TotalUsuariosInactivos => usuarios.Count(u => !u.Activo);
     private bool NotificacionGlobalEsIndividual => notificacionGlobalDestino == "Usuario";
+    private string ClaseAlertaComunicado =>
+        notificacionGlobalError
+            ? "alert-danger"
+            : notificacionGlobalResultado?.CorreosFallidos > 0
+                ? "alert-warning"
+                : "alert-success";
+
+    private IEnumerable<AdminNotificacionGlobalEntrega> EntregasComunicadoOrdenadas =>
+        notificacionGlobalResultado?.Entregas
+            .OrderBy(e => e.CorreoEnviado)
+            .ThenBy(e => e.UsuarioNombre)
+            ?? Enumerable.Empty<AdminNotificacionGlobalEntrega>();
 
     private IEnumerable<UsuarioAdminDto> UsuariosActivosParaNotificar => usuarios
         .Where(u => u.Activo)
@@ -3643,6 +3909,11 @@ else
     {
         partidosCalendario = await Http.GetFromJsonAsync<List<PartidoCalendarioAdminDto>>(
             "api/Partidos") ?? new();
+
+        foreach (var partido in partidosCalendario)
+        {
+            InicializarFechaEdicion(partido);
+        }
 
         AplicarFiltroCalendario();
     }
@@ -3844,11 +4115,81 @@ else
     private static string FormatoPromedio(double valor) =>
         valor.ToString("0.##");
 
+    private static string FormatearFechaInput(DateTime fecha) =>
+        fecha <= DateTime.MinValue.AddDays(1)
+            ? ""
+            : fecha.ToString(FormatoFechaInput, System.Globalization.CultureInfo.InvariantCulture);
+
+    private static bool TryParseFechaInput(string? valor, out DateTime fecha)
+    {
+        fecha = default;
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return false;
+        }
+
+        if (!DateTime.TryParseExact(
+                valor,
+                FormatosFechaInput,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var fechaParseada))
+        {
+            return false;
+        }
+
+        fecha = DateTime.SpecifyKind(fechaParseada, DateTimeKind.Unspecified);
+        return true;
+    }
+
+    private static void InicializarFechaEdicion(PartidoCalendarioAdminDto partido)
+    {
+        partido.FechaEdicion = FormatearFechaInput(partido.Fecha);
+        partido.FechaValida = !string.IsNullOrWhiteSpace(partido.FechaEdicion);
+    }
+
+    private static void InicializarFechaEdicion(AdminCrucePartidoDto cruce)
+    {
+        cruce.FechaEdicion = FormatearFechaInput(cruce.Fecha);
+        cruce.FechaValida = !string.IsNullOrWhiteSpace(cruce.FechaEdicion);
+    }
+
+    private void CambiarFechaPartido(PartidoCalendarioAdminDto partido, ChangeEventArgs e)
+    {
+        partido.FechaEdicion = e.Value?.ToString() ?? "";
+        partido.FechaValida = TryParseFechaInput(partido.FechaEdicion, out var fecha);
+
+        if (partido.FechaValida)
+        {
+            partido.Fecha = fecha;
+        }
+    }
+
+    private void CambiarFechaCruce(AdminCrucePartidoDto cruce, ChangeEventArgs e)
+    {
+        cruce.FechaEdicion = e.Value?.ToString() ?? "";
+        cruce.FechaValida = TryParseFechaInput(cruce.FechaEdicion, out var fecha);
+
+        if (cruce.FechaValida)
+        {
+            cruce.Fecha = fecha;
+        }
+    }
+
     private async Task GuardarFechaPartido(PartidoCalendarioAdminDto partido)
     {
         if (!Sesion.UsuarioId.HasValue)
             return;
 
+        if (!TryParseFechaInput(partido.FechaEdicion, out var fecha))
+        {
+            partido.FechaValida = false;
+            mensaje = "La fecha y hora no es valida. Selecciona una fecha completa antes de guardar.";
+            return;
+        }
+
+        partido.Fecha = fecha;
+        partido.FechaValida = true;
         procesandoPartidoFecha = partido.Id;
 
         var response = await Http.PutAsJsonAsync(
@@ -3892,6 +4233,7 @@ else
         }
 
         notificacionGlobalMensajeResultado = null;
+        notificacionGlobalResultado = null;
         notificacionGlobalError = false;
 
         if (string.IsNullOrWhiteSpace(notificacionGlobalMensaje))
@@ -3942,12 +4284,25 @@ else
                     Mensaje = notificacionGlobalMensaje
                 });
 
-            notificacionGlobalMensajeResultado = await LeerMensajeRespuesta(response);
-            notificacionGlobalError = !response.IsSuccessStatusCode;
-
+            var contenido = await response.Content.ReadAsStringAsync();
             if (response.IsSuccessStatusCode)
             {
-                notificacionGlobalMensaje = "";
+                notificacionGlobalResultado = DeserializarResultadoComunicado(contenido);
+                notificacionGlobalMensajeResultado = notificacionGlobalResultado?.Mensaje ??
+                    ExtraerMensajeRespuesta(contenido, "Comunicado procesado.");
+                notificacionGlobalError = false;
+
+                if (notificacionGlobalResultado?.CorreosFallidos == 0)
+                {
+                    notificacionGlobalMensaje = "";
+                }
+            }
+            else
+            {
+                notificacionGlobalMensajeResultado = ExtraerMensajeRespuesta(
+                    contenido,
+                    "No se pudo enviar el comunicado.");
+                notificacionGlobalError = true;
             }
         }
         catch (Exception ex)
@@ -3959,6 +4314,66 @@ else
         {
             enviandoNotificacionGlobal = false;
         }
+    }
+
+    private static AdminNotificacionGlobalResultado? DeserializarResultadoComunicado(string contenido)
+    {
+        if (string.IsNullOrWhiteSpace(contenido))
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<AdminNotificacionGlobalResultado>(
+                contenido,
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ExtraerMensajeRespuesta(string contenido, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(contenido))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(contenido);
+            if (json.RootElement.TryGetProperty("mensaje", out var mensajeApi))
+            {
+                return mensajeApi.GetString() ?? fallback;
+            }
+        }
+        catch
+        {
+            return contenido;
+        }
+
+        return contenido;
+    }
+
+    private void PrepararReenvioComunicado(AdminNotificacionGlobalEntrega entrega)
+    {
+        notificacionGlobalDestino = "Usuario";
+        notificacionGlobalUsuarioId = entrega.UsuarioId.ToString();
+
+        if (notificacionGlobalResultado != null)
+        {
+            notificacionGlobalTitulo = notificacionGlobalResultado.Titulo;
+            notificacionGlobalMensaje = notificacionGlobalResultado.Texto;
+        }
+
+        notificacionGlobalMensajeResultado = $"Listo para reenviar individualmente a {entrega.UsuarioNombre}. Revisa el texto y presiona Enviar comunicado.";
+        notificacionGlobalError = false;
     }
 
     private async Task EnviarAlertaMasiva()
@@ -4245,6 +4660,17 @@ else
             }
 
             crucesFase = await response.Content.ReadFromJsonAsync<AdminCrucesFaseDto>();
+            if (crucesFase != null)
+            {
+                foreach (var cruce in crucesFase.Cruces)
+                {
+                    InicializarFechaEdicion(cruce);
+                    cruce.SeleccionadoParaPublicar =
+                        !crucesFase.YaGenerada &&
+                        CruceCompleto(cruce);
+                }
+            }
+
             mensajeCruces = crucesFase?.Mensaje;
             errorCruces = crucesFase?.PuedePublicar == false &&
                 crucesFase?.YaGenerada == false;
@@ -4274,6 +4700,22 @@ else
             return;
         }
 
+        var crucesListos = CrucesSeleccionadosParaPublicar();
+
+        if (crucesListos.Any(c => !c.FechaValida))
+        {
+            mensajeCruces = "Corrige la fecha y hora de los cruces completos antes de publicar.";
+            errorCruces = true;
+            return;
+        }
+
+        if (!crucesListos.Any())
+        {
+            mensajeCruces = "Marca al menos un cruce completo para publicar.";
+            errorCruces = true;
+            return;
+        }
+
         publicandoCruces = true;
         mensajeCruces = null;
         errorCruces = false;
@@ -4285,7 +4727,7 @@ else
                 new AdminPublicarCrucesRequestDto
                 {
                     AdminUsuarioId = Sesion.UsuarioId.Value,
-                    Cruces = crucesFase.Cruces
+                    Cruces = crucesListos
                 });
 
             mensaje = await LeerMensajeRespuesta(response);
@@ -4320,6 +4762,23 @@ else
             return;
         }
 
+        if (equipoId <= 0)
+        {
+            if (esLocal)
+            {
+                cruce.LocalId = 0;
+                cruce.Local = "Selecciona equipo";
+            }
+            else
+            {
+                cruce.VisitanteId = 0;
+                cruce.Visitante = "Selecciona equipo";
+            }
+
+            cruce.SeleccionadoParaPublicar = false;
+            return;
+        }
+
         var equipo = crucesFase.EquiposDisponibles
             .FirstOrDefault(x => x.Id == equipoId);
 
@@ -4338,6 +4797,29 @@ else
             cruce.VisitanteId = equipo.Id;
             cruce.Visitante = equipo.Nombre;
         }
+
+        cruce.SeleccionadoParaPublicar = CruceCompleto(cruce);
+    }
+
+    private void CambiarSeleccionCruce(AdminCrucePartidoDto cruce, ChangeEventArgs e)
+    {
+        cruce.SeleccionadoParaPublicar =
+            bool.TryParse(e.Value?.ToString(), out var seleccionado) &&
+            seleccionado &&
+            CruceCompleto(cruce);
+    }
+
+    private static bool CruceCompleto(AdminCrucePartidoDto cruce)
+    {
+        return cruce.LocalId > 0 &&
+               cruce.VisitanteId > 0;
+    }
+
+    private List<AdminCrucePartidoDto> CrucesSeleccionadosParaPublicar()
+    {
+        return crucesFase?.Cruces
+            .Where(c => c.SeleccionadoParaPublicar && CruceCompleto(c))
+            .ToList() ?? new List<AdminCrucePartidoDto>();
     }
 
     private bool CrucesConEquiposRepetidos()
@@ -4347,7 +4829,7 @@ else
             return false;
         }
 
-        var equipos = crucesFase.Cruces
+        var equipos = CrucesSeleccionadosParaPublicar()
             .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
             .Where(id => id > 0)
             .ToList();
@@ -4362,10 +4844,22 @@ else
             return false;
         }
 
-        return crucesFase.Cruces
+        if (!cruce.SeleccionadoParaPublicar)
+        {
+            return false;
+        }
+
+        var equipos = CrucesSeleccionadosParaPublicar()
             .SelectMany(c => new[] { c.LocalId, c.VisitanteId })
-            .Count(id => id == cruce.LocalId || id == cruce.VisitanteId) > 2 ||
-            cruce.LocalId == cruce.VisitanteId;
+            .Where(id => id > 0)
+            .ToList();
+
+        return (cruce.LocalId > 0 &&
+                equipos.Count(id => id == cruce.LocalId) > 1) ||
+               (cruce.VisitanteId > 0 &&
+                equipos.Count(id => id == cruce.VisitanteId) > 1) ||
+               (cruce.LocalId > 0 &&
+                cruce.LocalId == cruce.VisitanteId);
     }
 
     private void CerrarCrucesFase()
@@ -4819,7 +5313,19 @@ else
             $"api/Admin/predicciones/complemento?adminUsuarioId={Sesion.UsuarioId!.Value}&pollaId={pollaSeleccionada.Id}&usuarioId={miembro.UsuarioId}");
         clasificacionPrediccionesUsuario = complemento?.Clasificacion ?? new();
         tercerosPrediccionesUsuario = complemento?.MejoresTerceros ?? new();
-        podioPrediccionesUsuario = complemento?.Podio;
+        podioPrediccionesUsuario = complemento?.Podio ?? new();
+        equiposPodioAdmin = complemento?.EquiposPodio ?? new();
+        podioUsuarioAdminForm = new AdminPodioUsuarioRequestDto
+        {
+            AdminUsuarioId = Sesion.UsuarioId!.Value,
+            PollaId = pollaSeleccionada.Id,
+            UsuarioId = miembro.UsuarioId,
+            CampeonId = podioPrediccionesUsuario.CampeonId,
+            SubcampeonId = podioPrediccionesUsuario.SubcampeonId,
+            TerceroId = podioPrediccionesUsuario.TerceroId
+        };
+        mensajePodioUsuarioAdmin = null;
+        errorPodioUsuarioAdmin = false;
         await CargarReaperturasUsuario();
     }
 
@@ -4909,6 +5415,77 @@ else
         procesandoReapertura = null;
     }
 
+    private bool PodioUsuarioAdminCompleto =>
+        podioUsuarioAdminForm.CampeonId > 0 &&
+        podioUsuarioAdminForm.SubcampeonId > 0 &&
+        podioUsuarioAdminForm.TerceroId > 0 &&
+        new[]
+        {
+            podioUsuarioAdminForm.CampeonId,
+            podioUsuarioAdminForm.SubcampeonId,
+            podioUsuarioAdminForm.TerceroId
+        }.Distinct().Count() == 3;
+
+    private bool EquipoPodioUsadoEnOtroCampo(int equipoId, int campo)
+    {
+        if (equipoId <= 0)
+            return false;
+
+        return (campo != 1 && podioUsuarioAdminForm.CampeonId == equipoId) ||
+               (campo != 2 && podioUsuarioAdminForm.SubcampeonId == equipoId) ||
+               (campo != 3 && podioUsuarioAdminForm.TerceroId == equipoId);
+    }
+
+    private async Task GuardarPodioUsuarioAdmin()
+    {
+        if (pollaSeleccionada == null || usuarioPredicciones == null || !Sesion.UsuarioId.HasValue)
+            return;
+
+        mensajePodioUsuarioAdmin = null;
+        errorPodioUsuarioAdmin = false;
+
+        if (!PodioUsuarioAdminCompleto)
+        {
+            mensajePodioUsuarioAdmin = "Selecciona campeon, subcampeon y tercer puesto con tres equipos diferentes.";
+            errorPodioUsuarioAdmin = true;
+            return;
+        }
+
+        guardandoPodioUsuario = true;
+
+        var request = new AdminPodioUsuarioRequestDto
+        {
+            AdminUsuarioId = Sesion.UsuarioId.Value,
+            PollaId = pollaSeleccionada.Id,
+            UsuarioId = usuarioPredicciones.UsuarioId,
+            CampeonId = podioUsuarioAdminForm.CampeonId,
+            SubcampeonId = podioUsuarioAdminForm.SubcampeonId,
+            TerceroId = podioUsuarioAdminForm.TerceroId
+        };
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync("api/Admin/predicciones/podio", request);
+            var respuesta = await LeerMensajeRespuesta(response);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await CargarPredicciones(usuarioPredicciones);
+                mensajePodioUsuarioAdmin = respuesta;
+                errorPodioUsuarioAdmin = false;
+            }
+            else
+            {
+                mensajePodioUsuarioAdmin = respuesta;
+                errorPodioUsuarioAdmin = true;
+            }
+        }
+        finally
+        {
+            guardandoPodioUsuario = false;
+        }
+    }
+
     private string EtiquetaReapertura(ReaperturaAdminDto reapertura)
     {
         if (reapertura.Tipo == "Marcadores" && reapertura.PartidoId.HasValue)
@@ -4923,6 +5500,52 @@ else
             : $"{NombreFase(reapertura.Fase)} - {reapertura.Tipo}";
     }
 
+    private bool DebeDefinirEliminatoriaAdmin(PrediccionAdminDto prediccion)
+    {
+        return prediccion.Fase != "Grupos" &&
+               prediccion.GolesLocal.HasValue &&
+               prediccion.GolesVisitante.HasValue &&
+               prediccion.GolesLocal == prediccion.GolesVisitante;
+    }
+
+    private RenderFragment ControlesDefinicionEliminatoriaAdmin(PrediccionAdminDto prediccion) => @<div class="admin-ko-definition-inner">
+        <select class="form-select form-select-sm"
+                value="@prediccion.PrediceClasificadoId"
+                @onchange="e => CambiarClasificadoPrediccionAdmin(prediccion, e)">
+            <option value="">Equipo que clasifica</option>
+            <option value="@prediccion.LocalId">@prediccion.Local</option>
+            <option value="@prediccion.VisitanteId">@prediccion.Visitante</option>
+        </select>
+        <label class="admin-ko-option">
+            <input type="radio"
+                   name="admin-def-@prediccion.PartidoId"
+                   checked="@(prediccion.PrediceTiempoExtra && !prediccion.PredicePenales)"
+                   @onclick="() => SeleccionarDefinicionEliminatoriaAdmin(prediccion, false)" />
+            <span>T. extra</span>
+        </label>
+        <label class="admin-ko-option">
+            <input type="radio"
+                   name="admin-def-@prediccion.PartidoId"
+                   checked="@prediccion.PredicePenales"
+                   @onclick="() => SeleccionarDefinicionEliminatoriaAdmin(prediccion, true)" />
+            <span>Penales</span>
+        </label>
+    </div>;
+
+    private void CambiarClasificadoPrediccionAdmin(PrediccionAdminDto prediccion, ChangeEventArgs e)
+    {
+        prediccion.PrediceClasificadoId =
+            int.TryParse(e.Value?.ToString(), out var equipoId)
+                ? equipoId
+                : null;
+    }
+
+    private void SeleccionarDefinicionEliminatoriaAdmin(PrediccionAdminDto prediccion, bool penales)
+    {
+        prediccion.PrediceTiempoExtra = true;
+        prediccion.PredicePenales = penales;
+    }
+
     private async Task GuardarPrediccion(PrediccionAdminDto prediccion)
     {
         var response = await Http.PutAsJsonAsync(
@@ -4934,7 +5557,10 @@ else
                 UsuarioId = usuarioPredicciones?.UsuarioId ?? 0,
                 prediccion.PartidoId,
                 prediccion.GolesLocal,
-                prediccion.GolesVisitante
+                prediccion.GolesVisitante,
+                prediccion.PrediceClasificadoId,
+                prediccion.PrediceTiempoExtra,
+                prediccion.PredicePenales
             });
 
         mensaje = response.IsSuccessStatusCode
@@ -5000,6 +5626,28 @@ else
         public string Mensaje { get; set; } = "";
     }
 
+    private class AdminNotificacionGlobalResultado
+    {
+        public string Mensaje { get; set; } = "";
+        public string Titulo { get; set; } = "";
+        public string Texto { get; set; } = "";
+        public int UsuariosObjetivo { get; set; }
+        public int UsuariosNotificados { get; set; }
+        public int CorreosEnviados { get; set; }
+        public int CorreosFallidos { get; set; }
+        public List<AdminNotificacionGlobalEntrega> Entregas { get; set; } = new();
+    }
+
+    private class AdminNotificacionGlobalEntrega
+    {
+        public int UsuarioId { get; set; }
+        public string UsuarioNombre { get; set; } = "";
+        public string UsuarioEmail { get; set; } = "";
+        public bool NotificacionGuardada { get; set; }
+        public bool CorreoEnviado { get; set; }
+        public string Detalle { get; set; } = "";
+    }
+
     private class AlertaMasivaForm
     {
         public string PollaId { get; set; } = "";
@@ -5043,6 +5691,8 @@ else
     {
         public int Id { get; set; }
         public DateTime Fecha { get; set; }
+        public string FechaEdicion { get; set; } = "";
+        public bool FechaValida { get; set; } = true;
         public string Fase { get; set; } = "";
         public string Local { get; set; } = "";
         public string Visitante { get; set; } = "";
@@ -5065,12 +5715,15 @@ else
         public int NumeroPartido { get; set; }
         public string Fase { get; set; } = "";
         public DateTime Fecha { get; set; }
+        public string FechaEdicion { get; set; } = "";
+        public bool FechaValida { get; set; } = true;
         public int LocalId { get; set; }
         public string Local { get; set; } = "";
         public int VisitanteId { get; set; }
         public string Visitante { get; set; } = "";
         public string OrigenLocal { get; set; } = "";
         public string OrigenVisitante { get; set; } = "";
+        public bool SeleccionadoParaPublicar { get; set; }
     }
 
     private class AdminEquipoCruceDto
@@ -5296,11 +5949,18 @@ else
         public int Id { get; set; }
         public int PartidoId { get; set; }
         public string Partido { get; set; } = "";
+        public int LocalId { get; set; }
+        public string Local { get; set; } = "";
+        public int VisitanteId { get; set; }
+        public string Visitante { get; set; } = "";
         public string Fase { get; set; } = "";
         public DateTime Fecha { get; set; }
         public bool TienePrediccion { get; set; }
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
+        public int? PrediceClasificadoId { get; set; }
+        public bool PrediceTiempoExtra { get; set; }
+        public bool PredicePenales { get; set; }
         public int? ResultadoLocal { get; set; }
         public int? ResultadoVisitante { get; set; }
         public int PuntosTotales { get; set; }
@@ -5310,6 +5970,7 @@ else
     {
         public List<ClasificacionPrediccionAdminDto> Clasificacion { get; set; } = new();
         public List<string> MejoresTerceros { get; set; } = new();
+        public List<EquipoPodioAdminDto> EquiposPodio { get; set; } = new();
         public PodioPrediccionAdminDto Podio { get; set; } = new();
     }
 
@@ -5324,8 +5985,27 @@ else
     private class PodioPrediccionAdminDto
     {
         public bool Guardado { get; set; }
+        public int CampeonId { get; set; }
+        public int SubcampeonId { get; set; }
+        public int TerceroId { get; set; }
         public string Campeon { get; set; } = "";
         public string Subcampeon { get; set; } = "";
         public string Tercero { get; set; } = "";
+    }
+
+    private class EquipoPodioAdminDto
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+    }
+
+    private class AdminPodioUsuarioRequestDto
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public int CampeonId { get; set; }
+        public int SubcampeonId { get; set; }
+        public int TerceroId { get; set; }
     }
 }

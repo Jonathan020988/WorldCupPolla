@@ -8,6 +8,19 @@ namespace WorldCup.Api.DTOs
         public int PartidoId { get; set; }
         public int? GolesLocal { get; set; }
         public int? GolesVisitante { get; set; }
+        public int? PrediceClasificadoId { get; set; }
+        public bool PrediceTiempoExtra { get; set; }
+        public bool PredicePenales { get; set; }
+    }
+
+    public class AdminGuardarPodioUsuarioDTO
+    {
+        public int AdminUsuarioId { get; set; }
+        public int PollaId { get; set; }
+        public int UsuarioId { get; set; }
+        public int CampeonId { get; set; }
+        public int SubcampeonId { get; set; }
+        public int TerceroId { get; set; }
     }
 
     public class AdminActualizarPartidoDTO
@@ -123,5 +136,15 @@ namespace WorldCup.Api.DTOs
         public int? UsuarioId { get; set; }
         public string Titulo { get; set; } = "";
         public string Mensaje { get; set; } = "";
+    }
+
+    public class AdminComunicadoEntregaDTO
+    {
+        public int UsuarioId { get; set; }
+        public string UsuarioNombre { get; set; } = "";
+        public string UsuarioEmail { get; set; } = "";
+        public bool NotificacionGuardada { get; set; }
+        public bool CorreoEnviado { get; set; }
+        public string Detalle { get; set; } = "";
     }
 }

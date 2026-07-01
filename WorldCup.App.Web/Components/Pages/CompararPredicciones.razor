@@ -1099,6 +1099,22 @@
         white-space: nowrap;
     }
 
+    .prediction-ko-wrap {
+        display: inline-grid;
+        gap: .18rem;
+        justify-items: center;
+        max-width: 170px;
+        vertical-align: top;
+    }
+
+    .prediction-ko-wrap small {
+        color: #7c2d12;
+        font-size: .72rem;
+        font-weight: 850;
+        line-height: 1.15;
+        text-align: center;
+    }
+
     .result-pill {
         background: #16251f;
         color: white;
@@ -2401,7 +2417,37 @@
             return new MarkupString("<span class=\"missing-prediction\">No pronostico</span>");
         }
 
-        return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
+        var definicion = DefinicionEliminatoriaPronostico(detalle);
+        if (string.IsNullOrWhiteSpace(definicion))
+        {
+            return Marcador(detalle.PronosticoLocal, detalle.PronosticoVisitante, "prediction-pill");
+        }
+
+        var marcador = $"{detalle.PronosticoLocal} - {detalle.PronosticoVisitante}";
+        return new MarkupString(
+            $"<span class=\"prediction-ko-wrap\"><span class=\"prediction-pill\">{marcador}</span><small>{definicion}</small></span>");
+    }
+
+    private static string DefinicionEliminatoriaPronostico(DetalleRankingDto detalle)
+    {
+        if (detalle.Fase == "Grupos" ||
+            !detalle.PronosticoLocal.HasValue ||
+            !detalle.PronosticoVisitante.HasValue ||
+            detalle.PronosticoLocal != detalle.PronosticoVisitante)
+        {
+            return "";
+        }
+
+        var clasificado = string.IsNullOrWhiteSpace(detalle.PrediceClasificado)
+            ? "clasificado no definido"
+            : $"clasifica {System.Net.WebUtility.HtmlEncode(detalle.PrediceClasificado)}";
+        var definicion = detalle.PredicePenales
+            ? "por penales"
+            : detalle.PrediceTiempoExtra
+                ? "en tiempo extra"
+                : "definicion no indicada";
+
+        return $"{clasificado} {definicion}";
     }
 
     private bool PuedeMostrarPronostico(DetalleRankingDto detalle)

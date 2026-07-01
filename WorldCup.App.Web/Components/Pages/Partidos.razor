@@ -423,6 +423,20 @@
         background: #f0fdf4;
     }
 
+    .ranking-audit-detail-row td {
+        background: #fffbeb;
+        color: #5f370e;
+        font-size: .8rem;
+        line-height: 1.35;
+        white-space: normal;
+    }
+
+    .ranking-audit-detail-row strong {
+        margin-right: .35rem;
+        color: #92400e;
+        font-weight: 950;
+    }
+
     .ranking-audit-points {
         display: inline-flex;
         min-width: 44px;
@@ -799,6 +813,15 @@
                                                 <td>@PuntosConSigno(fila.PuntosPodioCierre)</td>
                                                 <td class="fw-bold">@fila.PuntosRanking</td>
                                             </tr>
+                                            @if (!string.IsNullOrWhiteSpace(fila.DetalleClasificacionCierre))
+                                            {
+                                                <tr class="ranking-audit-detail-row">
+                                                    <td colspan="9">
+                                                        <strong>Justificación clasificación:</strong>
+                                                        <span>@fila.DetalleClasificacionCierre</span>
+                                                    </td>
+                                                </tr>
+                                            }
                                         }
                                     </tbody>
                                 </table>
@@ -920,7 +943,7 @@
                                     @if (p.Finalizado || TieneMarcadorCompleto(p))
                                     {
                                         @($"{p.GolesLocal} - {p.GolesVisitante}")
-                                        @if (!p.Finalizado && p.Estado == "EnJuego")
+                                        @if (!p.Finalizado && EstadoEnJuegoManual(p.Estado))
                                         {
                                             <span class="live-card-label">EN VIVO</span>
                                         }
@@ -995,9 +1018,12 @@
                                     <select class="form-select form-select-sm"
                                             disabled="@(!resultadoEditable)"
                                             @onfocus="() => EditarResultadoAdmin(p)"
-                                            @bind="p.Estado">
+                                            value="@p.Estado"
+                                            @onchange="e => CambiarEstadoResultadoAdmin(p, e)">
                                         <option value="Pendiente">Pendiente</option>
                                         <option value="EnJuego">En juego</option>
+                                        <option value="TiempoExtra">Tiempo extra</option>
+                                        <option value="Penales">Penales</option>
                                         <option value="Postergado">Postergado</option>
                                         <option value="Finalizado">Finalizado</option>
                                     </select>
@@ -1022,7 +1048,8 @@
                                         <input class="form-check-input mt-0"
                                                type="checkbox"
                                                disabled="@(!resultadoEditable || !EsEliminatoria(p))"
-                                               @bind="p.TiempoExtra" />
+                                               checked="@p.TiempoExtra"
+                                               @onchange="e => CambiarTiempoExtraAdmin(p, e)" />
                                         <span>T. extra</span>
                                     </label>
 
@@ -1039,6 +1066,7 @@
                                            min="0"
                                            placeholder="Pen. local"
                                            disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
+                                           @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.PenalesLocal" />
 
                                     <input type="number"
@@ -1046,6 +1074,7 @@
                                            min="0"
                                            placeholder="Pen. visit."
                                            disabled="@(!resultadoEditable || PenalesDeshabilitados(p))"
+                                           @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.PenalesVisitante" />
 
                                     <div class="resultado-actions">
@@ -1111,6 +1140,7 @@
     private long secuenciaGol;
 
     private string? faseSeleccionada;
+    private bool faseInicialAplicada;
     private string? paisFiltro;
     private DateTime? fechaFiltro;
     private bool herramientasPruebaHabilitadas;
@@ -1300,7 +1330,7 @@
         }
 
         if (!partido.Finalizado &&
-            string.Equals(partido.Estado, "EnJuego", StringComparison.OrdinalIgnoreCase))
+            EstadoEnJuegoManual(partido.Estado))
         {
             return 1;
         }
@@ -1356,6 +1386,8 @@
         {
             "Finalizado" => "badge bg-success",
             "EnJuego" => "badge bg-warning text-dark",
+            "TiempoExtra" => "badge bg-primary",
+            "Penales" => "badge bg-danger",
             "Postergado" => "badge bg-secondary",
             _ => "badge bg-light text-dark"
         };
@@ -1383,11 +1415,6 @@
 
     private string EstadoParaGuardar(PartidoDto partido)
     {
-        if (partido.Estado == "Pendiente" && TieneMarcadorCompleto(partido))
-        {
-            return "Finalizado";
-        }
-
         return partido.Estado;
     }
 
@@ -1480,6 +1507,8 @@
     private bool ResultadoEditable(PartidoDto partido)
     {
         return partido.Estado == "EnJuego" ||
+               partido.Estado == "TiempoExtra" ||
+               partido.Estado == "Penales" ||
                !TieneResultadoReal(partido) ||
                resultadosEnEdicion.Contains(partido.Id);
     }
@@ -1523,7 +1552,49 @@
             .Where(TieneResultadoRealPersistido)
             .Select(p => p.Id)
             .ToHashSet();
+        AplicarFaseInicialPartidos();
         AplicarFiltros();
+    }
+
+    private void AplicarFaseInicialPartidos()
+    {
+        if (faseInicialAplicada ||
+            !partidos.Any() ||
+            !string.IsNullOrWhiteSpace(faseSeleccionada))
+        {
+            faseInicialAplicada = true;
+            return;
+        }
+
+        var fases = partidos
+            .GroupBy(p => p.Fase)
+            .OrderBy(g => OrdenFase(g.Key))
+            .ToList();
+
+        faseSeleccionada = fases
+            .FirstOrDefault(g => g.Any(p =>
+                !p.Finalizado &&
+                EstadoEnJuegoManual(p.Estado)))
+            ?.Key;
+
+        if (string.IsNullOrWhiteSpace(faseSeleccionada))
+        {
+            faseSeleccionada = fases
+                .FirstOrDefault(g => g.Any(p =>
+                    !p.Finalizado &&
+                    !string.Equals(p.Estado, "Postergado", StringComparison.OrdinalIgnoreCase)))
+                ?.Key;
+        }
+
+        if (string.IsNullOrWhiteSpace(faseSeleccionada))
+        {
+            faseSeleccionada = fases
+                .OrderByDescending(g => OrdenFase(g.Key))
+                .FirstOrDefault()
+                ?.Key;
+        }
+
+        faseInicialAplicada = true;
     }
 
     private IEnumerable<PartidoDto> PartidosEnJuego()
@@ -1531,7 +1602,7 @@
         return partidos
             .Where(p =>
                 MarcadorEnVivoActivo(p) ||
-                (p.Estado == "EnJuego" && TieneMarcadorCompleto(p)))
+                (EstadoEnJuegoManual(p.Estado) && TieneMarcadorCompleto(p)))
             .OrderBy(p => p.Fecha)
             .ThenBy(p => p.Id);
     }
@@ -1656,6 +1727,11 @@
         };
     }
 
+    private static bool EstadoEnJuegoManual(string? estado)
+    {
+        return estado is "EnJuego" or "TiempoExtra" or "Penales";
+    }
+
     private static (int? Local, int? Visitante) MarcadorParaDetectar(PartidoDto partido)
     {
         if (TieneMarcadorEnVivo(partido))
@@ -1695,6 +1771,8 @@
             "Descanso" => "Descanso",
             "TiempoExtra" => "Tiempo extra",
             "Penales" => "Penales",
+            _ when partido.Estado == "TiempoExtra" => "Tiempo extra",
+            _ when partido.Estado == "Penales" => "Penales",
             _ when partido.Estado == "EnJuego" => "En vivo",
             _ => "FIFA provisional"
         };
@@ -1710,6 +1788,45 @@
     private void EditarResultadoAdmin(PartidoDto partido)
     {
         resultadosEnEdicion.Add(partido.Id);
+    }
+
+    private void CambiarEstadoResultadoAdmin(PartidoDto partido, ChangeEventArgs e)
+    {
+        EditarResultadoAdmin(partido);
+        partido.Estado = e.Value?.ToString() ?? "Pendiente";
+
+        if (partido.Estado == "TiempoExtra" || partido.Estado == "Penales")
+        {
+            partido.TiempoExtra = true;
+        }
+
+        if (partido.Estado != "Penales")
+        {
+            return;
+        }
+
+        partido.TiempoExtra = true;
+    }
+
+    private void CambiarTiempoExtraAdmin(PartidoDto partido, ChangeEventArgs e)
+    {
+        EditarResultadoAdmin(partido);
+        partido.TiempoExtra =
+            bool.TryParse(e.Value?.ToString(), out var marcado) &&
+            marcado;
+
+        if (!partido.TiempoExtra)
+        {
+            partido.PenalesLocal = null;
+            partido.PenalesVisitante = null;
+
+            if (partido.Estado == "TiempoExtra" || partido.Estado == "Penales")
+            {
+                partido.Estado = TieneMarcadorCompleto(partido)
+                    ? "EnJuego"
+                    : "Pendiente";
+            }
+        }
     }
 
     private async Task GuardarResultadoAdmin(PartidoDto partido)
@@ -2175,6 +2292,7 @@
         public int PuntosMarcadorCierre { get; set; }
         public int PuntosClasificacionCierre { get; set; }
         public int PuntosPodioCierre { get; set; }
+        public string DetalleClasificacionCierre { get; set; } = "";
     }
 
     private sealed class GolEnVivo

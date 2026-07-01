@@ -34,8 +34,11 @@ namespace WorldCup.Api.Controllers
             if (!gruposTerminados)
                 return Conflict("El podio solo se puede definir tras terminar la fase de grupos");
 
-            if (!reaperturaPodio && await DieciseisavosIniciados())
-                return Conflict("El podio se cerró al iniciar los dieciseisavos");
+            if (!reaperturaPodio && await PodioCerradoAsync(dto.PollaId))
+            {
+                var cierre = await ObtenerCierrePodioColombiaAsync(dto.PollaId);
+                return Conflict($"El podio se cerró el {cierre:dd/MM/yyyy} a las {cierre:HH:mm}");
+            }
 
             if (dto.CampeonId == dto.SubcampeonId ||
                 dto.CampeonId == dto.TerceroId ||
@@ -86,7 +89,8 @@ namespace WorldCup.Api.Controllers
                 return acceso.Error;
 
             var gruposTerminados = await GruposTerminados();
-            var cerrado = await DieciseisavosIniciados();
+            var cierrePodio = await ObtenerCierrePodioColombiaAsync(acceso.PollaId);
+            var cerrado = ColombiaClock.Now() >= cierrePodio;
             var reaperturaPodio = await TieneReaperturaPodioActivaAsync(acceso.PollaId, acceso.UsuarioId);
             var equipos = gruposTerminados
                 ? await ObtenerEquiposPodioDisponibles()
@@ -108,6 +112,7 @@ namespace WorldCup.Api.Controllers
                 gruposTerminados,
                 cerrado,
                 reaperturaPodio,
+                cierreColombia = cierrePodio,
                 disponible = gruposTerminados && (!cerrado || reaperturaPodio),
                 equipos,
                 prediccion
@@ -280,24 +285,54 @@ namespace WorldCup.Api.Controllers
                 .AnyAsync(p => p.Fase == "Grupos" && !p.Finalizado);
         }
 
-        private async Task<bool> DieciseisavosIniciados()
+        private async Task<bool> PodioCerradoAsync(int pollaId)
         {
-            var ahoraColombia = ColombiaClock.Now();
+            return ColombiaClock.Now() >= await ObtenerCierrePodioColombiaAsync(pollaId);
+        }
 
-            var partidos = await _context.Partidos
+        private async Task<DateTime> ObtenerCierrePodioColombiaAsync(int? pollaId = null)
+        {
+            var fechaLunesPodio = new DateTime(2026, 6, 29);
+
+            var fechas = await _context.Partidos
                 .Where(p => p.Fase == "Dieciseisavos")
-                .Select(p => new
-                {
-                    p.Finalizado,
-                    p.Estado,
-                    p.Fecha
-                })
+                .Select(p => p.Fecha)
                 .ToListAsync();
 
-            return partidos.Any(p =>
-                p.Finalizado ||
-                p.Estado == "EnJuego" ||
-                ColombiaClock.ToColombia(p.Fecha) <= ahoraColombia);
+            var primerPartidoLunes = fechas
+                .Select(ColombiaClock.ToColombia)
+                .Where(f => f.Date == fechaLunesPodio)
+                .OrderBy(f => f)
+                .FirstOrDefault();
+
+            var cierreBase = primerPartidoLunes > DateTime.MinValue
+                ? primerPartidoLunes.AddHours(-1)
+                : new DateTime(2026, 6, 29, 11, 0, 0);
+
+            if (pollaId.HasValue &&
+                await EsPollaMundial2026Async(pollaId.Value))
+            {
+                var cierreExtendido = new DateTime(2026, 6, 29, 12, 0, 0);
+                return cierreExtendido > cierreBase
+                    ? cierreExtendido
+                    : cierreBase;
+            }
+
+            return cierreBase;
+        }
+
+        private async Task<bool> EsPollaMundial2026Async(int pollaId)
+        {
+            var nombre = await _context.Pollas
+                .AsNoTracking()
+                .Where(p => p.Id == pollaId)
+                .Select(p => p.Nombre)
+                .FirstOrDefaultAsync();
+
+            return string.Equals(
+                (nombre ?? "").Trim(),
+                "Mundial 2026",
+                StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<List<object>> ObtenerEquiposPodioDisponibles()

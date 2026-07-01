@@ -51,7 +51,10 @@ builder.Services.AddScoped<UsuariosService>();
 
 builder.Services.AddScoped(sp =>
 {
-    var client = new HttpClient();
+    var client = new HttpClient
+    {
+        Timeout = TimeSpan.FromMinutes(10)
+    };
     ConfigureApiClient(client);
     return client;
 });

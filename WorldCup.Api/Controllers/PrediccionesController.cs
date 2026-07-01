@@ -78,8 +78,25 @@ namespace WorldCup.Api.Controllers
                         item.PrediceTiempoExtra = true;
                     }
 
+                    var tieneMarcadorCompleto =
+                        item.GolesLocal.HasValue &&
+                        item.GolesVisitante.HasValue;
+                    var prediceEmpate =
+                        tieneMarcadorCompleto &&
+                        item.GolesLocal == item.GolesVisitante;
+
+                    if (tieneMarcadorCompleto && !prediceEmpate)
+                    {
+                        item.PrediceClasificadoId =
+                            item.GolesLocal > item.GolesVisitante
+                                ? partido.LocalId
+                                : partido.VisitanteId;
+                        item.PrediceTiempoExtra = false;
+                        item.PredicePenales = false;
+                    }
+
                     // Si hay empate → debe indicar clasificado
-                    if (item.GolesLocal == item.GolesVisitante)
+                    if (prediceEmpate)
                     {
                         if (item.PrediceClasificadoId == null)
                             return BadRequest("Debe indicar el clasificado en eliminatorias");

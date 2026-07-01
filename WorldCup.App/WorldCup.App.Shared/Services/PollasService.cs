@@ -160,6 +160,50 @@ namespace WorldCup.App.Shared.Services
                 ?? new ResultadoRecordatorioPollaDto();
         }
 
+        public async Task<PollaRecordatorioPodioDto> GetPodioParaRecordatorioAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            return await LeerRespuestaAsync<PollaRecordatorioPodioDto>(
+                $"api/Polla/{pollaId}/recordatorios/podio?solicitanteId={solicitanteId}"
+            ) ?? new PollaRecordatorioPodioDto();
+        }
+
+        public async Task<ResultadoRecordatorioPollaDto> EnviarRecordatorioPodioAsync(
+            int pollaId,
+            int usuarioId,
+            int solicitanteId)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/recordatorios/podio/usuarios/{usuarioId}",
+                new EnviarRecordatorioPollaDto { SolicitanteId = solicitanteId });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<ResultadoRecordatorioPollaDto>()
+                ?? new ResultadoRecordatorioPollaDto();
+        }
+
+        public async Task<ResultadoRecordatorioPollaDto> EnviarRecordatorioPodioATodosAsync(
+            int pollaId,
+            int solicitanteId)
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"api/Polla/{pollaId}/recordatorios/podio/enviar-todos",
+                new EnviarRecordatorioPollaDto { SolicitanteId = solicitanteId });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
+            return await response.Content.ReadFromJsonAsync<ResultadoRecordatorioPollaDto>()
+                ?? new ResultadoRecordatorioPollaDto();
+        }
+
         public async Task<ParticipanteDto> ActualizarObservacionParticipanteAsync(
             int pollaId,
             int usuarioId,

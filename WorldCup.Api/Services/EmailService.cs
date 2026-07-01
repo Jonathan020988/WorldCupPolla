@@ -258,6 +258,10 @@ namespace WorldCup.Api.Services
             var enableSsl = !bool.TryParse(smtp["EnableSsl"], out var configuredSsl) ||
                 configuredSsl;
 
+            var timeoutSeconds = int.TryParse(smtp["TimeoutSeconds"], out var configuredTimeoutSeconds)
+                ? Math.Clamp(configuredTimeoutSeconds, 5, 120)
+                : 30;
+
             var fromName = string.IsNullOrWhiteSpace(smtp["FromName"])
                 ? "WorldCup Polla"
                 : smtp["FromName"];
@@ -276,7 +280,8 @@ namespace WorldCup.Api.Services
             {
                 EnableSsl = enableSsl,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(user, password)
+                Credentials = new NetworkCredential(user, password),
+                Timeout = timeoutSeconds * 1000
             };
 
             try
@@ -286,7 +291,8 @@ namespace WorldCup.Api.Services
                     EnmascararEmail(destino),
                     logReferencia);
 
-                await client.SendMailAsync(message);
+                await client.SendMailAsync(message)
+                    .WaitAsync(TimeSpan.FromSeconds(timeoutSeconds));
 
                 _logger.LogInformation(
                     "Correo SMTP enviado correctamente a {Email} ({Referencia})",

@@ -49,6 +49,10 @@ namespace WorldCup.Api.Data
                 .HasForeignKey(p => p.LocalId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Partido>()
+                .Property(p => p.Fecha)
+                .HasColumnType("timestamp without time zone");
+
             // Relación Equipo -> Partidos Visitantes
             modelBuilder.Entity<Partido>()
                 .HasOne(p => p.Visitante)
