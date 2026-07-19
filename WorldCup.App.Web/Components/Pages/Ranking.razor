@@ -105,6 +105,7 @@
         }
 
         var miRendimiento = ObtenerMiRendimiento();
+        var miPodio = ObtenerMiPodio();
 
         @if (miRendimiento != null)
         {
@@ -119,7 +120,7 @@
 
                 <div class="my-performance-stats">
                     <div>
-                        <span>PosiciÃƒÂ³n</span>
+                        <span>Posici&oacute;n</span>
                         <strong>#@miRendimiento.Posicion</strong>
                     </div>
                     <div>
@@ -144,7 +145,35 @@
                         <span>Efectividad</span>
                         <strong>@miRendimiento.Efectividad%</strong>
                     </div>
+                    <div class="my-podium-stat" aria-label="Mi podio guardado">
+                        <span>Podio</span>
+                        @if (miPodio?.TienePodio != true)
+                        {
+                            <strong>Sin guardar</strong>
+                        }
+                        else
+                        {
+                            <div class="my-podium-mini-list">
+                                <div>
+                                    <b>1</b>
+                                    <span>Campe&oacute;n</span>
+                                    <strong>@miPodio.PodioCampeon</strong>
+                                </div>
+                                <div>
+                                    <b>2</b>
+                                    <span>Subcampe&oacute;n</span>
+                                    <strong>@miPodio.PodioSubcampeon</strong>
+                                </div>
+                                <div>
+                                    <b>3</b>
+                                    <span>Tercero</span>
+                                    <strong>@miPodio.PodioTercero</strong>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
+
             </section>
         }
 
@@ -208,7 +237,15 @@
                             var posicion = ranking.IndexOf(r) + 1;
                             <tr class="ranking-row @(usuarioDetalleAbierto == r.Usuario ? "open" : "")">
                                 <td data-label="#">
-                                    <span class="rank-number">@posicion</span>
+                                    <span class="rank-position-stack">
+                                        <span class="rank-number">@posicion</span>
+                                        @if (MovimientoRankingVisible(r))
+                                        {
+                                            <span class="@ClaseMovimientoRanking(r)">
+                                                @TextoMovimientoRanking(r)
+                                            </span>
+                                        }
+                                    </span>
                                 </td>
                                 <td data-label="Usuario">
                                     <div class="user-cell">
@@ -358,13 +395,13 @@
                                                                     <td colspan="12">
                                                                         <div class="detail-phase-header">
                                                                             <div>
-                                                                                <strong>@faseNombre</strong>
+                                                                                <strong>@NombreFase(faseNombre)</strong>
                                                                                 <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
                                                                             </div>
                                                                             <button type="button"
                                                                                     class="detail-phase-btn"
                                                                                     @onclick="() => ToggleFaseDetalle(r.Usuario, faseNombre)">
-                                                                                @(faseMinimizada ? "Mostrar" : "Minimizar")
+                                                                                @(faseMinimizada ? "Ver marcadores" : "Ocultar fase")
                                                                             </button>
                                                                         </div>
                                                                     </td>
@@ -381,7 +418,7 @@
                                                                             <td data-label="Partido"><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
                                                                             <td data-label="Fase"><span class="phase-pill">@d.Fase</span></td>
                                                                             <td data-label="Pronostico">@MarcadorPronostico(d)</td>
-                                                                            <td data-label="Resultado">@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                                                            <td data-label="Resultado">@MarcadorResultado(d, "result-pill")</td>
                                                                             <td data-label="Exacto">@Puntos(d.PuntosExacto, "points-green")</td>
                                                                             <td data-label="Ganador">@Puntos(d.PuntosGanador, "points-blue")</td>
                                                                             <td data-label="Dif.">@Puntos(d.PuntosDiferencia, "points-slate")</td>
@@ -480,6 +517,9 @@
     var exactosUsuarioModal = rankingDetalle.Count(x =>
         x.Usuario == usuarioDetalleModal &&
         x.PuntosExacto > 0);
+    var ganadoresUsuarioModal = rankingDetalle.Count(x =>
+        x.Usuario == usuarioDetalleModal &&
+        x.PuntosGanador > 0);
 
     <div class="detail-modal-backdrop" @onclick="CerrarDetalleUsuario">
         <div class="detail-modal" @onclick:stopPropagation="true">
@@ -500,6 +540,10 @@
                     <em>
                         <span>Exactos</span>
                         <b>@exactosUsuarioModal</b>
+                    </em>
+                    <em>
+                        <span>Ganadores</span>
+                        <b>@ganadoresUsuarioModal</b>
                     </em>
                 </div>
             </div>
@@ -786,13 +830,13 @@
                                             <td colspan="12">
                                                 <div class="detail-phase-header">
                                                     <div>
-                                                        <strong>@faseNombre</strong>
+                                                        <strong>@NombreFase(faseNombre)</strong>
                                                         <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
                                                     </div>
                                                     <button type="button"
                                                             class="detail-phase-btn"
                                                             @onclick="() => ToggleFaseDetalle(usuarioDetalleModal, faseNombre)">
-                                                        @(faseMinimizada ? "Mostrar" : "Minimizar")
+                                                        @(faseMinimizada ? "Ver marcadores" : "Ocultar fase")
                                                     </button>
                                                 </div>
                                             </td>
@@ -809,7 +853,7 @@
                                                     <td data-label="Partido"><strong>@d.Local</strong> vs <strong>@d.Visitante</strong></td>
                                                     <td data-label="Fase"><span class="phase-pill">@d.Fase</span></td>
                                                     <td data-label="Pronostico">@MarcadorPronostico(d)</td>
-                                                    <td data-label="Resultado">@Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")</td>
+                                                    <td data-label="Resultado">@MarcadorResultado(d, "result-pill")</td>
                                                     <td data-label="Exacto">@Puntos(d.PuntosExacto, "points-green")</td>
                                                     <td data-label="Ganador">@Puntos(d.PuntosGanador, "points-blue")</td>
                                                     <td data-label="Dif.">@Puntos(d.PuntosDiferencia, "points-slate")</td>
@@ -1077,6 +1121,10 @@
                             <span>Exactos</span>
                             <b>@exactosUsuarioModal</b>
                         </em>
+                        <em>
+                            <span>Ganadores</span>
+                            <b>@ganadoresUsuarioModal</b>
+                        </em>
                     </div>
                 </div>
 
@@ -1172,13 +1220,13 @@
                                 <section class="points-detail-phase">
                                     <div class="detail-phase-header">
                                         <div>
-                                            <strong>@faseNombre</strong>
+                                            <strong>@NombreFase(faseNombre)</strong>
                                             <span>@faseDetalle.Count() partidos | @faseDetalle.Sum(x => x.Total) puntos</span>
                                         </div>
                                         <button type="button"
                                                 class="detail-phase-btn"
                                                 @onclick="() => ToggleFaseDetalle(usuarioDetalleModal, faseNombre)">
-                                            @(faseMinimizada ? "Mostrar" : "Minimizar")
+                                            @(faseMinimizada ? "Ver marcadores" : "Ocultar fase")
                                         </button>
                                     </div>
 
@@ -1206,7 +1254,7 @@
                                                     </div>
                                                     <div>
                                                         <span>Resultado</span>
-                                                        @Marcador(d.ResultadoLocal, d.ResultadoVisitante, "result-pill")
+                                                        @MarcadorResultado(d, "result-pill")
                                                     </div>
                                                 </div>
 
@@ -1427,7 +1475,7 @@
 
     .my-performance {
         display: grid;
-        grid-template-columns: minmax(230px, .8fr) 2.2fr;
+        grid-template-columns: minmax(250px, .85fr) 2.15fr;
         gap: 1rem;
         margin-bottom: .9rem;
         border: 1px solid #cfe3d9;
@@ -1467,7 +1515,7 @@
 
     .my-performance-stats {
         display: grid;
-        grid-template-columns: repeat(6, minmax(80px, 1fr));
+        grid-template-columns: repeat(9, minmax(64px, 1fr));
         gap: .55rem;
     }
 
@@ -1494,6 +1542,78 @@
         color: #0d523d;
         font-size: 1.2rem;
         line-height: 1.15;
+    }
+
+    .my-performance-stats .my-podium-stat {
+        grid-column: span 3;
+        align-items: stretch;
+        justify-content: flex-start;
+        border-color: #cfe5da;
+        background: linear-gradient(180deg, #ffffff 0%, #f6fbf8 100%);
+    }
+
+    .my-performance-stats .my-podium-stat strong {
+        font-size: .86rem;
+        line-height: 1.18;
+    }
+
+    .my-performance-stats .my-podium-stat small {
+        text-transform: none;
+    }
+
+    .my-podium-mini-list {
+        display: grid;
+        gap: .24rem;
+        margin-top: .3rem;
+    }
+
+    .my-podium-mini-list > div {
+        display: grid;
+        grid-template-columns: 20px 82px minmax(0, 1fr);
+        gap: .34rem;
+        align-items: center;
+        min-width: 0;
+    }
+
+    .my-podium-mini-list b {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: #f1d66f;
+        color: #2d2712;
+        font-size: .7rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .my-podium-mini-list > div:nth-child(2) b {
+        background: #dbe3ea;
+        color: #293444;
+    }
+
+    .my-podium-mini-list > div:nth-child(3) b {
+        background: #d7aa86;
+        color: #3f2617;
+    }
+
+    .my-podium-mini-list span {
+        color: #64726a;
+        font-size: .56rem;
+        font-weight: 900;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .my-podium-mini-list strong {
+        min-width: 0;
+        overflow: hidden;
+        color: #0d523d;
+        font-size: .8rem !important;
+        font-weight: 900;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .winners-banner {
@@ -1753,6 +1873,39 @@
         font-weight: 800;
     }
 
+    .rank-position-stack {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        flex-wrap: wrap;
+    }
+
+    .rank-move-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 58px;
+        min-height: 24px;
+        border-radius: 999px;
+        background: #eef2f6;
+        color: #475467;
+        padding: .12rem .42rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .rank-move-pill.up {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .rank-move-pill.down {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
     .user-cell {
         display: flex;
         align-items: center;
@@ -1872,6 +2025,11 @@
         border: 1px solid #dbe8e2;
         border-radius: 8px;
         background: #ffffff;
+    }
+
+    .points-detail-panel > .detail-filters {
+        margin-bottom: .65rem;
+        padding: .65rem;
     }
 
     .detail-filters label {
@@ -2058,6 +2216,10 @@
         overflow: hidden;
     }
 
+    .podium-main-panel {
+        margin-bottom: .65rem;
+    }
+
     .podium-detail-head {
         display: flex;
         align-items: center;
@@ -2066,6 +2228,10 @@
         padding: .65rem .8rem;
         border-bottom: 1px solid #f0d4d4;
         background: #fff1f1;
+    }
+
+    .podium-main-panel .podium-detail-head {
+        padding: .5rem .7rem;
     }
 
     .podium-detail-head strong,
@@ -2094,12 +2260,21 @@
         padding: .7rem .8rem;
     }
 
+    .podium-main-panel .podium-detail-grid {
+        gap: .45rem;
+        padding: .55rem .65rem;
+    }
+
     .podium-detail-grid article {
         min-width: 0;
         border: 1px solid #f0d4d4;
         border-radius: 8px;
         background: #ffffff;
         padding: .6rem .7rem;
+    }
+
+    .podium-main-panel .podium-detail-grid article {
+        padding: .48rem .55rem;
     }
 
     .podium-detail-grid small {
@@ -2582,7 +2757,8 @@
 
     .detail-modal-body {
         display: grid;
-        align-content: start;
+        grid-template-rows: auto minmax(0, 1fr);
+        align-content: stretch;
         gap: .8rem;
         min-height: 0;
         padding: .8rem;
@@ -2602,22 +2778,24 @@
     }
 
     .points-detail-panel {
-        order: 1;
+        order: 2;
     }
 
     .classification-detail-panel {
-        order: 2;
+        order: 1;
     }
 
     .points-detail-panel {
         display: grid;
         grid-template-rows: auto auto auto minmax(0, 1fr);
+        height: 100%;
         min-height: 0;
         padding: 1rem;
     }
 
     .points-detail-panel .detail-scroll {
-        max-height: clamp(320px, 52dvh, 560px);
+        min-height: 300px;
+        max-height: none;
         overflow: auto;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
@@ -2886,6 +3064,10 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
+        .my-performance-stats .my-podium-stat {
+            grid-column: span 3;
+        }
+
         .summary-grid,
         .podium-strip,
         .winners-grid {
@@ -2957,6 +3139,10 @@
 
         .my-performance-stats {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .my-performance-stats .my-podium-stat {
+            grid-column: 1 / -1;
         }
 
         .my-performance-stats > div {
@@ -3423,6 +3609,8 @@
     private ClasificacionUsuarioDetalleDto? clasificacionDetalleUsuario;
     private bool cargandoClasificacionDetalle;
     private string? errorClasificacionDetalle;
+    private int puntajeMaximoDisponible;
+    private Dictionary<string, int> jugadasConPuntosPorUsuario = new(StringComparer.OrdinalIgnoreCase);
     private IJSObjectReference? predictionTrackerModule;
     private DotNetObjectReference<Ranking>? predictionTrackerReference;
 
@@ -3537,6 +3725,8 @@
         await Sesion.LimpiarPollaActivaAsync();
         ranking.Clear();
         rankingDetalle.Clear();
+        puntajeMaximoDisponible = 0;
+        jugadasConPuntosPorUsuario.Clear();
         CerrarDetalleUsuario();
         fasesDetalleMinimizadas.Clear();
         LimpiarFiltrosDetalle();
@@ -3567,12 +3757,18 @@
             return;
         }
 
-        ranking = await PollasService.GetRankingAsync(
+        var rankingTask = PollasService.GetRankingAsync(
             Sesion.PollaActivaId.Value,
             Sesion.UsuarioId.Value);
-        rankingDetalle = await PollasService.GetRankingDetalleAsync(
+        var rankingDetalleTask = PollasService.GetRankingDetalleAsync(
             Sesion.PollaActivaId.Value,
             Sesion.UsuarioId.Value);
+
+        await Task.WhenAll(rankingTask, rankingDetalleTask);
+
+        ranking = await rankingTask;
+        rankingDetalle = await rankingDetalleTask;
+        ActualizarResumenesRanking();
     }
 
     private async Task ToggleDetalleUsuario(string usuario)
@@ -3817,38 +4013,14 @@
 
     private void AplicarFasesDetalleMinimizadasIniciales(string usuario)
     {
-        var fasesUsuario = rankingDetalle
+        foreach (var fase in rankingDetalle
             .Where(d => string.Equals(
                 d.Usuario,
                 usuario,
                 StringComparison.OrdinalIgnoreCase))
-            .GroupBy(d => d.Fase)
-            .OrderBy(g => OrdenFase(g.Key))
-            .ToList();
-
-        if (!fasesUsuario.Any())
-        {
-            return;
-        }
-
-        var faseActiva = fasesUsuario
-            .FirstOrDefault(g => g.Any(d =>
-                !d.ResultadoLocal.HasValue ||
-                !d.ResultadoVisitante.HasValue))
-            ?.Key;
-
-        if (string.IsNullOrWhiteSpace(faseActiva))
-        {
-            faseActiva = fasesUsuario
-                .OrderByDescending(g => OrdenFase(g.Key))
-                .First()
-                .Key;
-        }
-
-        var ordenFaseActiva = OrdenFase(faseActiva);
-        foreach (var fase in fasesUsuario
-            .Select(g => g.Key)
-            .Where(f => OrdenFase(f) < ordenFaseActiva))
+            .Select(d => d.Fase)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             fasesDetalleMinimizadas.Add(ClaveFaseDetalle(usuario, fase));
         }
@@ -3866,7 +4038,23 @@
             : 0;
     }
 
+    private void ActualizarResumenesRanking()
+    {
+        puntajeMaximoDisponible = CalcularPuntajeMaximoDisponible();
+        jugadasConPuntosPorUsuario = rankingDetalle
+            .GroupBy(d => d.Usuario, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Count(d => d.Total > 0),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
     private int PuntajeMaximoDisponible()
+    {
+        return puntajeMaximoDisponible;
+    }
+
+    private int CalcularPuntajeMaximoDisponible()
     {
         var partidosConResultado = rankingDetalle
             .Where(d => d.ResultadoLocal.HasValue && d.ResultadoVisitante.HasValue)
@@ -3908,6 +4096,17 @@
         return maximo > 0
             ? $"{puntos} de {maximo} posibles"
             : $"{puntos} puntos";
+    }
+
+    private RankingPollaDto? ObtenerMiPodio()
+    {
+        if (!Sesion.UsuarioId.HasValue)
+        {
+            return null;
+        }
+
+        return ranking.FirstOrDefault(r =>
+            r.UsuarioId == Sesion.UsuarioId.Value);
     }
 
     private RendimientoPersonal? ObtenerMiRendimiento()
@@ -3980,9 +4179,39 @@
 
     private string ResumenUsuario(string usuario)
     {
-        var detalles = rankingDetalle.Where(x => x.Usuario == usuario).ToList();
-        var conPuntos = detalles.Count(x => x.Total > 0);
+        var conPuntos = jugadasConPuntosPorUsuario.TryGetValue(
+            usuario,
+            out var total)
+            ? total
+            : 0;
         return $"{conPuntos} jugadas con puntos";
+    }
+
+    private static bool MovimientoRankingVisible(RankingPollaDto participante)
+    {
+        return participante.CambioPosicion.HasValue;
+    }
+
+    private static string TextoMovimientoRanking(RankingPollaDto participante)
+    {
+        var cambio = participante.CambioPosicion ?? 0;
+        return cambio switch
+        {
+            > 0 => $"Sube {cambio}",
+            < 0 => $"Baja {Math.Abs(cambio)}",
+            _ => "Igual"
+        };
+    }
+
+    private static string ClaseMovimientoRanking(RankingPollaDto participante)
+    {
+        var cambio = participante.CambioPosicion ?? 0;
+        return cambio switch
+        {
+            > 0 => "rank-move-pill up",
+            < 0 => "rank-move-pill down",
+            _ => "rank-move-pill"
+        };
     }
 
     private MarkupString Marcador(int? local, int? visitante, string clase)
@@ -3992,6 +4221,24 @@
             : "--";
 
         return new MarkupString($"<span class=\"{clase}\">{texto}</span>");
+    }
+
+    private MarkupString MarcadorResultado(DetalleRankingDto detalle, string clase)
+    {
+        var marcador = Marcador(
+            detalle.ResultadoLocal,
+            detalle.ResultadoVisitante,
+            clase);
+
+        if (!detalle.ResultadoExtraLocal.HasValue ||
+            !detalle.ResultadoExtraVisitante.HasValue)
+        {
+            return marcador;
+        }
+
+        var extra = $"Extra {detalle.ResultadoExtraLocal} - {detalle.ResultadoExtraVisitante}";
+        return new MarkupString(
+            $"<span class=\"prediction-ko-wrap\">{marcador}<small>{System.Net.WebUtility.HtmlEncode(extra)}</small></span>");
     }
 
     private MarkupString MarcadorPronostico(DetalleRankingDto detalle)

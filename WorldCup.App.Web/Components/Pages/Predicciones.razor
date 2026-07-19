@@ -3913,10 +3913,18 @@ else
 
         if (partido.TiempoExtra)
         {
-            return $"Clasifica {clasificado} en tiempo extra";
+            return TieneMarcadorExtraCompleto(partido)
+                ? $"Clasifica {clasificado} en tiempo extra ({partido.GolesExtraLocal}-{partido.GolesExtraVisitante})"
+                : $"Clasifica {clasificado} en tiempo extra";
         }
 
         return $"Clasifica {clasificado}";
+    }
+
+    private static bool TieneMarcadorExtraCompleto(PartidoDto partido)
+    {
+        return partido.GolesExtraLocal.HasValue &&
+               partido.GolesExtraVisitante.HasValue;
     }
 
     private bool EquipoPodioOcupado(int equipoId, int campo)

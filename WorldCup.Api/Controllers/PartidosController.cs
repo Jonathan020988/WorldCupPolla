@@ -55,6 +55,8 @@ namespace WorldCup.Api.Controllers
                     IdExternoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.IdExternoMarcadorEnVivo : null,
                     p.TiempoExtra,
                     p.ClasificadoId,
+                    p.GolesExtraLocal,
+                    p.GolesExtraVisitante,
                     p.PenalesLocal,
                     p.PenalesVisitante,
                     p.Finalizado,
@@ -98,6 +100,8 @@ namespace WorldCup.Api.Controllers
                 IdExternoMarcadorEnVivo = mostrarMarcadoresEnVivo ? p.IdExternoMarcadorEnVivo : null,
                 TiempoExtra = p.TiempoExtra,
                 ClasificadoId = p.ClasificadoId,
+                GolesExtraLocal = p.GolesExtraLocal,
+                GolesExtraVisitante = p.GolesExtraVisitante,
                 PenalesLocal = p.PenalesLocal,
                 PenalesVisitante = p.PenalesVisitante,
                 Finalizado = p.Finalizado,
@@ -272,11 +276,17 @@ namespace WorldCup.Api.Controllers
             var esEliminatoria = partido.Fase != "Grupos";
             var tienePenales = dto.PenalesLocal.HasValue || dto.PenalesVisitante.HasValue;
             var tieneMarcadorCompleto = dto.GolesLocal.HasValue && dto.GolesVisitante.HasValue;
+            var tieneMarcadorExtra = dto.GolesExtraLocal.HasValue || dto.GolesExtraVisitante.HasValue;
             var estadoPermiteExtras =
                 estado == "EnJuego" ||
                 estado == "TiempoExtra" ||
                 estado == "Penales" ||
                 estado == "Finalizado";
+            var marcaTiempoExtra =
+                dto.TiempoExtra ||
+                tienePenales ||
+                estado == "TiempoExtra" ||
+                estado == "Penales";
 
             if (estado == "Pendiente" && tieneMarcadorCompleto)
             {
@@ -286,6 +296,34 @@ namespace WorldCup.Api.Controllers
             if (estado == "Finalizado" && !tieneMarcadorCompleto)
             {
                 return BadRequest("Para finalizar el partido debes ingresar ambos marcadores.");
+            }
+
+            if (tieneMarcadorExtra &&
+                (!dto.GolesExtraLocal.HasValue || !dto.GolesExtraVisitante.HasValue))
+            {
+                return BadRequest("Para guardar el marcador de tiempo extra debes ingresar ambos valores.");
+            }
+
+            if (tieneMarcadorExtra &&
+                (!esEliminatoria || !estadoPermiteExtras || !marcaTiempoExtra))
+            {
+                return BadRequest("El marcador de tiempo extra solo aplica en eliminatorias con tiempo extra marcado.");
+            }
+
+            if (tieneMarcadorExtra && !tieneMarcadorCompleto)
+            {
+                return BadRequest("Para guardar marcador de tiempo extra primero ingresa el marcador de los 90 minutos.");
+            }
+
+            if (estado == "Finalizado" &&
+                esEliminatoria &&
+                tieneMarcadorCompleto &&
+                (dto.TiempoExtra || tienePenales) &&
+                dto.GolesLocal != dto.GolesVisitante)
+            {
+                return BadRequest(
+                    "En eliminatorias el marcador que da puntos es el de los 90 minutos. " +
+                    "Si el partido se definió en tiempo extra o penales, guarda el empate de los 90 minutos y selecciona el clasificado.");
             }
 
             int? clasificadoId = null;
@@ -343,7 +381,7 @@ namespace WorldCup.Api.Controllers
                 }
                 else if (dto.GolesLocal == dto.GolesVisitante)
                 {
-                    if (!dto.TiempoExtra)
+                    if (!marcaTiempoExtra)
                     {
                         return BadRequest("Un empate en eliminatorias debe indicar tiempo extra o penales.");
                     }
@@ -354,6 +392,19 @@ namespace WorldCup.Api.Controllers
                     }
 
                     clasificadoId = dto.ClasificadoId.Value;
+
+                    if (tieneMarcadorExtra &&
+                        dto.GolesExtraLocal != dto.GolesExtraVisitante)
+                    {
+                        var ganadorExtra = dto.GolesExtraLocal!.Value > dto.GolesExtraVisitante!.Value
+                            ? partido.LocalId
+                            : partido.VisitanteId;
+
+                        if (clasificadoId.Value != ganadorExtra)
+                        {
+                            return BadRequest("El equipo clasificado debe coincidir con el ganador del marcador visual de tiempo extra.");
+                        }
+                    }
                 }
                 else
                 {
@@ -371,7 +422,38 @@ namespace WorldCup.Api.Controllers
                 }
             }
 
-            var puntajesAntes = estado == "Finalizado"
+            var finalizadoNuevo = estado == "Finalizado";
+            var tiempoExtraNuevo =
+                esEliminatoria &&
+                estadoPermiteExtras &&
+                marcaTiempoExtra;
+            var guardarMarcadorExtra =
+                esEliminatoria &&
+                tiempoExtraNuevo &&
+                dto.GolesExtraLocal.HasValue &&
+                dto.GolesExtraVisitante.HasValue;
+            var clasificadoNuevo =
+                esEliminatoria && finalizadoNuevo
+                    ? clasificadoId
+                    : null;
+            var penalesLocalNuevo =
+                esEliminatoria && estadoPermiteExtras && tienePenales
+                    ? dto.PenalesLocal
+                    : null;
+            var penalesVisitanteNuevo =
+                esEliminatoria && estadoPermiteExtras && tienePenales
+                    ? dto.PenalesVisitante
+                    : null;
+            var cambiaDatosPuntaje =
+                partido.Finalizado != finalizadoNuevo ||
+                partido.GolesLocal != dto.GolesLocal ||
+                partido.GolesVisitante != dto.GolesVisitante ||
+                partido.TiempoExtra != tiempoExtraNuevo ||
+                partido.ClasificadoId != clasificadoNuevo ||
+                partido.PenalesLocal != penalesLocalNuevo ||
+                partido.PenalesVisitante != penalesVisitanteNuevo;
+
+            var puntajesAntes = finalizadoNuevo && cambiaDatosPuntaje
                 ? await ObtenerSnapshotPuntajesRankingAsync()
                 : null;
             if (puntajesAntes != null)
@@ -382,53 +464,49 @@ namespace WorldCup.Api.Controllers
             }
 
             partido.Estado = estado;
-            partido.Finalizado = estado == "Finalizado";
+            partido.Finalizado = finalizadoNuevo;
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
-            partido.TiempoExtra =
-                esEliminatoria &&
-                estadoPermiteExtras &&
-                (dto.TiempoExtra ||
-                 tienePenales ||
-                 estado == "TiempoExtra" ||
-                 estado == "Penales");
-            partido.ClasificadoId =
-                esEliminatoria && estado == "Finalizado"
-                    ? clasificadoId
-                    : null;
-            partido.PenalesLocal =
-                esEliminatoria && estadoPermiteExtras && tienePenales
-                    ? dto.PenalesLocal
-                    : null;
-            partido.PenalesVisitante =
-                esEliminatoria && estadoPermiteExtras && tienePenales
-                    ? dto.PenalesVisitante
-                    : null;
+            partido.TiempoExtra = tiempoExtraNuevo;
+            partido.GolesExtraLocal = guardarMarcadorExtra
+                ? dto.GolesExtraLocal
+                : null;
+            partido.GolesExtraVisitante = guardarMarcadorExtra
+                ? dto.GolesExtraVisitante
+                : null;
+            partido.ClasificadoId = clasificadoNuevo;
+            partido.PenalesLocal = penalesLocalNuevo;
+            partido.PenalesVisitante = penalesVisitanteNuevo;
 
-            await RecalcularPuntosPartidoAsync(partido);
+            if (cambiaDatosPuntaje)
+            {
+                await RecalcularPuntosPartidoAsync(partido);
+            }
 
-            if (partido.Fase == "Grupos" &&
+            if (cambiaDatosPuntaje &&
+                partido.Fase == "Grupos" &&
                 (partido.Finalizado || eraFinalizado))
             {
                 await CalcularPuntosClasificacionGrupo(partido.Local.Grupo!);
             }
 
-            if ((partido.Finalizado || eraFinalizado) &&
+            if (cambiaDatosPuntaje &&
+                (partido.Finalizado || eraFinalizado) &&
                 (partido.Fase == "Final" || partido.Fase == "TercerPuesto"))
             {
-                await CalcularPuntosPodio();
+                await CalcularPuntosPodio(partido);
             }
 
             await _context.SaveChangesAsync();
 
-            if (partido.Finalizado)
+            if (partido.Finalizado && cambiaDatosPuntaje)
             {
                 await GuardarAuditoriaRankingPartidoAsync(
                     partido.Id,
                     dto.AdminUsuarioId,
                     puntajesAntes ?? new Dictionary<(int PollaId, int UsuarioId), PuntajesRankingSnapshot>());
             }
-            else
+            else if (!partido.Finalizado && cambiaDatosPuntaje)
             {
                 await LimpiarAuditoriaRankingPartidoAsync(partido.Id);
             }
@@ -441,6 +519,8 @@ namespace WorldCup.Api.Controllers
                 partido.GolesVisitante,
                 partido.TiempoExtra,
                 partido.ClasificadoId,
+                partido.GolesExtraLocal,
+                partido.GolesExtraVisitante,
                 partido.PenalesLocal,
                 partido.PenalesVisitante,
                 partido.Finalizado
@@ -456,6 +536,8 @@ namespace WorldCup.Api.Controllers
             if (adminError != null)
                 return adminError;
 
+            await RecalcularAuditoriaPodioPendienteSiAplicaAsync(id, adminUsuarioId!.Value);
+
             return await ConstruirRespuestaAuditoriaRankingPartidoAsync(id);
         }
 
@@ -467,6 +549,8 @@ namespace WorldCup.Api.Controllers
             var adminError = await ValidarAdminAsync(dto.AdminUsuarioId);
             if (adminError != null)
                 return adminError;
+
+            await RecalcularAuditoriaPodioPendienteSiAplicaAsync(id, dto.AdminUsuarioId);
 
             var publicacion = await _context.RankingsPartidosPublicacion
                 .FirstOrDefaultAsync(r => r.PartidoId == id);
@@ -673,6 +757,8 @@ namespace WorldCup.Api.Controllers
                 if (partido.Fase == "Grupos")
                 {
                     partido.TiempoExtra = false;
+                    partido.GolesExtraLocal = null;
+                    partido.GolesExtraVisitante = null;
                     partido.ClasificadoId = null;
                 }
                 else
@@ -682,6 +768,12 @@ namespace WorldCup.Api.Controllers
                     if (partido.PenalesLocal.HasValue && partido.PenalesVisitante.HasValue)
                     {
                         partido.TiempoExtra = true;
+                    }
+
+                    if (!partido.TiempoExtra)
+                    {
+                        partido.GolesExtraLocal = null;
+                        partido.GolesExtraVisitante = null;
                     }
                 }
             }
@@ -871,6 +963,8 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
                 partido.TiempoExtra = false;
+                partido.GolesExtraLocal = null;
+                partido.GolesExtraVisitante = null;
                 partido.ClasificadoId = null;
                 partido.Finalizado = false;
                 partido.Estado = "Pendiente";
@@ -1871,6 +1965,13 @@ namespace WorldCup.Api.Controllers
             if (!await FaseAnteriorCompleta(partido.Fase))
                 return Conflict($"No se puede jugar {partido.Fase} sin completar la fase anterior");
 
+            var tieneMarcadorExtra = dto.GolesExtraLocal.HasValue || dto.GolesExtraVisitante.HasValue;
+            if (tieneMarcadorExtra &&
+                (!dto.GolesExtraLocal.HasValue || !dto.GolesExtraVisitante.HasValue))
+            {
+                return BadRequest("Para guardar el marcador de tiempo extra debes ingresar ambos valores.");
+            }
+
             partido.GolesLocal = dto.GolesLocal;
             partido.GolesVisitante = dto.GolesVisitante;
             int? clasificadoId;
@@ -1911,6 +2012,12 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal = dto.PenalesLocal;
                 partido.PenalesVisitante = dto.PenalesVisitante;
                 partido.TiempoExtra = true;
+                partido.GolesExtraLocal = tieneMarcadorExtra
+                    ? dto.GolesExtraLocal
+                    : null;
+                partido.GolesExtraVisitante = tieneMarcadorExtra
+                    ? dto.GolesExtraVisitante
+                    : null;
             }
             else
             {
@@ -1922,6 +2029,12 @@ namespace WorldCup.Api.Controllers
                 partido.PenalesLocal = null;
                 partido.PenalesVisitante = null;
                 partido.TiempoExtra = dto.TiempoExtra;
+                partido.GolesExtraLocal = dto.TiempoExtra && tieneMarcadorExtra
+                    ? dto.GolesExtraLocal
+                    : null;
+                partido.GolesExtraVisitante = dto.TiempoExtra && tieneMarcadorExtra
+                    ? dto.GolesExtraVisitante
+                    : null;
             }
             partido.ClasificadoId = clasificadoId;
             partido.Finalizado = true;
@@ -1932,10 +2045,10 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync(); // ✅ AHORA SÍ SE GUARDA TODO
 
 
-            // 🏆 SOLO si es la FINAL → calcular podio
-            if (partido.Fase == "Final")
+            // Recalcula el podio cuando queda definida la final o el tercer puesto.
+            if (partido.Fase is "Final" or "TercerPuesto")
             {
-                await CalcularPuntosPodio();
+                await CalcularPuntosPodio(partido);
             }
             return Ok(new
             {
@@ -1943,6 +2056,8 @@ namespace WorldCup.Api.Controllers
                 partido.GolesLocal,
                 partido.GolesVisitante,
                 partido.ClasificadoId,
+                partido.GolesExtraLocal,
+                partido.GolesExtraVisitante,
                 partido.PenalesLocal,
                 partido.PenalesVisitante
             });
@@ -3279,6 +3394,16 @@ namespace WorldCup.Api.Controllers
         {
             var calculadoEn = DateTime.UtcNow;
             var puntajesDespues = await ObtenerSnapshotPuntajesRankingAsync();
+            var partidoAuditoria = await _context.Partidos
+                .AsNoTracking()
+                .Where(p => p.Id == partidoId)
+                .Select(p => new
+                {
+                    p.Fase
+                })
+                .FirstOrDefaultAsync();
+            var usarPuntosDirectosPartido =
+                partidoAuditoria?.Fase is "Final" or "TercerPuesto";
 
             var miembros = await _context.PollaMiembros
                 .AsNoTracking()
@@ -3299,7 +3424,10 @@ namespace WorldCup.Api.Controllers
                     p.PollaId,
                     p.UsuarioId,
                     p.GolesLocal,
-                    p.GolesVisitante
+                    p.GolesVisitante,
+                    p.PuntosMarcador,
+                    p.PuntosClasificacion,
+                    p.PuntosPodio
                 })
                 .ToListAsync();
 
@@ -3343,6 +3471,25 @@ namespace WorldCup.Api.Controllers
 
                 var puntosPrevios = antes?.Total ?? 0;
                 var puntosRanking = despues?.Total ?? 0;
+                var puntosMarcadorCierre =
+                    (despues?.Marcador ?? 0) - (antes?.Marcador ?? 0);
+                var puntosClasificacionCierre =
+                    (despues?.Clasificacion ?? 0) - (antes?.Clasificacion ?? 0);
+                var puntosPodioCierre =
+                    (despues?.Podio ?? 0) - (antes?.Podio ?? 0);
+                var puntosCambio = puntosRanking - puntosPrevios;
+
+                if (usarPuntosDirectosPartido)
+                {
+                    puntosMarcadorCierre = prediccion?.PuntosMarcador ?? 0;
+                    puntosClasificacionCierre = prediccion?.PuntosClasificacion ?? 0;
+                    puntosPodioCierre = prediccion?.PuntosPodio ?? 0;
+                    puntosCambio =
+                        puntosMarcadorCierre +
+                        puntosClasificacionCierre +
+                        puntosPodioCierre;
+                    puntosPrevios = puntosRanking - puntosCambio;
+                }
 
                 _context.RankingsPartidosAuditoriaDetalle.Add(new RankingPartidoAuditoriaDetalle
                 {
@@ -3354,11 +3501,11 @@ namespace WorldCup.Api.Controllers
                     GolesLocalPrediccion = prediccion?.GolesLocal,
                     GolesVisitantePrediccion = prediccion?.GolesVisitante,
                     PuntosPrevios = puntosPrevios,
-                    PuntosCambio = puntosRanking - puntosPrevios,
+                    PuntosCambio = puntosCambio,
                     PuntosRanking = puntosRanking,
-                    PuntosMarcadorCierre = (despues?.Marcador ?? 0) - (antes?.Marcador ?? 0),
-                    PuntosClasificacionCierre = (despues?.Clasificacion ?? 0) - (antes?.Clasificacion ?? 0),
-                    PuntosPodioCierre = (despues?.Podio ?? 0) - (antes?.Podio ?? 0),
+                    PuntosMarcadorCierre = puntosMarcadorCierre,
+                    PuntosClasificacionCierre = puntosClasificacionCierre,
+                    PuntosPodioCierre = puntosPodioCierre,
                     FechaCalculo = calculadoEn
                 });
             }
@@ -3433,6 +3580,41 @@ namespace WorldCup.Api.Controllers
             await _context.SaveChangesAsync();
         }
 
+        private async Task RecalcularAuditoriaPodioPendienteSiAplicaAsync(
+            int partidoId,
+            int adminUsuarioId)
+        {
+            var publicacion = await _context.RankingsPartidosPublicacion
+                .AsNoTracking()
+                .Where(r => r.PartidoId == partidoId)
+                .Select(r => new { r.Publicado })
+                .FirstOrDefaultAsync();
+
+            if (publicacion?.Publicado != false)
+            {
+                return;
+            }
+
+            var partido = await _context.Partidos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == partidoId);
+
+            if (partido == null ||
+                !partido.Finalizado ||
+                partido.Fase is not ("Final" or "TercerPuesto"))
+            {
+                return;
+            }
+
+            var puntajesAntes = await ObtenerSnapshotPuntajesRankingAsync();
+            await AjustarSnapshotConAuditoriaPendienteExistenteAsync(partido.Id, puntajesAntes);
+            await CalcularPuntosPodio(partido);
+            await GuardarAuditoriaRankingPartidoAsync(
+                partido.Id,
+                adminUsuarioId,
+                puntajesAntes);
+        }
+
         private async Task<IActionResult> ConstruirRespuestaAuditoriaRankingPartidoAsync(int partidoId)
         {
             var partido = await _context.Partidos
@@ -3497,30 +3679,50 @@ namespace WorldCup.Api.Controllers
                     detallesPorPolla.TryGetValue(p.Id, out var filas);
                     filas ??= new();
 
+                    var posicionesPrevias = filas
+                        .OrderByDescending(f => f.PuntosPrevios)
+                        .ThenBy(f => f.Usuario)
+                        .Select((f, index) => new
+                        {
+                            f.UsuarioId,
+                            Posicion = index + 1
+                        })
+                        .ToDictionary(f => f.UsuarioId, f => f.Posicion);
+
                     var filasOrdenadas = filas
                         .OrderByDescending(f => f.PuntosRanking)
                         .ThenByDescending(f => f.PuntosCambio)
                         .ThenBy(f => f.Usuario)
-                        .Select((f, index) => new
+                        .Select((f, index) =>
                         {
-                            Posicion = index + 1,
-                            f.UsuarioId,
-                            f.Usuario,
-                            Pronostico = f.TienePrediccion
-                                ? $"{f.GolesLocalPrediccion} - {f.GolesVisitantePrediccion}"
-                                : "Sin marcador",
-                            f.TienePrediccion,
-                            f.PuntosPrevios,
-                            f.PuntosCambio,
-                            f.PuntosRanking,
-                            f.PuntosMarcadorCierre,
-                            f.PuntosClasificacionCierre,
-                            f.PuntosPodioCierre,
-                            DetalleClasificacionCierre =
-                                f.PuntosClasificacionCierre != 0 &&
-                                detallesClasificacion.TryGetValue((p.Id, f.UsuarioId), out var detalleClasificacion)
-                                    ? detalleClasificacion
-                                    : ""
+                            var posicion = index + 1;
+                            var posicionAnterior = posicionesPrevias.TryGetValue(f.UsuarioId, out var previa)
+                                ? previa
+                                : posicion;
+
+                            return new
+                            {
+                                Posicion = posicion,
+                                PosicionAnterior = posicionAnterior,
+                                CambioPosicion = posicionAnterior - posicion,
+                                f.UsuarioId,
+                                f.Usuario,
+                                Pronostico = f.TienePrediccion
+                                    ? $"{f.GolesLocalPrediccion} - {f.GolesVisitantePrediccion}"
+                                    : "Sin marcador",
+                                f.TienePrediccion,
+                                f.PuntosPrevios,
+                                f.PuntosCambio,
+                                f.PuntosRanking,
+                                f.PuntosMarcadorCierre,
+                                f.PuntosClasificacionCierre,
+                                f.PuntosPodioCierre,
+                                DetalleClasificacionCierre =
+                                    f.PuntosClasificacionCierre != 0 &&
+                                    detallesClasificacion.TryGetValue((p.Id, f.UsuarioId), out var detalleClasificacion)
+                                        ? detalleClasificacion
+                                        : ""
+                            };
                         })
                         .ToList();
 
@@ -3665,7 +3867,9 @@ namespace WorldCup.Api.Controllers
                 foreach (var pred in predicciones)
                 {
                     pred.PuntosMarcador = 0;
+                    pred.PuntosClasificacion = 0;
                     pred.PuntosTotales =
+                        pred.PuntosMarcador +
                         pred.PuntosClasificacion +
                         pred.PuntosPodio;
                     pred.Bloqueada =
@@ -4088,13 +4292,10 @@ namespace WorldCup.Api.Controllers
 
        
 
-        private async Task CalcularPuntosPodio()
+        private async Task CalcularPuntosPodio(Partido? partidoActual = null)
         {
-            var final = await _context.Partidos
-                .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
-
-            var tercerPuesto = await _context.Partidos
-                .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
+            var final = await ObtenerPartidoPodioFinalizadoAsync("Final", partidoActual);
+            var tercerPuesto = await ObtenerPartidoPodioFinalizadoAsync("TercerPuesto", partidoActual);
 
             var prediccionesConPodio = await _context.Predicciones
                 .Where(p => p.PuntosPodio != 0)
@@ -4111,7 +4312,7 @@ namespace WorldCup.Api.Controllers
             var prediccionesPodio = await _context.PrediccionesPodio
                 .ToListAsync();
 
-            if (final == null || tercerPuesto == null)
+            if (final == null && tercerPuesto == null)
             {
                 foreach (var pred in prediccionesPodio)
                 {
@@ -4122,37 +4323,182 @@ namespace WorldCup.Api.Controllers
                 return;
             }
 
-            int campeon = ObtenerGanadorId(final);
-            int subcampeon = ObtenerPerdedorId(final);
-            int tercero = ObtenerGanadorId(tercerPuesto);
+            int? campeon = final != null ? ObtenerGanadorId(final) : null;
+            int? subcampeon = final != null ? ObtenerPerdedorId(final) : null;
+            int? tercero = tercerPuesto != null ? ObtenerGanadorId(tercerPuesto) : null;
+            var equiposPodio = await ObtenerClavesEquiposPodioAsync(
+                prediccionesPodio,
+                campeon,
+                subcampeon,
+                tercero);
 
             foreach (var pred in prediccionesPodio)
             {
-                var puntos = PuntajesPodio.Calcular(pred, campeon, subcampeon, tercero);
+                var puntosFinal = 0;
+                var puntosTercerPuesto = 0;
 
-                var prediccionRepresentativa = await _context.Predicciones
-                    .Where(p =>
-                        p.UsuarioId == pred.UsuarioId &&
-                        p.PollaId == pred.PollaId)
-                    .OrderByDescending(p => p.Partido.Fase == "Final")
-                    .ThenByDescending(p => p.Partido.Fase == "TercerPuesto")
-                    .ThenBy(p => p.PartidoId)
-                    .FirstOrDefaultAsync();
-
-                if (prediccionRepresentativa != null)
+                if (EquipoPodioCoincide(pred.CampeonId, campeon, equiposPodio))
                 {
-                    prediccionRepresentativa.PuntosPodio = puntos;
-                    prediccionRepresentativa.PuntosTotales =
-                        prediccionRepresentativa.PuntosMarcador +
-                        prediccionRepresentativa.PuntosClasificacion +
-                        prediccionRepresentativa.PuntosPodio;
+                    puntosFinal += PuntajesPodio.Campeon;
                 }
 
-                pred.Bloqueada = true;
+                if (EquipoPodioCoincide(pred.SubcampeonId, subcampeon, equiposPodio))
+                {
+                    puntosFinal += PuntajesPodio.Subcampeon;
+                }
+
+                if (EquipoPodioCoincide(pred.TerceroId, tercero, equiposPodio))
+                {
+                    puntosTercerPuesto += PuntajesPodio.Tercero;
+                }
+
+                if (final != null && puntosFinal != 0)
+                {
+                    await AgregarPuntosPodioAsync(pred, final.Id, "Final", puntosFinal);
+                }
+
+                if (tercerPuesto != null && puntosTercerPuesto != 0)
+                {
+                    await AgregarPuntosPodioAsync(
+                        pred,
+                        tercerPuesto.Id,
+                        "TercerPuesto",
+                        puntosTercerPuesto);
+                }
+
+                pred.Bloqueada = final != null && tercerPuesto != null;
             }
 
             await _context.SaveChangesAsync();
         }
+
+        private async Task<Partido?> ObtenerPartidoPodioFinalizadoAsync(
+            string fase,
+            Partido? partidoActual)
+        {
+            if (partidoActual != null &&
+                string.Equals(partidoActual.Fase, fase, StringComparison.OrdinalIgnoreCase))
+            {
+                return partidoActual.Finalizado
+                    ? partidoActual
+                    : null;
+            }
+
+            return await _context.Partidos
+                .FirstOrDefaultAsync(p => p.Fase == fase && p.Finalizado);
+        }
+
+        private async Task<Dictionary<int, EquipoPodioClave>> ObtenerClavesEquiposPodioAsync(
+            List<PrediccionPodio> prediccionesPodio,
+            int? campeon,
+            int? subcampeon,
+            int? tercero)
+        {
+            var ids = prediccionesPodio
+                .SelectMany(p => new[] { p.CampeonId, p.SubcampeonId, p.TerceroId })
+                .Concat(new[] { campeon, subcampeon, tercero }
+                    .Where(id => id.HasValue)
+                    .Select(id => id!.Value))
+                .Distinct()
+                .ToList();
+
+            if (!ids.Any())
+            {
+                return new Dictionary<int, EquipoPodioClave>();
+            }
+
+            return await _context.Equipos
+                .AsNoTracking()
+                .Where(e => ids.Contains(e.Id))
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre,
+                    e.CodigoFifa
+                })
+                .ToDictionaryAsync(
+                    e => e.Id,
+                    e => new EquipoPodioClave(
+                        NormalizarClaveEquipo(e.Nombre),
+                        NormalizarClaveEquipo(e.CodigoFifa)));
+        }
+
+        private static bool EquipoPodioCoincide(
+            int predichoId,
+            int? realId,
+            Dictionary<int, EquipoPodioClave> equipos)
+        {
+            if (!realId.HasValue)
+            {
+                return false;
+            }
+
+            if (predichoId == realId.Value)
+            {
+                return true;
+            }
+
+            if (!equipos.TryGetValue(predichoId, out var predicho) ||
+                !equipos.TryGetValue(realId.Value, out var real))
+            {
+                return false;
+            }
+
+            return (!string.IsNullOrWhiteSpace(predicho.CodigoFifa) &&
+                    predicho.CodigoFifa == real.CodigoFifa) ||
+                   (!string.IsNullOrWhiteSpace(predicho.Nombre) &&
+                    predicho.Nombre == real.Nombre);
+        }
+
+        private static string NormalizarClaveEquipo(string? valor)
+        {
+            var normalizado = (valor ?? "")
+                .Trim()
+                .ToUpperInvariant()
+                .Normalize(System.Text.NormalizationForm.FormD);
+
+            return new string(normalizado
+                .Where(c =>
+                    System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) !=
+                    System.Globalization.UnicodeCategory.NonSpacingMark &&
+                    char.IsLetterOrDigit(c))
+                .ToArray());
+        }
+
+        private async Task AgregarPuntosPodioAsync(
+            PrediccionPodio podio,
+            int partidoId,
+            string fasePreferida,
+            int puntos)
+        {
+            var prediccion = await _context.Predicciones
+                .Where(p =>
+                    p.UsuarioId == podio.UsuarioId &&
+                    p.PollaId == podio.PollaId &&
+                    p.PartidoId == partidoId)
+                .FirstOrDefaultAsync();
+
+            prediccion ??= await _context.Predicciones
+                .Where(p =>
+                    p.UsuarioId == podio.UsuarioId &&
+                    p.PollaId == podio.PollaId)
+                .OrderByDescending(p => p.Partido.Fase == fasePreferida)
+                .ThenBy(p => p.PartidoId)
+                .FirstOrDefaultAsync();
+
+            if (prediccion == null)
+            {
+                return;
+            }
+
+            prediccion.PuntosPodio += puntos;
+            prediccion.PuntosTotales =
+                prediccion.PuntosMarcador +
+                prediccion.PuntosClasificacion +
+                prediccion.PuntosPodio;
+        }
+
+        private sealed record EquipoPodioClave(string Nombre, string CodigoFifa);
 
         [HttpGet("simulador")]
         public async Task<ActionResult<IEnumerable<SimuladorPartidoDto>>> GetSimulador()

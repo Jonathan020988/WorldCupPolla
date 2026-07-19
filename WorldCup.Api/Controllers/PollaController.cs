@@ -545,6 +545,7 @@ namespace WorldCup.Api.Controllers
                 return acceso;
 
             var pollaPremios = await _context.Pollas
+                .AsNoTracking()
                 .Where(p => p.Id == pollaId)
                 .Select(p => new
                 {
@@ -563,7 +564,7 @@ namespace WorldCup.Api.Controllers
                  await _adminAuthorization.EsAdminAsync(solicitanteId.Value));
 
             var miembros = await _context.PollaMiembros
-                .Include(pm => pm.Usuario)
+                .AsNoTracking()
                 .Where(pm => pm.PollaId == pollaId && pm.Usuario.Activo)
                 .Select(pm => new
                 {
@@ -576,15 +577,35 @@ namespace WorldCup.Api.Controllers
                 .Distinct()
                 .ToListAsync();
 
-            var detalles = await ObtenerDetalleRanking(pollaId);
+            var resumenesRanking = await ObtenerResumenesRankingAsync(
+                pollaId,
+                miembros.Select(m => m.UsuarioId).ToList());
             var ajustesPendientes = await ObtenerAjustesRankingPendientesAsync(pollaId);
+            var podioSolicitante = solicitanteId.HasValue
+                ? await (
+                    from podio in _context.PrediccionesPodio.AsNoTracking()
+                    join campeon in _context.Equipos.AsNoTracking()
+                        on podio.CampeonId equals campeon.Id
+                    join subcampeon in _context.Equipos.AsNoTracking()
+                        on podio.SubcampeonId equals subcampeon.Id
+                    join tercero in _context.Equipos.AsNoTracking()
+                        on podio.TerceroId equals tercero.Id
+                    where podio.PollaId == pollaId &&
+                          podio.UsuarioId == solicitanteId.Value
+                    select new
+                    {
+                        podio.UsuarioId,
+                        Campeon = campeon.Nombre,
+                        Subcampeon = subcampeon.Nombre,
+                        Tercero = tercero.Nombre
+                    })
+                    .FirstOrDefaultAsync()
+                : null;
 
             var ranking = miembros
                 .Select(m =>
                 {
-                    var detalleUsuario = detalles
-                        .Where(d => d.UsuarioId == m.UsuarioId)
-                        .ToList();
+                    resumenesRanking.TryGetValue(m.UsuarioId, out var resumen);
                     ajustesPendientes.TryGetValue(m.UsuarioId, out var ajustePendiente);
                     var puntosPendientes = ajustePendiente?.Total ?? 0;
                     var clasificacionPendiente = ajustePendiente?.Clasificacion ?? 0;
@@ -597,19 +618,15 @@ namespace WorldCup.Api.Controllers
                             UsuarioId = m.UsuarioId,
                             Usuario = m.Usuario,
                             ObservacionAdmin = m.ObservacionAdmin,
-                            Puntos = detalleUsuario.Sum(d => d.Total) - puntosPendientes
+                            Puntos = (resumen?.Puntos ?? 0) - puntosPendientes
                         },
-                        Exactos = detalleUsuario.Count(d => d.PuntosExacto > 0),
-                        Ganadores = detalleUsuario.Count(d => d.PuntosGanador > 0),
-                        Goles = detalleUsuario.Count(d => d.PuntosGoles > 0),
-                        Diferencias = detalleUsuario.Count(d => d.PuntosDiferencia > 0),
-                        ClasificacionGrupos = detalleUsuario
-                            .Where(d => d.Fase == "Grupos")
-                            .Sum(d => d.PuntosClasificacion) - clasificacionPendiente,
-                        ClasificacionKo = detalleUsuario
-                            .Where(d => d.Fase != "Grupos")
-                            .Sum(d => d.PuntosClasificacion),
-                        Podio = detalleUsuario.Sum(d => d.PuntosPodio) - podioPendiente
+                        Exactos = resumen?.Exactos ?? 0,
+                        Ganadores = resumen?.Ganadores ?? 0,
+                        Goles = resumen?.Goles ?? 0,
+                        Diferencias = resumen?.Diferencias ?? 0,
+                        ClasificacionGrupos = (resumen?.ClasificacionGrupos ?? 0) - clasificacionPendiente,
+                        ClasificacionKo = resumen?.ClasificacionKo ?? 0,
+                        Podio = (resumen?.Podio ?? 0) - podioPendiente
                     };
                 })
                 .OrderByDescending(r => r.Ranking.Puntos)
@@ -624,6 +641,8 @@ namespace WorldCup.Api.Controllers
                 .Select(r => r.Ranking)
                 .ToList();
 
+            await AplicarMovimientoUltimoPartidoPublicadoAsync(pollaId, ranking);
+
             for (var i = 0; i < ranking.Count; i++)
             {
                 ranking[i].Premio = i switch
@@ -635,7 +654,167 @@ namespace WorldCup.Api.Controllers
                 };
             }
 
+            if (podioSolicitante != null)
+            {
+                var rankingSolicitante = ranking.FirstOrDefault(r =>
+                    r.UsuarioId == podioSolicitante.UsuarioId);
+                if (rankingSolicitante != null)
+                {
+                    rankingSolicitante.TienePodio = true;
+                    rankingSolicitante.PodioCampeon = podioSolicitante.Campeon;
+                    rankingSolicitante.PodioSubcampeon = podioSolicitante.Subcampeon;
+                    rankingSolicitante.PodioTercero = podioSolicitante.Tercero;
+                }
+            }
+
             return Ok(ranking);
+        }
+
+        private async Task<Dictionary<int, ResumenRankingPolla>> ObtenerResumenesRankingAsync(
+            int pollaId,
+            IReadOnlyCollection<int> miembrosIds)
+        {
+            if (!miembrosIds.Any())
+            {
+                return new Dictionary<int, ResumenRankingPolla>();
+            }
+
+            var predicciones = await _context.Predicciones
+                .AsNoTracking()
+                .Include(p => p.Partido)
+                .Where(p =>
+                    p.PollaId == pollaId &&
+                    miembrosIds.Contains(p.UsuarioId))
+                .ToListAsync();
+
+            return predicciones
+                .GroupBy(p => p.UsuarioId)
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var resumen = new ResumenRankingPolla();
+
+                        foreach (var prediccion in g)
+                        {
+                            var marcador = DesglosarMarcador(prediccion);
+
+                            resumen.Puntos += prediccion.PuntosTotales;
+                            resumen.Podio += prediccion.PuntosPodio;
+
+                            if (marcador.Exacto > 0)
+                            {
+                                resumen.Exactos++;
+                            }
+
+                            if (marcador.Ganador > 0)
+                            {
+                                resumen.Ganadores++;
+                            }
+
+                            if (marcador.Goles > 0)
+                            {
+                                resumen.Goles++;
+                            }
+
+                            if (marcador.Diferencia > 0)
+                            {
+                                resumen.Diferencias++;
+                            }
+
+                            if (prediccion.Partido.Fase == "Grupos")
+                            {
+                                resumen.ClasificacionGrupos += prediccion.PuntosClasificacion;
+                            }
+                            else
+                            {
+                                resumen.ClasificacionKo += DesglosarClasificacionKo(prediccion).Clasificacion;
+                            }
+                        }
+
+                        return resumen;
+                    });
+        }
+
+        private async Task AplicarMovimientoUltimoPartidoPublicadoAsync(
+            int pollaId,
+            List<RankingPollaDTO> ranking)
+        {
+            if (!ranking.Any())
+            {
+                return;
+            }
+
+            var ultimoPartidoPublicadoId = await (
+                from publicacion in _context.RankingsPartidosPublicacion.AsNoTracking()
+                join detalle in _context.RankingsPartidosAuditoriaDetalle.AsNoTracking()
+                    on publicacion.PartidoId equals detalle.PartidoId
+                where publicacion.Publicado &&
+                      publicacion.FechaPublicacion.HasValue &&
+                      detalle.PollaId == pollaId
+                orderby publicacion.FechaPublicacion descending, publicacion.Id descending
+                select publicacion.PartidoId)
+                .FirstOrDefaultAsync();
+
+            if (ultimoPartidoPublicadoId == 0)
+            {
+                return;
+            }
+
+            var filas = await (
+                from detalle in _context.RankingsPartidosAuditoriaDetalle.AsNoTracking()
+                join usuario in _context.Usuarios.AsNoTracking()
+                    on detalle.UsuarioId equals usuario.Id
+                where detalle.PartidoId == ultimoPartidoPublicadoId &&
+                      detalle.PollaId == pollaId &&
+                      usuario.Activo
+                select new
+                {
+                    detalle.UsuarioId,
+                    Usuario = usuario.Nombre,
+                    detalle.PuntosPrevios,
+                    detalle.PuntosCambio,
+                    detalle.PuntosRanking
+                })
+                .ToListAsync();
+
+            if (!filas.Any())
+            {
+                return;
+            }
+
+            var posicionesPrevias = filas
+                .OrderByDescending(f => f.PuntosPrevios)
+                .ThenBy(f => f.Usuario)
+                .Select((f, index) => new
+                {
+                    f.UsuarioId,
+                    Posicion = index + 1
+                })
+                .ToDictionary(f => f.UsuarioId, f => f.Posicion);
+
+            var posicionesActuales = filas
+                .OrderByDescending(f => f.PuntosRanking)
+                .ThenByDescending(f => f.PuntosCambio)
+                .ThenBy(f => f.Usuario)
+                .Select((f, index) => new
+                {
+                    f.UsuarioId,
+                    Posicion = index + 1
+                })
+                .ToDictionary(f => f.UsuarioId, f => f.Posicion);
+
+            foreach (var participante in ranking)
+            {
+                if (!posicionesPrevias.TryGetValue(participante.UsuarioId, out var previa) ||
+                    !posicionesActuales.TryGetValue(participante.UsuarioId, out var actual))
+                {
+                    continue;
+                }
+
+                participante.PosicionAnterior = previa;
+                participante.CambioPosicion = previa - actual;
+            }
         }
 
         [HttpGet("{pollaId:int}/ranking-detalle")]
@@ -867,33 +1046,37 @@ namespace WorldCup.Api.Controllers
                 Bloqueada = podio.Bloqueada
             };
 
-            if (final == null || tercerPuesto == null)
-            {
-                return detalle;
-            }
+            var campeonReal = final != null ? ObtenerGanadorId(final) : null;
+            var subcampeonReal = final != null ? ObtenerPerdedorId(final) : null;
+            var terceroReal = tercerPuesto != null ? ObtenerGanadorId(tercerPuesto) : null;
 
-            var campeonReal = ObtenerGanadorId(final);
-            var subcampeonReal = ObtenerPerdedorId(final);
-            var terceroReal = ObtenerGanadorId(tercerPuesto);
-
-            if (!campeonReal.HasValue ||
-                !subcampeonReal.HasValue ||
+            if (!campeonReal.HasValue &&
+                !subcampeonReal.HasValue &&
                 !terceroReal.HasValue)
             {
                 return detalle;
             }
 
             detalle.PodioRealDisponible = true;
-            detalle.CampeonReal = NombreEquipo(equipos, campeonReal.Value);
-            detalle.SubcampeonReal = NombreEquipo(equipos, subcampeonReal.Value);
-            detalle.TerceroReal = NombreEquipo(equipos, terceroReal.Value);
-            detalle.PuntosCampeon = podio.CampeonId == campeonReal.Value
+            detalle.CampeonReal = campeonReal.HasValue
+                ? NombreEquipo(equipos, campeonReal.Value)
+                : "Pendiente";
+            detalle.SubcampeonReal = subcampeonReal.HasValue
+                ? NombreEquipo(equipos, subcampeonReal.Value)
+                : "Pendiente";
+            detalle.TerceroReal = terceroReal.HasValue
+                ? NombreEquipo(equipos, terceroReal.Value)
+                : "Pendiente";
+            detalle.PuntosCampeon = campeonReal.HasValue &&
+                podio.CampeonId == campeonReal.Value
                 ? PuntajesPodio.Campeon
                 : 0;
-            detalle.PuntosSubcampeon = podio.SubcampeonId == subcampeonReal.Value
+            detalle.PuntosSubcampeon = subcampeonReal.HasValue &&
+                podio.SubcampeonId == subcampeonReal.Value
                 ? PuntajesPodio.Subcampeon
                 : 0;
-            detalle.PuntosTercero = podio.TerceroId == terceroReal.Value
+            detalle.PuntosTercero = terceroReal.HasValue &&
+                podio.TerceroId == terceroReal.Value
                 ? PuntajesPodio.Tercero
                 : 0;
             detalle.PuntosTotal =
@@ -1024,6 +1207,7 @@ namespace WorldCup.Api.Controllers
                 .ToList();
 
             var predicciones = await _context.Predicciones
+                .AsNoTracking()
                 .Include(p => p.Usuario)
                 .Include(p => p.Partido)
                     .ThenInclude(x => x.Local)
@@ -1036,6 +1220,7 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             var prediccionesGrupo = await _context.PrediccionesGrupo
+                .AsNoTracking()
                 .Where(p => p.PollaId == pollaId)
                 .ToListAsync();
             var gruposPorUsuario = prediccionesGrupo
@@ -1055,6 +1240,7 @@ namespace WorldCup.Api.Controllers
                 ? PuntajesClasificacionGrupos.ObtenerGruposMejoresTerceros(tablasGrupo)
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var tercerosPredichos = await _context.PrediccionesTerceros
+                .AsNoTracking()
                 .Where(p => p.PollaId == pollaId)
                 .ToListAsync();
             var tercerosPorUsuario = tercerosPredichos
@@ -1066,6 +1252,7 @@ namespace WorldCup.Api.Controllers
                         .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
             var prediccionesPodio = await _context.PrediccionesPodio
+                .AsNoTracking()
                 .Where(p => p.PollaId == pollaId)
                 .ToListAsync();
             var podiosPorUsuario = prediccionesPodio
@@ -1073,11 +1260,13 @@ namespace WorldCup.Api.Controllers
                 .ToDictionary(g => g.Key, g => g.First());
 
             var final = await _context.Partidos
+                .AsNoTracking()
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
                 .FirstOrDefaultAsync(p => p.Fase == "Final" && p.Finalizado);
 
             var tercerPuesto = await _context.Partidos
+                .AsNoTracking()
                 .Include(p => p.Local)
                 .Include(p => p.Visitante)
                 .FirstOrDefaultAsync(p => p.Fase == "TercerPuesto" && p.Finalizado);
@@ -1138,6 +1327,8 @@ namespace WorldCup.Api.Controllers
                         PronosticoVisible = puedeMostrarSinPronostico,
                         ResultadoLocal = partido.GolesLocal,
                         ResultadoVisitante = partido.GolesVisitante,
+                        ResultadoExtraLocal = partido.GolesExtraLocal,
+                        ResultadoExtraVisitante = partido.GolesExtraVisitante,
                         Total = 0
                     });
                 }
@@ -1181,6 +1372,18 @@ namespace WorldCup.Api.Controllers
             public int Total { get; set; }
             public int Marcador { get; set; }
             public int Clasificacion { get; set; }
+            public int Podio { get; set; }
+        }
+
+        private sealed class ResumenRankingPolla
+        {
+            public int Puntos { get; set; }
+            public int Exactos { get; set; }
+            public int Ganadores { get; set; }
+            public int Goles { get; set; }
+            public int Diferencias { get; set; }
+            public int ClasificacionGrupos { get; set; }
+            public int ClasificacionKo { get; set; }
             public int Podio { get; set; }
         }
 
@@ -1232,6 +1435,8 @@ namespace WorldCup.Api.Controllers
                 PredicePenales = pronosticoVisible && prediccion.PredicePenales,
                 ResultadoLocal = prediccion.Partido.GolesLocal,
                 ResultadoVisitante = prediccion.Partido.GolesVisitante,
+                ResultadoExtraLocal = prediccion.Partido.GolesExtraLocal,
+                ResultadoExtraVisitante = prediccion.Partido.GolesExtraVisitante,
                 PuntosMarcador = puntosMarcador.Total,
                 PuntosExacto = puntosMarcador.Exacto,
                 PuntosGanador = puntosMarcador.Ganador,
@@ -1346,8 +1551,6 @@ namespace WorldCup.Api.Controllers
             Partido? tercerPuesto)
         {
             if (prediccion.PuntosPodio <= 0 ||
-                final == null ||
-                tercerPuesto == null ||
                 !podiosPorUsuario.TryGetValue(
                     (prediccion.UsuarioId, prediccion.PollaId),
                     out var podio))
@@ -1355,22 +1558,22 @@ namespace WorldCup.Api.Controllers
                 return "";
             }
 
-            var campeon = ObtenerGanadorId(final);
-            var subcampeon = ObtenerPerdedorId(final);
-            var tercero = ObtenerGanadorId(tercerPuesto);
+            var campeon = final != null ? ObtenerGanadorId(final) : null;
+            var subcampeon = final != null ? ObtenerPerdedorId(final) : null;
+            var tercero = tercerPuesto != null ? ObtenerGanadorId(tercerPuesto) : null;
             var partes = new List<string>();
 
-            if (campeon.HasValue && podio.CampeonId == campeon.Value)
+            if (final != null && campeon.HasValue && podio.CampeonId == campeon.Value)
             {
                 partes.Add($"+{PuntajesPodio.Campeon}: campeón {NombreEquipoPartido(campeon.Value, final, tercerPuesto)}");
             }
 
-            if (subcampeon.HasValue && podio.SubcampeonId == subcampeon.Value)
+            if (final != null && subcampeon.HasValue && podio.SubcampeonId == subcampeon.Value)
             {
                 partes.Add($"+{PuntajesPodio.Subcampeon}: subcampeón {NombreEquipoPartido(subcampeon.Value, final, tercerPuesto)}");
             }
 
-            if (tercero.HasValue && podio.TerceroId == tercero.Value)
+            if (tercerPuesto != null && tercero.HasValue && podio.TerceroId == tercero.Value)
             {
                 partes.Add($"+{PuntajesPodio.Tercero}: tercer puesto {NombreEquipoPartido(tercero.Value, final, tercerPuesto)}");
             }
@@ -1378,17 +1581,29 @@ namespace WorldCup.Api.Controllers
             return string.Join("; ", partes);
         }
 
-        private static string NombreEquipoPartido(int equipoId, Partido final, Partido tercerPuesto)
+        private static string NombreEquipoPartido(int equipoId, Partido? final, Partido? tercerPuesto)
         {
-            var equipos = new[]
+            if (final?.LocalId == equipoId)
             {
-                final.Local,
-                final.Visitante,
-                tercerPuesto.Local,
-                tercerPuesto.Visitante
-            };
+                return final.Local.Nombre;
+            }
 
-            return equipos.FirstOrDefault(e => e.Id == equipoId)?.Nombre ?? $"Equipo {equipoId}";
+            if (final?.VisitanteId == equipoId)
+            {
+                return final.Visitante.Nombre;
+            }
+
+            if (tercerPuesto?.LocalId == equipoId)
+            {
+                return tercerPuesto.Local.Nombre;
+            }
+
+            if (tercerPuesto?.VisitanteId == equipoId)
+            {
+                return tercerPuesto.Visitante.Nombre;
+            }
+
+            return $"Equipo {equipoId}";
         }
 
         private static string NombreEquipoPartido(int? equipoId, Partido partido)
@@ -2143,7 +2358,7 @@ namespace WorldCup.Api.Controllers
             int pollaId,
             [FromQuery] int solicitanteId)
         {
-            var acceso = await ValidarCreadorPollaAsync(pollaId, solicitanteId);
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
             if (acceso != null)
                 return acceso;
 
@@ -2165,6 +2380,91 @@ namespace WorldCup.Api.Controllers
                 .ToListAsync();
 
             return Ok(equipos);
+        }
+
+        [HttpGet("{pollaId:int}/podio-equipo/{equipoId:int}")]
+        public async Task<IActionResult> GetUsuariosConEquipoEnPodio(
+            int pollaId,
+            int equipoId,
+            [FromQuery] int solicitanteId)
+        {
+            var acceso = await ValidarAccesoPollaAsync(pollaId, solicitanteId);
+            if (acceso != null)
+                return acceso;
+
+            if (equipoId <= 0)
+                return BadRequest("Debes seleccionar un equipo valido.");
+
+            var equipo = await _context.Equipos
+                .AsNoTracking()
+                .Where(e => e.Id == equipoId)
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Nombre
+                })
+                .FirstOrDefaultAsync();
+
+            if (equipo == null)
+                return NotFound("El equipo no existe.");
+
+            var registros = await (
+                from miembro in _context.PollaMiembros.AsNoTracking()
+                join podio in _context.PrediccionesPodio.AsNoTracking()
+                    on miembro.UsuarioId equals podio.UsuarioId
+                where miembro.PollaId == pollaId &&
+                      miembro.Usuario.Activo &&
+                      podio.PollaId == pollaId &&
+                      (
+                          podio.CampeonId == equipoId ||
+                          podio.SubcampeonId == equipoId ||
+                          podio.TerceroId == equipoId
+                      )
+                select new
+                {
+                    miembro.UsuarioId,
+                    Usuario = miembro.Usuario.Nombre,
+                    podio.CampeonId,
+                    podio.SubcampeonId,
+                    podio.TerceroId
+                })
+                .ToListAsync();
+
+            var jugadores = registros
+                .Select(r =>
+                {
+                    var posicionOrden = r.CampeonId == equipoId
+                        ? 1
+                        : r.SubcampeonId == equipoId
+                            ? 2
+                            : 3;
+
+                    return new
+                    {
+                        usuarioId = r.UsuarioId,
+                        usuario = r.Usuario,
+                        posicionOrden,
+                        posicion = posicionOrden switch
+                        {
+                            1 => "Campeon",
+                            2 => "Subcampeon",
+                            _ => "Tercer puesto"
+                        }
+                    };
+                })
+                .OrderBy(j => j.posicionOrden)
+                .ThenBy(j => j.usuario)
+                .ToList();
+
+            return Ok(new
+            {
+                equipo,
+                totalJugadores = jugadores.Count,
+                totalCampeon = jugadores.Count(j => j.posicionOrden == 1),
+                totalSubcampeon = jugadores.Count(j => j.posicionOrden == 2),
+                totalTercerPuesto = jugadores.Count(j => j.posicionOrden == 3),
+                jugadores
+            });
         }
 
         [HttpPut("{pollaId:int}/participantes/{usuarioId:int}/podio")]

@@ -254,6 +254,100 @@
             }
         </section>
 
+        <section class="score-finder podium-finder">
+            <div class="score-finder-heading">
+                <div>
+                    <span class="finder-kicker">Podio de la polla</span>
+                    <h2>Quien tiene este equipo en el podio?</h2>
+                    <p>
+                        Selecciona un equipo para ver que participantes lo pusieron como
+                        campeon, subcampeon o tercer puesto en esta polla.
+                    </p>
+                </div>
+                <span class="finder-lock podium">
+                    @PodioEquipoBadge()
+                </span>
+            </div>
+
+            <div class="podium-finder-form">
+                <div>
+                    <label>Equipo</label>
+                    <select @bind="equipoPodioBusquedaId"
+                            @bind:after="CambiarEquipoPodioBusqueda">
+                        <option value="0">Selecciona un equipo</option>
+                        @foreach (var equipo in equiposPodioBusqueda)
+                        {
+                            <option value="@equipo.Id">@equipo.Nombre</option>
+                        }
+                    </select>
+                </div>
+
+                <button class="finder-search-btn"
+                        disabled="@(!PuedeBuscarPodioEquipo())"
+                        @onclick="BuscarPodioEquipoAsync">
+                    @(buscandoPodioEquipo ? "Buscando..." : "Buscar en podios")
+                </button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorBusquedaPodioEquipo))
+            {
+                <div class="finder-message error">@errorBusquedaPodioEquipo</div>
+            }
+
+            @if (resultadoBusquedaPodioEquipo != null)
+            {
+                <div class="finder-result-summary podium-summary">
+                    <div>
+                        <span>Equipo</span>
+                        <strong>@resultadoBusquedaPodioEquipo.Equipo.Nombre</strong>
+                    </div>
+                    <div>
+                        <span>Total</span>
+                        <strong>@resultadoBusquedaPodioEquipo.TotalJugadores</strong>
+                    </div>
+                    <div>
+                        <span>Campeon</span>
+                        <strong>@resultadoBusquedaPodioEquipo.TotalCampeon</strong>
+                    </div>
+                    <div>
+                        <span>Subcampeon</span>
+                        <strong>@resultadoBusquedaPodioEquipo.TotalSubcampeon</strong>
+                    </div>
+                    <div>
+                        <span>Tercer puesto</span>
+                        <strong>@resultadoBusquedaPodioEquipo.TotalTercerPuesto</strong>
+                    </div>
+                </div>
+
+                @if (!resultadoBusquedaPodioEquipo.Jugadores.Any())
+                {
+                    <div class="finder-empty">
+                        Ningun participante de esta polla tiene a
+                        @resultadoBusquedaPodioEquipo.Equipo.Nombre en el podio.
+                    </div>
+                }
+                else
+                {
+                    <div class="finder-results-grid podium-results-grid">
+                        @for (var indice = 0; indice < resultadoBusquedaPodioEquipo.Jugadores.Count; indice++)
+                        {
+                            var jugador = resultadoBusquedaPodioEquipo.Jugadores[indice];
+                            <article class="finder-player podium-player">
+                                <div class="finder-player-position">@(indice + 1)</div>
+                                <div class="finder-player-main">
+                                    <strong>@jugador.Usuario</strong>
+                                    <span>Lo puso como @jugador.Posicion</span>
+                                </div>
+                                <div class="podium-position-badge @PodioPosicionCss(jugador.PosicionOrden)">
+                                    @jugador.Posicion
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            }
+        </section>
+
         <div class="compare-tabs">
             <button class="@(vista == "marcadores" ? "active" : "")"
                     @onclick='() => vista = "marcadores"'>
@@ -747,9 +841,27 @@
         color: #705500;
     }
 
+    .finder-lock.podium {
+        border-color: #8dbd9e;
+        background: #eefbf3;
+        color: #185c3f;
+    }
+
     .score-finder-form {
         display: grid;
         grid-template-columns: minmax(280px, 1.4fr) minmax(300px, 1fr) auto;
+        gap: .8rem;
+        align-items: end;
+        padding: 1rem;
+    }
+
+    .podium-finder {
+        border-color: #b6dcc6;
+    }
+
+    .podium-finder-form {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) auto;
         gap: .8rem;
         align-items: end;
         padding: 1rem;
@@ -764,8 +876,18 @@
         text-transform: uppercase;
     }
 
+    .podium-finder-form label {
+        display: block;
+        margin-bottom: .28rem;
+        color: #315b4b;
+        font-size: .75rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
     .score-finder-form select,
-    .score-finder-form input {
+    .score-finder-form input,
+    .podium-finder-form select {
         width: 100%;
         min-height: 42px;
         border: 1px solid #9dcbb2;
@@ -861,6 +983,10 @@
         margin: 0 1rem 1rem;
     }
 
+    .podium-summary {
+        grid-template-columns: 1.2fr repeat(4, minmax(110px, .6fr));
+    }
+
     .finder-result-summary div {
         border: 1px solid #b7dcc8;
         border-radius: 6px;
@@ -947,6 +1073,33 @@
         grid-column: 2 / -1;
         padding-top: .4rem;
         border-top: 1px dashed #d2e7db;
+    }
+
+    .podium-player {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .podium-position-badge {
+        border-radius: 999px;
+        padding: .36rem .58rem;
+        font-size: .75rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .podium-position-badge.champion {
+        background: #ffe8a3;
+        color: #7a5200;
+    }
+
+    .podium-position-badge.runner-up {
+        background: #e7edf4;
+        color: #34465a;
+    }
+
+    .podium-position-badge.third-place {
+        background: #f4dfcc;
+        color: #6f3f18;
     }
 
     .compare-tabs {
@@ -1471,6 +1624,7 @@
         .compare-summary,
         .compare-filters,
         .score-finder-form,
+        .podium-finder-form,
         .finder-result-summary,
         .finder-results-grid,
         .thirds-box,
@@ -1537,6 +1691,7 @@
         }
 
         .score-finder-heading,
+        .podium-finder-form,
         .score-finder-form {
             padding: .8rem;
         }
@@ -1560,6 +1715,10 @@
 
         .finder-results-grid {
             padding: 0 .8rem .8rem;
+        }
+
+        .podium-position-badge {
+            justify-self: start;
         }
 
         .finder-player {
@@ -1733,6 +1892,11 @@
     private bool buscandoMarcador;
     private string? errorBusquedaMarcador;
     private ResultadoBusquedaMarcadorDto? resultadoBusquedaMarcador;
+    private List<EquipoPodioBusquedaDto> equiposPodioBusqueda = new();
+    private int equipoPodioBusquedaId;
+    private bool buscandoPodioEquipo;
+    private string? errorBusquedaPodioEquipo;
+    private ResultadoBusquedaPodioEquipoDto? resultadoBusquedaPodioEquipo;
     private int usuarioAuditoriaId;
     private int partidoAuditoriaId;
     private bool consultandoAuditoria;
@@ -1795,6 +1959,8 @@
         tablasReales.Clear();
         LimpiarFiltrosMarcadores();
         LimpiarBusquedaMarcador();
+        LimpiarBusquedaPodioEquipo();
+        equiposPodioBusqueda.Clear();
         usuarioAuditoriaId = 0;
         partidoAuditoriaId = 0;
         resultadoAuditoria = null;
@@ -1825,6 +1991,7 @@
             .ToList();
 
         partidosBusqueda = await PartidosService.GetPartidosAsync();
+        await CargarEquiposPodioBusquedaAsync();
 
         var puedeCargarComparacionPersonal =
             await PuedeCargarComparacionPersonalAsync(
@@ -2126,6 +2293,122 @@
         buscandoMarcador = false;
         errorBusquedaMarcador = null;
         resultadoBusquedaMarcador = null;
+    }
+
+    private async Task CargarEquiposPodioBusquedaAsync()
+    {
+        LimpiarBusquedaPodioEquipo();
+        equiposPodioBusqueda.Clear();
+
+        if (!Sesion.PollaActivaId.HasValue || !Sesion.UsuarioId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            equiposPodioBusqueda = await Http.GetFromJsonAsync<List<EquipoPodioBusquedaDto>>(
+                $"api/Polla/{Sesion.PollaActivaId.Value}/podio/equipos?solicitanteId={Sesion.UsuarioId.Value}") ?? new();
+        }
+        catch
+        {
+            equiposPodioBusqueda.Clear();
+            errorBusquedaPodioEquipo =
+                "No fue posible cargar los equipos disponibles para consultar podios.";
+        }
+    }
+
+    private async Task CambiarEquipoPodioBusqueda()
+    {
+        resultadoBusquedaPodioEquipo = null;
+        errorBusquedaPodioEquipo = null;
+
+        if (equipoPodioBusquedaId > 0)
+        {
+            await BuscarPodioEquipoAsync();
+        }
+    }
+
+    private bool PuedeBuscarPodioEquipo()
+    {
+        return !buscandoPodioEquipo &&
+               Sesion.PollaActivaId.HasValue &&
+               Sesion.UsuarioId.HasValue &&
+               equipoPodioBusquedaId > 0;
+    }
+
+    private async Task BuscarPodioEquipoAsync()
+    {
+        if (!PuedeBuscarPodioEquipo())
+        {
+            return;
+        }
+
+        buscandoPodioEquipo = true;
+        resultadoBusquedaPodioEquipo = null;
+        errorBusquedaPodioEquipo = null;
+
+        try
+        {
+            var url =
+                $"api/Polla/{Sesion.PollaActivaId!.Value}/podio-equipo/{equipoPodioBusquedaId}" +
+                $"?solicitanteId={Sesion.UsuarioId!.Value}";
+
+            var response = await Http.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                var mensaje = (await response.Content.ReadAsStringAsync())
+                    .Trim()
+                    .Trim('"');
+                errorBusquedaPodioEquipo = string.IsNullOrWhiteSpace(mensaje)
+                    ? "No fue posible consultar ese equipo en los podios."
+                    : mensaje;
+                return;
+            }
+
+            resultadoBusquedaPodioEquipo =
+                await response.Content.ReadFromJsonAsync<ResultadoBusquedaPodioEquipoDto>();
+
+            if (resultadoBusquedaPodioEquipo == null)
+            {
+                errorBusquedaPodioEquipo =
+                    "La consulta termino sin informacion para mostrar.";
+            }
+        }
+        catch
+        {
+            errorBusquedaPodioEquipo =
+                "No fue posible consultar los podios. Intenta nuevamente.";
+        }
+        finally
+        {
+            buscandoPodioEquipo = false;
+        }
+    }
+
+    private void LimpiarBusquedaPodioEquipo()
+    {
+        equipoPodioBusquedaId = 0;
+        buscandoPodioEquipo = false;
+        errorBusquedaPodioEquipo = null;
+        resultadoBusquedaPodioEquipo = null;
+    }
+
+    private string PodioEquipoBadge()
+    {
+        return equiposPodioBusqueda.Any()
+            ? $"{equiposPodioBusqueda.Count} equipos"
+            : "Podios";
+    }
+
+    private static string PodioPosicionCss(int posicionOrden)
+    {
+        return posicionOrden switch
+        {
+            1 => "champion",
+            2 => "runner-up",
+            _ => "third-place"
+        };
     }
 
     private static string TextoResultadoBusqueda(PartidoBusquedaDto partido)
@@ -2571,6 +2854,30 @@
         public int PuntosMarcador { get; set; }
         public int PuntosBonificacion { get; set; }
         public int Puntos { get; set; }
+    }
+
+    private class EquipoPodioBusquedaDto
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = "";
+    }
+
+    private class ResultadoBusquedaPodioEquipoDto
+    {
+        public EquipoPodioBusquedaDto Equipo { get; set; } = new();
+        public int TotalJugadores { get; set; }
+        public int TotalCampeon { get; set; }
+        public int TotalSubcampeon { get; set; }
+        public int TotalTercerPuesto { get; set; }
+        public List<JugadorPodioEquipoDto> Jugadores { get; set; } = new();
+    }
+
+    private class JugadorPodioEquipoDto
+    {
+        public int UsuarioId { get; set; }
+        public string Usuario { get; set; } = "";
+        public int PosicionOrden { get; set; }
+        public string Posicion { get; set; } = "";
     }
 
     private class UsuarioAuditoriaOption

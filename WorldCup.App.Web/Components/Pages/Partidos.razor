@@ -7,6 +7,7 @@
 @inject WorldCup.App.Shared.Services.SesionService Sesion
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <style>
     body {
@@ -241,9 +242,15 @@
 
     .admin-result {
         display: grid;
-        grid-template-columns: minmax(120px, 1.2fr) 80px 80px minmax(112px, auto) minmax(145px, 1fr) 86px 86px minmax(220px, auto);
+        grid-template-columns: minmax(120px, 1.1fr) 78px 78px minmax(108px, auto) minmax(132px, auto) minmax(145px, 1fr) 82px 82px minmax(220px, auto);
         gap: .5rem;
         align-items: center;
+    }
+
+    .extra-score-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .35rem;
     }
 
     .extra-time-check {
@@ -456,6 +463,29 @@
     .ranking-audit-points.negative {
         background: #fff1f3;
         color: #b42318;
+    }
+
+    .ranking-audit-move {
+        display: inline-flex;
+        min-width: 68px;
+        justify-content: center;
+        border-radius: 999px;
+        padding: .18rem .45rem;
+        background: #eef2f6;
+        color: #475467;
+        font-size: .76rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .ranking-audit-move.up {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .ranking-audit-move.down {
+        background: #fee2e2;
+        color: #991b1b;
     }
 
     .partidos-phase-title {
@@ -782,6 +812,7 @@
                                         <tr>
                                             <th>#</th>
                                             <th>Usuario</th>
+                                            <th>Mov.</th>
                                             <th>Pronostico</th>
                                             <th>Antes</th>
                                             <th>Cambio</th>
@@ -797,6 +828,11 @@
                                             <tr class="@(fila.PuntosCambio != 0 ? "ranking-audit-change" : "")">
                                                 <td>@fila.Posicion</td>
                                                 <td>@fila.Usuario</td>
+                                                <td>
+                                                    <span class="@ClaseMovimientoPosicion(fila.CambioPosicion)">
+                                                        @TextoMovimientoPosicion(fila.CambioPosicion)
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <span class="badge @(fila.TienePrediccion ? "bg-primary" : "bg-secondary")">
                                                         @fila.Pronostico
@@ -816,7 +852,7 @@
                                             @if (!string.IsNullOrWhiteSpace(fila.DetalleClasificacionCierre))
                                             {
                                                 <tr class="ranking-audit-detail-row">
-                                                    <td colspan="9">
+                                                    <td colspan="10">
                                                         <strong>Justificación clasificación:</strong>
                                                         <span>@fila.DetalleClasificacionCierre</span>
                                                     </td>
@@ -950,7 +986,7 @@
                                         @if (p.Fase != "Grupos" && p.TiempoExtra)
                                         {
                                             <div class="small text-muted">
-                                                T. extra
+                                                @MarcadorExtraTexto(p)
                                             </div>
                                         }
                                         @if (p.Fase != "Grupos" &&
@@ -1031,7 +1067,7 @@
                                     <input type="number"
                                            class="form-control form-control-sm"
                                            min="0"
-                                           placeholder="Local"
+                                           placeholder="90' local"
                                            disabled="@(!resultadoEditable)"
                                            @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.GolesLocal" />
@@ -1039,7 +1075,7 @@
                                     <input type="number"
                                            class="form-control form-control-sm"
                                            min="0"
-                                           placeholder="Visitante"
+                                           placeholder="90' visit."
                                            disabled="@(!resultadoEditable)"
                                            @onfocus="() => EditarResultadoAdmin(p)"
                                            @bind="p.GolesVisitante" />
@@ -1052,6 +1088,23 @@
                                                @onchange="e => CambiarTiempoExtraAdmin(p, e)" />
                                         <span>T. extra</span>
                                     </label>
+
+                                    <div class="extra-score-inputs">
+                                        <input type="number"
+                                               class="form-control form-control-sm"
+                                               min="0"
+                                               placeholder="Extra local"
+                                               disabled="@(!resultadoEditable || !p.TiempoExtra || !EsEliminatoria(p))"
+                                               @onfocus="() => EditarResultadoAdmin(p)"
+                                               @bind="p.GolesExtraLocal" />
+                                        <input type="number"
+                                               class="form-control form-control-sm"
+                                               min="0"
+                                               placeholder="Extra visit."
+                                               disabled="@(!resultadoEditable || !p.TiempoExtra || !EsEliminatoria(p))"
+                                               @onfocus="() => EditarResultadoAdmin(p)"
+                                               @bind="p.GolesExtraVisitante" />
+                                    </div>
 
                                     <select class="form-select form-select-sm admin-qualifier-select"
                                             disabled="@(!resultadoEditable || !EsEliminatoria(p))"
@@ -1092,6 +1145,7 @@
 
                                         <button class="btn btn-sm btn-outline-danger"
                                                 disabled="@(!tieneResultado)"
+                                                title="Borra el marcador, reversa los puntos de este partido y lo deja pendiente."
                                                 @onclick="() => EliminarMarcadorAdmin(p)">
                                             Eliminar marcador
                                         </button>
@@ -1413,6 +1467,19 @@
                partido.GolesVisitante.HasValue;
     }
 
+    private static bool TieneMarcadorExtraCompleto(PartidoDto partido)
+    {
+        return partido.GolesExtraLocal.HasValue &&
+               partido.GolesExtraVisitante.HasValue;
+    }
+
+    private static string MarcadorExtraTexto(PartidoDto partido)
+    {
+        return TieneMarcadorExtraCompleto(partido)
+            ? $"Extra {partido.GolesExtraLocal} - {partido.GolesExtraVisitante}"
+            : "T. extra";
+    }
+
     private string EstadoParaGuardar(PartidoDto partido)
     {
         return partido.Estado;
@@ -1464,6 +1531,12 @@
 
         if (clasificadoId.HasValue)
         {
+            if (partido.TiempoExtra &&
+                partido.GolesLocal != partido.GolesVisitante)
+            {
+                return "Si hubo tiempo extra, corrige el marcador a los 90 minutos antes de guardar. Ejemplo: 2-2 y clasifica el ganador del extra.";
+            }
+
             return $"Clasifica: {NombreEquipoPorId(partido, clasificadoId.Value)}";
         }
 
@@ -1479,6 +1552,13 @@
 
     private string ClaseMensajeClasificadoAdmin(PartidoDto partido)
     {
+        if (partido.TiempoExtra &&
+            TieneMarcadorCompleto(partido) &&
+            partido.GolesLocal != partido.GolesVisitante)
+        {
+            return "admin-result-hint warning";
+        }
+
         return ClasificadoParaGuardar(partido).HasValue
             ? "admin-result-hint"
             : "admin-result-hint warning";
@@ -1540,6 +1620,8 @@
             partidoNuevo.GolesVisitante = partidoLocal.GolesVisitante;
             partidoNuevo.TiempoExtra = partidoLocal.TiempoExtra;
             partidoNuevo.ClasificadoId = partidoLocal.ClasificadoId;
+            partidoNuevo.GolesExtraLocal = partidoLocal.GolesExtraLocal;
+            partidoNuevo.GolesExtraVisitante = partidoLocal.GolesExtraVisitante;
             partidoNuevo.PenalesLocal = partidoLocal.PenalesLocal;
             partidoNuevo.PenalesVisitante = partidoLocal.PenalesVisitante;
         }
@@ -1819,6 +1901,8 @@
         {
             partido.PenalesLocal = null;
             partido.PenalesVisitante = null;
+            partido.GolesExtraLocal = null;
+            partido.GolesExtraVisitante = null;
 
             if (partido.Estado == "TiempoExtra" || partido.Estado == "Penales")
             {
@@ -1843,6 +1927,37 @@
 
         if (estado == "Finalizado" &&
             EsEliminatoria(partido) &&
+            partido.TiempoExtra &&
+            TieneMarcadorCompleto(partido) &&
+            partido.GolesLocal != partido.GolesVisitante)
+        {
+            erroresPartido[partido.Id] =
+                "En eliminatorias el marcador para puntos es el de los 90 minutos. Si se definió en tiempo extra, guarda el empate de los 90 y selecciona quién clasificó.";
+            return;
+        }
+
+        var tieneMarcadorExtra =
+            partido.GolesExtraLocal.HasValue ||
+            partido.GolesExtraVisitante.HasValue;
+        if (tieneMarcadorExtra &&
+            (!partido.GolesExtraLocal.HasValue ||
+             !partido.GolesExtraVisitante.HasValue))
+        {
+            erroresPartido[partido.Id] =
+                "Para mostrar marcador de tiempo extra ingresa ambos valores: local y visitante.";
+            return;
+        }
+
+        if (tieneMarcadorExtra &&
+            (!EsEliminatoria(partido) || !partido.TiempoExtra))
+        {
+            erroresPartido[partido.Id] =
+                "El marcador de tiempo extra solo se puede guardar si marcas T. extra.";
+            return;
+        }
+
+        if (estado == "Finalizado" &&
+            EsEliminatoria(partido) &&
             !clasificadoId.HasValue)
         {
             erroresPartido[partido.Id] =
@@ -1858,6 +1973,8 @@
             GolesVisitante = partido.GolesVisitante,
             TiempoExtra = partido.TiempoExtra,
             ClasificadoId = clasificadoId,
+            GolesExtraLocal = partido.TiempoExtra ? partido.GolesExtraLocal : null,
+            GolesExtraVisitante = partido.TiempoExtra ? partido.GolesExtraVisitante : null,
             PenalesLocal = !PenalesDeshabilitados(partido) ? partido.PenalesLocal : null,
             PenalesVisitante = !PenalesDeshabilitados(partido) ? partido.PenalesVisitante : null
         };
@@ -1895,6 +2012,17 @@
         }
 
         erroresPartido.Remove(partido.Id);
+        mensajeAdminMasivo = null;
+        errorAdminMasivo = false;
+
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Vas a eliminar el marcador real de este partido. Se reversan los puntos de marcador, clasificado, tiempo extra y penales de este partido, y queda pendiente para finalizarlo de nuevo. Continuar?");
+
+        if (!confirmado)
+        {
+            return;
+        }
 
         var dto = new AdminResultadoDto
         {
@@ -1904,6 +2032,8 @@
             GolesVisitante = null,
             TiempoExtra = false,
             ClasificadoId = null,
+            GolesExtraLocal = null,
+            GolesExtraVisitante = null,
             PenalesLocal = null,
             PenalesVisitante = null
         };
@@ -1921,6 +2051,9 @@
 
         resultadosEnEdicion.Remove(partido.Id);
         await CargarPartidosAsync();
+        mensajeAdminMasivo =
+            "Marcador eliminado. Los puntos de este partido fueron reversados y puedes finalizarlo de nuevo con el resultado correcto.";
+        errorAdminMasivo = false;
 
         if (auditoriaRankingPartido?.PartidoId == partido.Id)
         {
@@ -2114,6 +2247,26 @@
         };
     }
 
+    private static string TextoMovimientoPosicion(int cambio)
+    {
+        return cambio switch
+        {
+            > 0 => $"Sube {cambio}",
+            < 0 => $"Baja {Math.Abs(cambio)}",
+            _ => "Igual"
+        };
+    }
+
+    private static string ClaseMovimientoPosicion(int cambio)
+    {
+        return cambio switch
+        {
+            > 0 => "ranking-audit-move up",
+            < 0 => "ranking-audit-move down",
+            _ => "ranking-audit-move"
+        };
+    }
+
     private async Task LlenarAleatorioVisible()
     {
         if (!PuedeUsarHerramientasMasivas())
@@ -2218,10 +2371,14 @@
                     : partido.VisitanteId;
             partido.PenalesLocal = null;
             partido.PenalesVisitante = null;
+            partido.GolesExtraLocal = null;
+            partido.GolesExtraVisitante = null;
             return;
         }
 
         partido.TiempoExtra = true;
+        partido.GolesExtraLocal = null;
+        partido.GolesExtraVisitante = null;
         AplicarPenalesAleatorios(partido);
         partido.ClasificadoId = partido.PenalesLocal > partido.PenalesVisitante
             ? partido.LocalId
@@ -2247,6 +2404,8 @@
         public int? GolesVisitante { get; set; }
         public bool TiempoExtra { get; set; }
         public int? ClasificadoId { get; set; }
+        public int? GolesExtraLocal { get; set; }
+        public int? GolesExtraVisitante { get; set; }
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
     }
@@ -2282,6 +2441,8 @@
     private class AuditoriaRankingFilaDto
     {
         public int Posicion { get; set; }
+        public int PosicionAnterior { get; set; }
+        public int CambioPosicion { get; set; }
         public int UsuarioId { get; set; }
         public string Usuario { get; set; } = "";
         public string Pronostico { get; set; } = "";

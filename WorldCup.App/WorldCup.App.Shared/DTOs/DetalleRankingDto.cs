@@ -22,6 +22,8 @@
 
         public int? ResultadoLocal { get; set; }
         public int? ResultadoVisitante { get; set; }
+        public int? ResultadoExtraLocal { get; set; }
+        public int? ResultadoExtraVisitante { get; set; }
 
         public int PuntosMarcador { get; set; }
         public int PuntosExacto { get; set; }

@@ -106,6 +106,12 @@ public static class DatabaseBootstrapper
             ADD COLUMN IF NOT EXISTS "TiempoExtra" boolean NOT NULL DEFAULT false;
 
             ALTER TABLE "Partidos"
+            ADD COLUMN IF NOT EXISTS "GolesExtraLocal" integer NULL;
+
+            ALTER TABLE "Partidos"
+            ADD COLUMN IF NOT EXISTS "GolesExtraVisitante" integer NULL;
+
+            ALTER TABLE "Partidos"
             ADD COLUMN IF NOT EXISTS "ClasificadoId" integer NULL;
 
             ALTER TABLE "Partidos"

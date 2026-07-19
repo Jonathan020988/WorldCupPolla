@@ -39,6 +39,8 @@
         public int? PenalesLocal { get; set; }
         public int? PenalesVisitante { get; set; }
         public bool TiempoExtra { get; set; } = false;
+        public int? GolesExtraLocal { get; set; }
+        public int? GolesExtraVisitante { get; set; }
         public int? ClasificadoId { get; set; }
 
     }
